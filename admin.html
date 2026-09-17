@@ -1,0 +1,1805 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Gerencial — Quebras COBEB</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
+<style>
+  :root{
+    --navy:#16283A; --teal:#12796B; --teal-l:#E4F1EE; --amber:#C97A1A; --amber-l:#FBEEDD;
+    --red:#A32D2D; --red-l:#FBEAEA; --text:#24272B; --sub:#5B5F63; --card:#F3F4F2; --line:#E3E4E1;
+  }
+  *{box-sizing:border-box;}
+  html, body{height:100%;}
+  body{margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif; color:var(--text); background:#FAFAF8;}
+  header.top{background:var(--navy); color:#fff; padding:14px 20px; display:flex; justify-content:space-between; align-items:center; position:sticky; top:0; z-index:10;}
+  header.top a{color:#C7D2D9; font-size:12px; text-decoration:none;}
+  .hidden{display:none !important;}
+
+  #view-admin{display:flex; flex-direction:column; height:100vh;}
+  .app-body{display:flex; flex:1; min-height:0;}
+
+  .sidebar{
+    width:230px; flex:none; background:#fff; border-right:1px solid var(--line);
+    overflow-y:auto; padding:14px 0;
+  }
+  .nav-group{margin-bottom:18px;}
+  .nav-group-title{
+    font-size:10.5px; text-transform:uppercase; letter-spacing:.6px; font-weight:700;
+    color:var(--sub); padding:0 18px; margin-bottom:6px;
+  }
+  .tab{
+    padding:9px 18px; font-size:13.5px; font-weight:600; color:var(--text); cursor:pointer;
+    border-left:3px solid transparent; white-space:nowrap;
+  }
+  .tab:hover{background:#F7F7F5;}
+  .tab.active{color:var(--teal); background:var(--teal-l); border-left-color:var(--teal);}
+
+  main{flex:1; overflow-y:auto; padding:20px 24px;}
+
+  .login-wrap{min-height:100vh; display:flex; align-items:center; justify-content:center;}
+  .login-card{width:100%; max-width:360px; background:#fff; border-radius:14px; padding:28px; box-shadow:0 1px 3px rgba(0,0,0,.08);}
+  label{display:block; font-size:13px; font-weight:600; margin:12px 0 6px;}
+  input, select, textarea{width:100%; padding:10px 11px; border:1px solid var(--line); border-radius:8px; font-size:14px; font-family:inherit;}
+  .btn{border:none; border-radius:8px; padding:10px 16px; font-size:14px; font-weight:600; cursor:pointer;}
+  .btn-primary{background:var(--teal); color:#fff;}
+  .btn-outline{background:#fff; border:1px solid var(--line); color:var(--text);}
+  .btn-danger{background:var(--red-l); color:var(--red);}
+  .error{background:var(--red-l); color:var(--red); padding:9px 11px; border-radius:8px; font-size:13px; margin-top:10px;}
+  .ok{background:var(--teal-l); color:var(--teal); padding:9px 11px; border-radius:8px; font-size:13px; margin-top:10px;}
+
+  .panel{display:none;}
+  .panel.active{display:block;}
+
+  .card{background:#fff; border:1px solid var(--line); border-radius:12px; padding:18px; margin-bottom:16px;}
+  .card h3{margin:0 0 4px; font-size:15px;}
+  .card p.hint{color:var(--sub); font-size:12.5px; margin:0 0 14px;}
+
+  table{width:100%; border-collapse:collapse; font-size:13.5px;}
+  th{text-align:left; color:var(--sub); font-weight:600; font-size:12px; text-transform:uppercase; letter-spacing:.3px; padding:8px 6px; border-bottom:1px solid var(--line);}
+  td{padding:9px 6px; border-bottom:1px solid var(--line); vertical-align:middle;}
+  tr:last-child td{border-bottom:none;}
+  .row-inline{display:flex; gap:8px; align-items:center;}
+  .toggle{width:38px; height:22px; border-radius:11px; background:var(--line); position:relative; cursor:pointer; border:none; flex:none;}
+  .toggle.on{background:var(--teal);}
+  .toggle .dot{position:absolute; top:2px; left:2px; width:18px; height:18px; border-radius:50%; background:#fff; transition:left .15s;}
+  .toggle.on .dot{left:18px;}
+  .small-input{padding:6px 8px; font-size:13px;}
+  .add-row{display:flex; gap:8px; margin-top:12px;}
+  .add-row input{flex:1;}
+  .tag{display:inline-block; font-size:11px; padding:2px 8px; border-radius:20px; background:var(--card); color:var(--sub);}
+  .tag.admin{background:var(--amber-l); color:var(--amber);}
+  .file-drop{border:1.5px dashed var(--line); border-radius:10px; padding:18px; text-align:center; color:var(--sub); font-size:13px;}
+  .muted{color:var(--sub); font-size:12px;}
+
+  .dept-card{border:1px solid var(--line); border-radius:10px; padding:14px 16px; margin-bottom:12px;}
+  .dept-head{display:flex; align-items:center; justify-content:space-between; gap:10px;}
+  .dept-head .name{font-size:15px; font-weight:700;}
+  .dept-fields{display:flex; flex-wrap:wrap; gap:10px 22px; margin-top:12px; padding-top:12px; border-top:1px solid var(--line);}
+  .campo-toggle{display:flex; align-items:center; gap:8px; font-size:13px;}
+
+  .kpi-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:16px;}
+  @media (max-width:820px){.kpi-grid{grid-template-columns:repeat(2,1fr);}}
+  .kpi-card{background:#fff; border:1px solid var(--line); border-radius:12px; padding:16px;}
+  .kpi-card .label{font-size:11.5px; color:var(--sub); text-transform:uppercase; letter-spacing:.3px; margin-bottom:6px;}
+  .kpi-card .value{font-size:24px; font-weight:700; color:var(--navy);}
+  .kpi-card.warn .value{color:var(--amber);}
+
+  .analise-grid{display:grid; grid-template-columns:1fr 1fr; gap:16px;}
+  @media (max-width:820px){.analise-grid{grid-template-columns:1fr;}}
+  .analise-grid canvas{max-height:240px;}
+
+  .filtro-grid{display:grid; grid-template-columns:repeat(5,1fr); gap:10px;}
+  @media (max-width:900px){.filtro-grid{grid-template-columns:repeat(2,1fr);}}
+  .filtro-grid label.fl{font-size:11.5px; color:var(--sub); font-weight:600; margin-bottom:4px;}
+
+  .status-pill{display:inline-block; font-size:11px; font-weight:700; padding:3px 10px; border-radius:20px;}
+  .status-pendente{background:var(--amber-l); color:var(--amber);}
+  .status-aprovada{background:var(--teal-l); color:var(--teal);}
+  .status-reprovada{background:var(--red-l); color:var(--red);}
+  .btn-sm{padding:6px 12px; font-size:12.5px; border-radius:7px; border:none; font-weight:600; cursor:pointer;}
+  .btn-aprovar{background:var(--teal-l); color:var(--teal);}
+  .btn-reprovar{background:var(--red-l); color:var(--red);}
+
+  .segmented{display:inline-flex; background:var(--card); border-radius:9px; padding:3px; gap:2px;}
+  .seg-btn{border:none; background:transparent; padding:8px 16px; font-size:13px; font-weight:600; color:var(--sub); border-radius:7px; cursor:pointer;}
+  .seg-btn.active{background:#fff; color:var(--teal); box-shadow:0 1px 2px rgba(0,0,0,.08);}
+  .meta-input{width:110px; padding:6px 8px; font-size:13px;}
+</style>
+</head>
+<body>
+
+<div id="view-login" class="login-wrap">
+  <div class="login-card">
+    <h1 style="font-size:19px;margin:0 0 4px;">Gerencial de Quebras</h1>
+    <p class="muted" style="margin:0 0 18px;">Acesso restrito a administradores.</p>
+    <label>E-mail</label>
+    <input type="email" id="login-email" />
+    <label>Senha</label>
+    <input type="password" id="login-senha" />
+    <button class="btn btn-primary" style="width:100%;margin-top:16px;" onclick="fazerLogin()">Entrar</button>
+    <div id="login-msg"></div>
+  </div>
+</div>
+
+<div id="view-admin" class="hidden">
+  <header class="top">
+    <div>
+      <div style="font-weight:700;font-size:14px;">Gerencial — Processo de Quebras</div>
+      <div style="font-size:11px;color:#C7D2D9;" id="who-label"></div>
+    </div>
+    <div class="row-inline">
+      <select id="filtro-filial-global" onchange="mudarFilialGlobal()" style="padding:7px 10px;border-radius:7px;border:1px solid #3A5468;background:#1F3B52;color:#fff;font-size:12.5px;"></select>
+      <a href="app.html" style="margin-left:10px;">← Lançamento</a>
+      <button class="btn btn-outline" onclick="sair()">Sair</button>
+    </div>
+  </header>
+
+  <div class="app-body">
+    <nav class="sidebar">
+      <div class="nav-group">
+        <div class="nav-group-title">Visão geral</div>
+        <div class="tab active" data-tab="visao-diaria">Visão Diária</div>
+        <div class="tab" data-tab="aprovacoes">Aprovações</div>
+        <div class="tab" data-tab="relatorio">Relatório de Baixa</div>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Análises</div>
+        <div class="tab" data-tab="analises">Análises</div>
+        <div class="tab" data-tab="produto-analise">Análise por Produto</div>
+        <div class="tab" data-tab="custo">Custo</div>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Planejamento</div>
+        <div class="tab" data-tab="metas">Metas</div>
+        <div class="tab" data-tab="configuracoes">Configurações</div>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Cadastros</div>
+        <div class="tab" data-tab="filiais">Filiais</div>
+        <div class="tab" data-tab="departamentos">Departamentos</div>
+        <div class="tab" data-tab="pessoas">Pessoas</div>
+        <div class="tab" data-tab="areas">Áreas</div>
+        <div class="tab" data-tab="equipamentos">Equipamentos</div>
+        <div class="tab" data-tab="motivos">Motivos</div>
+        <div class="tab" data-tab="turnos">Turnos</div>
+        <div class="tab" data-tab="veiculos">Veículos</div>
+        <div class="tab" data-tab="motoristas">Motoristas</div>
+        <div class="tab" data-tab="produtos">Produtos</div>
+      </div>
+    </nav>
+
+    <main>
+
+    <!-- FILIAIS -->
+    <div class="panel" id="panel-filiais">
+      <div class="card">
+        <h3>Filiais</h3>
+        <p class="hint">Cada pessoa pertence a uma filial — os lançamentos dela sobem só pros dashboards daquela filial.</p>
+        <table><thead><tr><th>Nome</th><th>Ativo</th><th></th></tr></thead><tbody id="tbl-filiais"></tbody></table>
+        <div class="add-row">
+          <input type="text" id="novo-filial-nome" placeholder="Nova filial" />
+          <button class="btn btn-primary" onclick="adicionarFilial()">Adicionar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- DEPARTAMENTOS -->
+    <div class="panel" id="panel-departamentos">
+      <div class="card">
+        <h3>Departamentos</h3>
+        <p class="hint">
+          Cada departamento tem seus próprios campos no lançamento de quebra. Desligue abaixo os
+          campos que não fazem sentido para aquele departamento — por exemplo, "Área" não se aplica
+          a Entrega.
+        </p>
+        <div id="lista-departamentos"></div>
+        <div class="add-row">
+          <input type="text" id="novo-departamento-nome" placeholder="Novo departamento" />
+          <button class="btn btn-primary" onclick="adicionarDepartamento()">Adicionar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- PESSOAS -->
+    <div class="panel" id="panel-pessoas">
+      <div class="card">
+        <h3>Habilitar login (líderes e conferentes)</h3>
+        <p class="hint">
+          Passo a passo: 1) crie o acesso em Authentication → Users no painel do Supabase, com um e-mail
+          (ex: nome.sobrenome@cobeb.app) e uma senha provisória; 2) copie o "User UID" gerado; 3) cole o e-mail
+          e o UID na pessoa correspondente abaixo e marque "Pode lançar".
+        </p>
+        <table>
+          <thead><tr><th>Nome</th><th>Cargo</th><th>Filial</th><th>Ativo</th><th>Pode lançar</th><th>Admin</th><th>E-mail</th><th>Auth UID</th><th></th></tr></thead>
+          <tbody id="tbl-pessoas"></tbody>
+        </table>
+        <div class="add-row">
+          <input type="text" id="nova-pessoa-nome" placeholder="Nome completo" />
+          <input type="text" id="nova-pessoa-cargo" placeholder="Cargo (ex: Conferente)" />
+          <select id="nova-pessoa-filial"></select>
+          <button class="btn btn-primary" onclick="adicionarPessoa()">Adicionar</button>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Importar pessoas em massa</h3>
+        <p class="hint">Planilha CSV com colunas: <b>nome, cargo</b>. Todas entram com login desabilitado por padrão — defina a filial de cada uma depois, na tabela acima.</p>
+        <input type="file" id="file-pessoas" accept=".csv" onchange="importarCSV(this,'pessoas')" />
+        <div id="msg-pessoas"></div>
+      </div>
+    </div>
+
+    <!-- VISÃO DIÁRIA -->
+    <div class="panel active" id="panel-visao-diaria">
+      <div class="kpi-grid" id="kpi-grid"></div>
+      <div class="card">
+        <h3>Quebras por departamento — últimos 7 dias</h3>
+        <canvas id="chart-visao-departamentos" height="90"></canvas>
+      </div>
+      <div class="card">
+        <h3>Lançamentos de hoje</h3>
+        <table><thead><tr><th>Produto</th><th>Qtd</th><th>Departamento</th><th>Motivo</th><th>Status</th></tr></thead><tbody id="tbl-hoje"></tbody></table>
+      </div>
+    </div>
+
+    <!-- APROVAÇÕES -->
+    <div class="panel" id="panel-aprovacoes">
+      <div class="card">
+        <h3>Quebras aguardando aprovação</h3>
+        <p class="hint">Aprove pra liberar a baixa de estoque, ou reprove se o lançamento não deveria ter sido feito.</p>
+        <div class="filtro-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:12px;">
+          <div><label class="fl">Departamento</label><select id="filtro-aprov-departamento" onchange="renderAprovacoes()"></select></div>
+          <div><label class="fl">Mês</label><input type="month" id="filtro-aprov-mes" onchange="renderAprovacoes()" /></div>
+          <div><label class="fl">Data específica</label><input type="date" id="filtro-aprov-data" onchange="renderAprovacoes()" /></div>
+          <div style="display:flex;align-items:flex-end;"><button class="btn btn-outline" style="margin:0;" onclick="limparFiltrosAprovacoes()">Limpar filtros</button></div>
+        </div>
+        <table>
+          <thead><tr><th>Data</th><th>Foto</th><th>Produto</th><th>Qtd</th><th>Filial</th><th>Departamento</th><th>Motivo</th><th>Lançado por</th><th></th></tr></thead>
+          <tbody id="tbl-aprovacoes"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- RELATÓRIO DE BAIXA -->
+    <div class="panel" id="panel-relatorio">
+      <div class="card">
+        <h3>Relatório para baixa de estoque</h3>
+        <p class="hint">Filtre e exporte em CSV pra importar no seu outro sistema.</p>
+        <div class="filtro-grid">
+          <div><label class="fl">De</label><input type="date" id="rel-data-de" /></div>
+          <div><label class="fl">Até</label><input type="date" id="rel-data-ate" /></div>
+          <div><label class="fl">Departamento</label><select id="rel-departamento"><option value="">Todos</option></select></div>
+          <div><label class="fl">Status</label>
+            <select id="rel-status">
+              <option value="aprovada" selected>Aprovada</option>
+              <option value="pendente">Pendente</option>
+              <option value="reprovada">Reprovada</option>
+              <option value="">Todos</option>
+            </select>
+          </div>
+          <div><label class="fl">Motivo</label><select id="rel-motivo"><option value="">Todos</option></select></div>
+        </div>
+        <div class="row-inline" style="margin-top:14px;">
+          <button class="btn btn-primary" onclick="gerarRelatorio()">Gerar relatório</button>
+          <button class="btn btn-outline" onclick="exportarCSV()">Exportar CSV</button>
+        </div>
+        <p class="muted" id="rel-resumo" style="margin-top:12px;"></p>
+        <table>
+          <thead><tr><th>Data</th><th>Filial</th><th>Departamento</th><th>Produto</th><th>Qtd</th><th>Motivo</th><th>Turno</th><th>Responsável</th><th>Status</th></tr></thead>
+          <tbody id="tbl-relatorio"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ANÁLISES -->
+    <div class="panel" id="panel-analises">
+      <div class="card">
+        <h3>Filtrar análises</h3>
+        <div class="filtro-grid" style="grid-template-columns:repeat(4,1fr);">
+          <div>
+            <label class="fl">Período</label>
+            <select id="an-periodo-tipo" onchange="atualizarControlesPeriodo(); renderAnalises();">
+              <option value="dia">Dia específico</option>
+              <option value="semana">Semana do mês</option>
+              <option value="mes" selected>Mês (acumulado)</option>
+              <option value="ano">Ano (acumulado)</option>
+            </select>
+          </div>
+          <div id="an-periodo-dia-wrap" class="hidden">
+            <label class="fl">Dia</label>
+            <input type="date" id="an-periodo-dia" onchange="renderAnalises()" />
+          </div>
+          <div id="an-periodo-semana-wrap" class="hidden">
+            <label class="fl">Mês da semana</label>
+            <input type="month" id="an-periodo-semana-mes" onchange="renderAnalises()" />
+          </div>
+          <div id="an-periodo-semana-num-wrap" class="hidden">
+            <label class="fl">Semana</label>
+            <select id="an-periodo-semana-num" onchange="renderAnalises()">
+              <option value="1">1ª semana (dias 1–7)</option>
+              <option value="2">2ª semana (dias 8–14)</option>
+              <option value="3">3ª semana (dias 15–21)</option>
+              <option value="4">4ª semana (dias 22–28)</option>
+              <option value="5">5ª semana (29 em diante)</option>
+            </select>
+          </div>
+          <div id="an-periodo-mes-wrap">
+            <label class="fl">Mês</label>
+            <input type="month" id="an-periodo-mes" onchange="renderAnalises()" />
+          </div>
+          <div id="an-periodo-ano-wrap" class="hidden">
+            <label class="fl">Ano</label>
+            <input type="number" id="an-periodo-ano" onchange="renderAnalises()" />
+          </div>
+          <div>
+            <label class="fl">Departamento</label>
+            <select id="an-departamento" onchange="renderAnalises()"></select>
+          </div>
+        </div>
+        <p class="muted" id="an-periodo-resumo" style="margin-top:10px;"></p>
+      </div>
+
+      <div class="analise-grid">
+        <div class="card"><h3>Por produto (quantidade)</h3><canvas id="chart-produto"></canvas></div>
+        <div class="card"><h3>Por motivo — Pareto</h3><canvas id="chart-pareto"></canvas></div>
+        <div class="card"><h3>Por área</h3><canvas id="chart-area"></canvas></div>
+        <div class="card"><h3>Por equipamento</h3><canvas id="chart-equipamento"></canvas></div>
+        <div class="card"><h3>Por placa</h3><canvas id="chart-placa"></canvas></div>
+        <div class="card"><h3>Por motorista</h3><canvas id="chart-motorista"></canvas></div>
+        <div class="card"><h3>Custo por turno</h3><canvas id="chart-custo-turno"></canvas></div>
+        <div class="card"><h3>Custo por funcionário (responsável)</h3><canvas id="chart-custo-funcionario"></canvas></div>
+      </div>
+    </div>
+
+    <!-- ANÁLISE POR PRODUTO -->
+    <div class="panel" id="panel-produto-analise">
+      <div class="card">
+        <h3>Filtros</h3>
+        <div class="filtro-grid" style="grid-template-columns:repeat(4,1fr);">
+          <div>
+            <label class="fl">Período</label>
+            <select id="prod-periodo-tipo" onchange="atualizarControlesPeriodoProduto(); renderAnaliseProduto();">
+              <option value="dia">Dia específico</option>
+              <option value="semana">Semana do mês</option>
+              <option value="mes" selected>Mês (acumulado)</option>
+              <option value="ano">Ano (acumulado)</option>
+            </select>
+          </div>
+          <div id="prod-periodo-dia-wrap" class="hidden">
+            <label class="fl">Dia</label>
+            <input type="date" id="prod-periodo-dia" onchange="renderAnaliseProduto()" />
+          </div>
+          <div id="prod-periodo-semana-wrap" class="hidden">
+            <label class="fl">Mês da semana</label>
+            <input type="month" id="prod-periodo-semana-mes" onchange="renderAnaliseProduto()" />
+          </div>
+          <div id="prod-periodo-semana-num-wrap" class="hidden">
+            <label class="fl">Semana</label>
+            <select id="prod-periodo-semana-num" onchange="renderAnaliseProduto()">
+              <option value="1">1ª semana (dias 1–7)</option>
+              <option value="2">2ª semana (dias 8–14)</option>
+              <option value="3">3ª semana (dias 15–21)</option>
+              <option value="4">4ª semana (dias 22–28)</option>
+              <option value="5">5ª semana (29 em diante)</option>
+            </select>
+          </div>
+          <div id="prod-periodo-mes-wrap">
+            <label class="fl">Mês</label>
+            <input type="month" id="prod-periodo-mes" onchange="renderAnaliseProduto()" />
+          </div>
+          <div id="prod-periodo-ano-wrap" class="hidden">
+            <label class="fl">Ano</label>
+            <input type="number" id="prod-periodo-ano" onchange="renderAnaliseProduto()" />
+          </div>
+          <div>
+            <label class="fl">Departamento</label>
+            <select id="prod-departamento" onchange="renderAnaliseProduto()"></select>
+          </div>
+        </div>
+        <p class="muted" id="prod-periodo-resumo" style="margin-top:10px;"></p>
+      </div>
+
+      <div class="card">
+        <h3>Pareto de produtos (quantidade)</h3>
+        <p class="hint">Ranking de todos os produtos no período e departamento filtrados acima.</p>
+        <canvas id="chart-pareto-produtos"></canvas>
+      </div>
+
+      <div class="card">
+        <label class="fl">Produto para detalhar</label>
+        <select id="prod-produto-selecionado" onchange="renderAnaliseProduto()" style="max-width:420px;"></select>
+      </div>
+
+      <div class="card">
+        <div class="segmented" id="prod-subtabs">
+          <button class="seg-btn active" data-sub="diario" onclick="mudarSubAbaProduto('diario')">Diário</button>
+          <button class="seg-btn" data-sub="mensal" onclick="mudarSubAbaProduto('mensal')">Mensal</button>
+          <button class="seg-btn" data-sub="ano" onclick="mudarSubAbaProduto('ano')">Acumulado no ano</button>
+        </div>
+        <div id="prod-sub-diario" style="margin-top:14px;"><canvas id="chart-produto-diario"></canvas></div>
+        <div id="prod-sub-mensal" class="hidden" style="margin-top:14px;"><canvas id="chart-produto-mensal"></canvas></div>
+        <div id="prod-sub-ano" class="hidden" style="margin-top:14px;"><canvas id="chart-produto-ano"></canvas></div>
+      </div>
+
+      <div class="card"><h3>Por turno</h3><canvas id="chart-produto-turno"></canvas></div>
+
+      <div class="analise-grid">
+        <div class="card"><h3>Por motivo</h3><canvas id="chart-produto-motivo"></canvas></div>
+        <div class="card"><h3>Por departamento</h3><canvas id="chart-produto-departamento"></canvas></div>
+        <div class="card"><h3>Por área</h3><canvas id="chart-produto-area"></canvas></div>
+        <div class="card"><h3>Por equipamento</h3><canvas id="chart-produto-equipamento"></canvas></div>
+        <div class="card"><h3>Por placa</h3><canvas id="chart-produto-placa"></canvas></div>
+        <div class="card"><h3>Por motorista</h3><canvas id="chart-produto-motorista"></canvas></div>
+      </div>
+
+      <div class="card">
+        <h3>Top combinações Placa × Produto</h3>
+        <p class="hint">Olha todos os produtos (não só o selecionado acima) — pra achar padrões tipo "essa placa sempre quebra esse produto".</p>
+        <canvas id="chart-placa-produto"></canvas>
+      </div>
+      <div class="card">
+        <h3>Top combinações Funcionário × Produto</h3>
+        <canvas id="chart-funcionario-produto"></canvas>
+      </div>
+    </div>
+
+    <!-- CUSTO (diário / mensal / ano) -->
+    <div class="panel" id="panel-custo">
+      <div class="card">
+        <div class="row-inline" style="justify-content:space-between;flex-wrap:wrap;gap:12px;">
+          <div class="segmented" id="custo-subtabs">
+            <button class="seg-btn active" data-sub="diario" onclick="mudarSubAbaCusto('diario')">Diário</button>
+            <button class="seg-btn" data-sub="mensal" onclick="mudarSubAbaCusto('mensal')">Mensal</button>
+            <button class="seg-btn" data-sub="ano" onclick="mudarSubAbaCusto('ano')">Acumulado no ano</button>
+          </div>
+          <div>
+            <label class="fl">Departamento</label>
+            <select id="custo-departamento" onchange="renderCusto()" style="min-width:260px;"></select>
+          </div>
+        </div>
+      </div>
+
+      <div class="kpi-grid" id="custo-kpi-grid" style="grid-template-columns:repeat(3,1fr);"></div>
+
+      <div class="card" id="custo-sub-diario">
+        <h3>Custo diário — últimos 30 dias</h3>
+        <canvas id="chart-custo-diario"></canvas>
+      </div>
+      <div class="card hidden" id="custo-sub-mensal">
+        <h3>Custo por mês</h3>
+        <canvas id="chart-custo-mensal"></canvas>
+      </div>
+      <div class="card hidden" id="custo-sub-ano">
+        <h3>Custo acumulado no ano, por departamento</h3>
+        <p class="hint">Este gráfico sempre mostra todos os departamentos, mesmo com um filtro específico selecionado acima — é justamente pra comparar entre eles.</p>
+        <canvas id="chart-custo-ano-departamento"></canvas>
+      </div>
+    </div>
+
+    <!-- METAS -->
+    <div class="panel" id="panel-metas">
+      <div class="card">
+        <h3>Metas por departamento (mensal)</h3>
+        <p class="hint">Defina o teto de custo por mês. "Realizado" é o acumulado do mês atual pra você comparar.</p>
+        <table>
+          <thead><tr><th>Departamento</th><th>Meta custo/mês</th><th>Realizado (custo)</th><th>% da meta</th></tr></thead>
+          <tbody id="tbl-metas-departamento"></tbody>
+        </table>
+      </div>
+      <div class="card">
+        <h3>Metas por turno (mensal)</h3>
+        <table>
+          <thead><tr><th>Turno</th><th>Meta custo/mês</th><th>Realizado (custo)</th><th>% da meta</th></tr></thead>
+          <tbody id="tbl-metas-turno"></tbody>
+        </table>
+      </div>
+      <button class="btn btn-primary" style="width:auto;padding:12px 22px;" onclick="salvarMetas()">Salvar metas</button>
+      <div id="metas-msg"></div>
+    </div>
+
+    <!-- CONFIGURAÇÕES -->
+    <div class="panel" id="panel-configuracoes">
+      <div class="card">
+        <h3>Validação de foto por IA</h3>
+        <p class="hint">
+          Quando ligado, o conferente é obrigado a tirar uma foto de conferência e o
+          lançamento fica bloqueado se a IA contar uma quantidade diferente da apontada.
+          Desligando, o lançamento de quebra no <code>app.html</code> não pede foto e
+          registra direto — use se a trava estiver atrapalhando mais do que ajudando.
+        </p>
+        <div class="row-inline">
+          <button class="toggle" id="toggle-exigir-foto" onclick="alternarExigirFoto()"><span class="dot"></span></button>
+          <span id="label-exigir-foto" style="font-size:14px;font-weight:600;"></span>
+        </div>
+        <div id="config-msg"></div>
+      </div>
+    </div>
+
+    <!-- LISTAS SIMPLES (áreas, equipamentos, motivos, turnos) -->
+    <div class="panel" id="panel-areas"></div>
+    <div class="panel" id="panel-equipamentos"></div>
+    <div class="panel" id="panel-motivos"></div>
+    <div class="panel" id="panel-turnos"></div>
+
+    <!-- VEÍCULOS -->
+    <div class="panel" id="panel-veiculos">
+      <div class="card">
+        <h3>Veículos</h3>
+        <table><thead><tr><th>Placa</th><th>Modelo</th><th>Ativo</th><th></th></tr></thead><tbody id="tbl-veiculos"></tbody></table>
+        <div class="add-row">
+          <input type="text" id="novo-veiculo-placa" placeholder="Placa" />
+          <input type="text" id="novo-veiculo-modelo" placeholder="Modelo (opcional)" />
+          <button class="btn btn-primary" onclick="adicionarVeiculo()">Adicionar</button>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Importar veículos em massa</h3>
+        <p class="hint">Planilha CSV com colunas: <b>placa, modelo</b>.</p>
+        <input type="file" id="file-veiculos" accept=".csv" onchange="importarCSV(this,'veiculos')" />
+        <div id="msg-veiculos"></div>
+      </div>
+    </div>
+
+    <!-- MOTORISTAS -->
+    <div class="panel" id="panel-motoristas">
+      <div class="card">
+        <h3>Motoristas</h3>
+        <table><thead><tr><th>Nome</th><th>Ativo</th><th></th></tr></thead><tbody id="tbl-motoristas"></tbody></table>
+        <div class="add-row">
+          <input type="text" id="novo-motorista-nome" placeholder="Nome do motorista" />
+          <button class="btn btn-primary" onclick="adicionarMotorista()">Adicionar</button>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Importar motoristas em massa</h3>
+        <p class="hint">Planilha CSV com coluna: <b>nome</b>.</p>
+        <input type="file" id="file-motoristas" accept=".csv" onchange="importarCSV(this,'motoristas')" />
+        <div id="msg-motoristas"></div>
+      </div>
+    </div>
+
+    <!-- PRODUTOS -->
+    <div class="panel" id="panel-produtos">
+      <div class="card">
+        <h3>Adicionar produto sem código de barras</h3>
+        <p class="hint">Use o mesmo código que está impresso na tabela fixada na área.</p>
+        <div class="add-row">
+          <input type="text" id="novo-produto-codigo" placeholder="Código interno" />
+          <input type="text" id="novo-produto-desc" placeholder="Descrição" />
+          <button class="btn btn-primary" onclick="adicionarProduto()">Adicionar</button>
+        </div>
+        <div id="msg-produto-manual"></div>
+      </div>
+      <div class="card">
+        <h3>Importar produtos em massa</h3>
+        <p class="hint">Planilha CSV com colunas: <b>codigo, descricao, ean</b> (deixe ean em branco quando não houver código de barras).</p>
+        <input type="file" id="file-produtos" accept=".csv" onchange="importarCSV(this,'produtos')" />
+        <div id="msg-produtos"></div>
+      </div>
+      <div class="card">
+        <h3>Produtos cadastrados</h3>
+        <p class="hint">O <b>custo unitário</b> aqui alimenta todos os gráficos e KPIs de custo do gerencial — edite direto na tabela.</p>
+        <input type="text" id="busca-produto" placeholder="Buscar por código, EAN ou descrição..." onkeyup="filtrarProdutos()" style="margin-bottom:10px;" />
+        <table><thead><tr><th>Código</th><th>Descrição</th><th>EAN</th><th>Custo unitário</th><th>Ativo</th></tr></thead><tbody id="tbl-produtos"></tbody></table>
+      </div>
+    </div>
+  </main>
+  </div>
+
+  <div id="foto-modal" class="hidden" style="position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:60;display:flex;align-items:center;justify-content:center;padding:20px;">
+    <div style="background:#fff;border-radius:12px;padding:16px;max-width:380px;width:100%;">
+      <img id="foto-modal-img" style="width:100%;border-radius:8px;display:block;" alt="Foto da quebra" />
+      <button class="btn btn-outline" style="width:100%;margin-top:12px;" onclick="fecharFotoModal()">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   CONFIGURAÇÃO — mesmos dados usados em app.html
+   ============================================================ */
+const SUPABASE_URL = "https://rnzeszxbizctbpuximzm.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_LPQFPQLcTD64kjOZc9rtdA_27LkTwBL";
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+let pessoaAtual = null;
+
+// Caches carregados do Supabase — as funções de análise leem daqui.
+let filiais = [];
+let departamentos = [];
+let departamentoCampos = [];
+let areas = [];
+let equipamentos = [];
+let motivos = [];
+let turnos = [];
+let veiculos = [];
+let motoristas = [];
+let pessoas = [];
+let produtos = [];
+let todosProdutos = [];
+let quebrasCache = [];
+let metasDepartamento = {};
+let metasTurno = {};
+
+let filialGlobalId = '';
+let relatorioFiltrado = [];
+let custoSubAbaAtual = 'diario';
+let produtoSubAbaAtual = 'diario';
+const chartInstances = {};
+
+/* ---------------- LOGIN ---------------- */
+
+async function fazerLogin(){
+  const email = document.getElementById('login-email').value.trim();
+  const senha = document.getElementById('login-senha').value;
+  const msg = document.getElementById('login-msg');
+  msg.innerHTML = '';
+
+  const { data, error } = await sb.auth.signInWithPassword({ email, password: senha });
+  if(error){ msg.innerHTML = '<div class="error">Login inválido.</div>'; return; }
+
+  const { data: pessoa } = await sb.from('pessoas').select('*').eq('auth_id', data.user.id).maybeSingle();
+  if(!pessoa || !pessoa.is_admin){
+    msg.innerHTML = '<div class="error">Este usuário não tem acesso ao gerencial.</div>';
+    await sb.auth.signOut();
+    return;
+  }
+  pessoaAtual = pessoa;
+  entrarNoAdmin();
+}
+
+async function sair(){
+  await sb.auth.signOut();
+  location.reload();
+}
+
+function entrarNoAdmin(){
+  document.getElementById('view-login').classList.add('hidden');
+  document.getElementById('view-admin').classList.remove('hidden');
+  document.getElementById('who-label').textContent = pessoaAtual.nome;
+  carregarTudo();
+}
+
+(async function initSession(){
+  const { data } = await sb.auth.getSession();
+  if(data.session){
+    const { data: pessoa } = await sb.from('pessoas').select('*').eq('auth_id', data.session.user.id).maybeSingle();
+    if(pessoa && pessoa.is_admin){ pessoaAtual = pessoa; entrarNoAdmin(); }
+  }
+})();
+
+/* ---------------- TABS ---------------- */
+
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('panel-' + tab.dataset.tab).classList.add('active');
+
+    // recria os gráficos ao entrar na aba — canvas escondido nasce com tamanho 0
+    if(tab.dataset.tab === 'visao-diaria') renderVisaoDiaria();
+    if(tab.dataset.tab === 'aprovacoes') renderAprovacoes();
+    if(tab.dataset.tab === 'analises') renderAnalises();
+    if(tab.dataset.tab === 'produto-analise') renderAnaliseProduto();
+    if(tab.dataset.tab === 'custo') renderCusto();
+    if(tab.dataset.tab === 'metas') renderMetas();
+  });
+});
+
+/* ---------------- CARREGAMENTO GERAL ---------------- */
+
+async function carregarTudo(){
+  await carregarFiliais();
+  await carregarDepartamentos();
+  await Promise.all([carregarAreas(), carregarEquipamentos(), carregarMotivos(), carregarTurnos()]);
+  await carregarVeiculos();
+  await carregarMotoristas();
+  await carregarPessoas();
+  await carregarProdutos();
+  await carregarMetas();
+  await carregarConfiguracoes();
+  await carregarQuebras();
+
+  montarFiltroFilialGlobal();
+  montarFiltroDepartamentoAprovacoes();
+  montarFiltrosRelatorio();
+  montarFiltroAnalises();
+  inicializarControlesPeriodo();
+  montarFiltroProduto();
+  inicializarControlesPeriodoProduto();
+  montarFiltroCusto();
+
+  renderTudo();
+}
+
+function renderTudo(){
+  renderVisaoDiaria();
+  renderAprovacoes();
+  renderAnalises();
+  renderAnaliseProduto();
+  renderCusto();
+  renderMetas();
+}
+
+/* ---------------- HELPERS GENÉRICOS DE CRUD ---------------- */
+
+async function toggleAtivo(tabela, id, novoValor, reloadFn){
+  const { error } = await sb.from(tabela).update({ ativo: novoValor }).eq('id', id);
+  if(error){ alert('Erro: ' + error.message); }
+  if(reloadFn) await reloadFn();
+}
+
+async function removerRegistro(tabela, id, reloadFn){
+  if(!confirm('Excluir este registro? Essa ação não pode ser desfeita.')) return;
+  const { error } = await sb.from(tabela).delete().eq('id', id);
+  if(error){ alert('Não foi possível excluir (pode estar em uso em lançamentos existentes). Prefira desativar.'); return; }
+  if(reloadFn) await reloadFn();
+}
+
+/* ---------------- FILIAIS ---------------- */
+
+async function carregarFiliais(){
+  const { data } = await sb.from('filiais').select('*').order('nome');
+  filiais = data || [];
+  document.getElementById('tbl-filiais').innerHTML = filiais.map(f => `
+    <tr>
+      <td>${f.nome}</td>
+      <td><button class="toggle ${f.ativo ? 'on' : ''}" onclick="toggleAtivo('filiais', ${f.id}, ${!f.ativo}, carregarFiliais)"><span class="dot"></span></button></td>
+      <td><button class="btn btn-danger" onclick="removerRegistro('filiais', ${f.id}, carregarFiliais)">Excluir</button></td>
+    </tr>`).join('');
+
+  const opcoes = filiais.map(f => `<option value="${f.id}">${f.nome}</option>`).join('');
+  const selNova = document.getElementById('nova-pessoa-filial');
+  if(selNova) selNova.innerHTML = opcoes;
+}
+
+async function adicionarFilial(){
+  const input = document.getElementById('novo-filial-nome');
+  const nome = input.value.trim();
+  if(!nome) return;
+  const { error } = await sb.from('filiais').insert({ nome });
+  if(error){ alert('Erro: ' + error.message); return; }
+  input.value = '';
+  await carregarFiliais();
+}
+
+function montarFiltroFilialGlobal(){
+  const sel = document.getElementById('filtro-filial-global');
+  sel.innerHTML = '<option value="">Todas as filiais</option>' + filiais.map(f => `<option value="${f.id}">${f.nome}</option>`).join('');
+}
+
+function mudarFilialGlobal(){
+  filialGlobalId = document.getElementById('filtro-filial-global').value;
+  renderTudo();
+}
+
+/* ---------------- DEPARTAMENTOS ---------------- */
+
+const CAMPOS_CONFIGURAVEIS = [
+  { campo: 'area', label: 'Área' },
+  { campo: 'equipamento', label: 'Equipamento' },
+  { campo: 'veiculo', label: 'Veículo (placa)' },
+  { campo: 'motorista', label: 'Motorista' },
+  { campo: 'turno', label: 'Turno' },
+];
+
+async function carregarDepartamentos(){
+  const [{ data: deps }, { data: campos }] = await Promise.all([
+    sb.from('departamentos').select('*').order('nome'),
+    sb.from('departamento_campos').select('*'),
+  ]);
+  departamentos = deps || [];
+  departamentoCampos = campos || [];
+
+  const camposPorDep = {};
+  departamentoCampos.forEach(c => {
+    camposPorDep[c.departamento_id] = camposPorDep[c.departamento_id] || {};
+    camposPorDep[c.departamento_id][c.campo] = c.habilitado;
+  });
+
+  document.getElementById('lista-departamentos').innerHTML = departamentos.map(d => {
+    const estado = camposPorDep[d.id] || {};
+    const togglesHtml = CAMPOS_CONFIGURAVEIS.map(c => {
+      const ligado = estado[c.campo] !== false;
+      return `
+        <div class="campo-toggle">
+          <button class="toggle ${ligado ? 'on' : ''}" onclick="toggleCampoDepartamento(${d.id}, '${c.campo}', ${!ligado})"><span class="dot"></span></button>
+          <span>${c.label}</span>
+        </div>`;
+    }).join('');
+
+    return `
+      <div class="dept-card">
+        <div class="dept-head">
+          <span class="name">${d.nome}</span>
+          <div class="row-inline">
+            <span class="muted">Ativo</span>
+            <button class="toggle ${d.ativo ? 'on' : ''}" onclick="toggleAtivo('departamentos', ${d.id}, ${!d.ativo}, carregarDepartamentos)"><span class="dot"></span></button>
+            <button class="btn btn-danger" onclick="removerRegistro('departamentos', ${d.id}, carregarDepartamentos)">Excluir</button>
+          </div>
+        </div>
+        <div class="dept-fields">${togglesHtml}</div>
+      </div>`;
+  }).join('');
+}
+
+async function adicionarDepartamento(){
+  const input = document.getElementById('novo-departamento-nome');
+  const nome = input.value.trim();
+  if(!nome) return;
+
+  const { data, error } = await sb.from('departamentos').insert({ nome }).select().single();
+  if(error){ alert('Erro: ' + error.message); return; }
+
+  const linhasCampos = CAMPOS_CONFIGURAVEIS.map(c => ({ departamento_id: data.id, campo: c.campo, habilitado: true }));
+  await sb.from('departamento_campos').insert(linhasCampos);
+
+  input.value = '';
+  await carregarDepartamentos();
+}
+
+async function toggleCampoDepartamento(departamentoId, campo, novoValor){
+  const { error } = await sb.from('departamento_campos')
+    .upsert({ departamento_id: departamentoId, campo, habilitado: novoValor }, { onConflict: 'departamento_id,campo' });
+  if(error){ alert('Erro: ' + error.message); }
+  await carregarDepartamentos();
+}
+
+/* ---------------- LISTAS SIMPLES (áreas / equipamentos / motivos / turnos) ---------------- */
+
+function setCacheSimples(tabela, dados){
+  if(tabela === 'areas') areas = dados;
+  else if(tabela === 'equipamentos') equipamentos = dados;
+  else if(tabela === 'motivos') motivos = dados;
+  else if(tabela === 'turnos') turnos = dados;
+}
+function getCacheSimples(tabela){
+  if(tabela === 'areas') return areas;
+  if(tabela === 'equipamentos') return equipamentos;
+  if(tabela === 'motivos') return motivos;
+  if(tabela === 'turnos') return turnos;
+  return [];
+}
+
+async function carregarAreas(){ await carregarSimples('areas', 'Áreas do armazém', 'Nova área'); }
+async function carregarEquipamentos(){ await carregarSimples('equipamentos', 'Equipamentos', 'Novo equipamento'); }
+async function carregarMotivos(){ await carregarSimples('motivos', 'Motivos de quebra', 'Novo motivo'); }
+async function carregarTurnos(){ await carregarSimples('turnos', 'Turnos', 'Novo turno'); }
+
+async function carregarSimples(tabela, titulo, placeholder){
+  const painel = document.getElementById('panel-' + tabela);
+  if(painel && !painel.dataset.montado){
+    painel.innerHTML = `
+      <div class="card">
+        <h3>${titulo}</h3>
+        <table><thead><tr><th>Nome</th><th>Ativo</th><th></th></tr></thead><tbody id="tbl-${tabela}"></tbody></table>
+        <div class="add-row">
+          <input type="text" id="novo-${tabela}" placeholder="${placeholder}" />
+          <button class="btn btn-primary" onclick="adicionarSimples('${tabela}')">Adicionar</button>
+        </div>
+      </div>`;
+    painel.dataset.montado = '1';
+  }
+
+  const { data } = await sb.from(tabela).select('*').order('nome');
+  setCacheSimples(tabela, data || []);
+
+  document.getElementById('tbl-' + tabela).innerHTML = getCacheSimples(tabela).map(r => `
+    <tr>
+      <td>${r.nome}</td>
+      <td><button class="toggle ${r.ativo ? 'on' : ''}" onclick="toggleAtivo('${tabela}', ${r.id}, ${!r.ativo}, () => carregarSimples('${tabela}','${titulo}','${placeholder}'))"><span class="dot"></span></button></td>
+      <td><button class="btn btn-danger" onclick="removerRegistro('${tabela}', ${r.id}, () => carregarSimples('${tabela}','${titulo}','${placeholder}'))">Excluir</button></td>
+    </tr>`).join('');
+}
+
+async function adicionarSimples(tabela){
+  const input = document.getElementById('novo-' + tabela);
+  const nome = input.value.trim();
+  if(!nome) return;
+  const { error } = await sb.from(tabela).insert({ nome });
+  if(error){ alert('Erro: ' + error.message); return; }
+  input.value = '';
+  const cfgs = { areas: carregarAreas, equipamentos: carregarEquipamentos, motivos: carregarMotivos, turnos: carregarTurnos };
+  await cfgs[tabela]();
+}
+
+/* ---------------- PESSOAS ---------------- */
+
+async function carregarPessoas(){
+  const { data } = await sb.from('pessoas').select('*').order('nome');
+  pessoas = data || [];
+  document.getElementById('tbl-pessoas').innerHTML = pessoas.map(p => `
+    <tr>
+      <td>${p.nome}</td>
+      <td>${p.cargo || ''}</td>
+      <td>
+        <select class="small-input" onchange="atualizarPessoa(${p.id}, {filial_id: Number(this.value)})">
+          <option value="">Sem filial</option>
+          ${filiais.map(f => `<option value="${f.id}" ${f.id===p.filial_id?'selected':''}>${f.nome}</option>`).join('')}
+        </select>
+      </td>
+      <td><button class="toggle ${p.ativo ? 'on' : ''}" onclick="atualizarPessoa(${p.id}, {ativo: ${!p.ativo}})"><span class="dot"></span></button></td>
+      <td><button class="toggle ${p.pode_logar ? 'on' : ''}" onclick="atualizarPessoa(${p.id}, {pode_logar: ${!p.pode_logar}})"><span class="dot"></span></button></td>
+      <td><button class="toggle ${p.is_admin ? 'on' : ''}" onclick="atualizarPessoa(${p.id}, {is_admin: ${!p.is_admin}})"><span class="dot"></span></button></td>
+      <td><input class="small-input" value="${p.email || ''}" onchange="atualizarPessoa(${p.id}, {email: this.value.trim() || null})" placeholder="email@cobeb.app" /></td>
+      <td><input class="small-input" value="${p.auth_id || ''}" onchange="atualizarPessoa(${p.id}, {auth_id: this.value.trim() || null})" placeholder="UID do Supabase Auth" /></td>
+      <td><button class="btn btn-danger" onclick="removerRegistro('pessoas', ${p.id}, carregarPessoas)">Excluir</button></td>
+    </tr>`).join('');
+}
+
+async function atualizarPessoa(id, campos){
+  const { error } = await sb.from('pessoas').update(campos).eq('id', id);
+  if(error){ alert('Erro: ' + error.message); }
+  await carregarPessoas();
+}
+
+async function adicionarPessoa(){
+  const nome = document.getElementById('nova-pessoa-nome').value.trim();
+  const cargo = document.getElementById('nova-pessoa-cargo').value.trim();
+  const filial_id = Number(document.getElementById('nova-pessoa-filial').value) || null;
+  if(!nome) return;
+  const { error } = await sb.from('pessoas').insert({ nome, cargo, filial_id });
+  if(error){ alert('Erro: ' + error.message); return; }
+  document.getElementById('nova-pessoa-nome').value = '';
+  document.getElementById('nova-pessoa-cargo').value = '';
+  await carregarPessoas();
+}
+
+/* ---------------- VEÍCULOS / MOTORISTAS ---------------- */
+
+async function carregarVeiculos(){
+  const { data } = await sb.from('veiculos').select('*').order('placa');
+  veiculos = data || [];
+  document.getElementById('tbl-veiculos').innerHTML = veiculos.map(v => `
+    <tr>
+      <td>${v.placa}</td><td>${v.modelo || ''}</td>
+      <td><button class="toggle ${v.ativo ? 'on' : ''}" onclick="toggleAtivo('veiculos', ${v.id}, ${!v.ativo}, carregarVeiculos)"><span class="dot"></span></button></td>
+      <td><button class="btn btn-danger" onclick="removerRegistro('veiculos', ${v.id}, carregarVeiculos)">Excluir</button></td>
+    </tr>`).join('');
+}
+
+async function adicionarVeiculo(){
+  const placa = document.getElementById('novo-veiculo-placa').value.trim();
+  const modelo = document.getElementById('novo-veiculo-modelo').value.trim();
+  if(!placa) return;
+  const { error } = await sb.from('veiculos').insert({ placa, modelo });
+  if(error){ alert('Erro: ' + error.message); return; }
+  document.getElementById('novo-veiculo-placa').value = '';
+  document.getElementById('novo-veiculo-modelo').value = '';
+  await carregarVeiculos();
+}
+
+async function carregarMotoristas(){
+  const { data } = await sb.from('motoristas').select('*').order('nome');
+  motoristas = data || [];
+  document.getElementById('tbl-motoristas').innerHTML = motoristas.map(m => `
+    <tr>
+      <td>${m.nome}</td>
+      <td><button class="toggle ${m.ativo ? 'on' : ''}" onclick="toggleAtivo('motoristas', ${m.id}, ${!m.ativo}, carregarMotoristas)"><span class="dot"></span></button></td>
+      <td><button class="btn btn-danger" onclick="removerRegistro('motoristas', ${m.id}, carregarMotoristas)">Excluir</button></td>
+    </tr>`).join('');
+}
+
+async function adicionarMotorista(){
+  const nome = document.getElementById('novo-motorista-nome').value.trim();
+  if(!nome) return;
+  const { error } = await sb.from('motoristas').insert({ nome });
+  if(error){ alert('Erro: ' + error.message); return; }
+  document.getElementById('novo-motorista-nome').value = '';
+  await carregarMotoristas();
+}
+
+/* ---------------- PRODUTOS ---------------- */
+
+async function carregarProdutos(){
+  const { data } = await sb.from('produtos').select('*').order('descricao');
+  produtos = data || [];
+  todosProdutos = produtos;
+  renderProdutos(produtos);
+}
+
+function renderProdutos(lista){
+  document.getElementById('tbl-produtos').innerHTML = lista.map(p => `
+    <tr>
+      <td>${p.codigo}</td><td>${p.descricao}</td><td>${p.ean || '<span class="tag">sem EAN</span>'}</td>
+      <td><input class="small-input" type="number" step="0.01" value="${p.custo_unitario || 0}" onchange="atualizarCustoProduto(${p.id}, this.value)" style="width:90px;" /></td>
+      <td><button class="toggle ${p.ativo ? 'on' : ''}" onclick="toggleAtivo('produtos', ${p.id}, ${!p.ativo}, carregarProdutos)"><span class="dot"></span></button></td>
+    </tr>`).join('');
+}
+
+async function atualizarCustoProduto(id, valor){
+  const custo_unitario = Number(valor) || 0;
+  const { error } = await sb.from('produtos').update({ custo_unitario }).eq('id', id);
+  if(error){ alert('Erro: ' + error.message); return; }
+  await carregarProdutos();
+  await carregarQuebras(); // recalcula custo dos lançamentos já carregados
+  renderTudo();
+}
+
+function filtrarProdutos(){
+  const termo = document.getElementById('busca-produto').value.toLowerCase();
+  renderProdutos(todosProdutos.filter(p =>
+    p.codigo.toLowerCase().includes(termo) ||
+    p.descricao.toLowerCase().includes(termo) ||
+    (p.ean || '').toLowerCase().includes(termo)
+  ));
+}
+
+async function adicionarProduto(){
+  const codigo = document.getElementById('novo-produto-codigo').value.trim();
+  const descricao = document.getElementById('novo-produto-desc').value.trim();
+  const msg = document.getElementById('msg-produto-manual');
+  if(!codigo || !descricao){ msg.innerHTML = '<div class="error">Preencha código e descrição.</div>'; return; }
+  const { error } = await sb.from('produtos').insert({ codigo, descricao, ean: null });
+  if(error){ msg.innerHTML = '<div class="error">Erro: ' + error.message + '</div>'; return; }
+  msg.innerHTML = '<div class="ok">Produto adicionado.</div>';
+  document.getElementById('novo-produto-codigo').value = '';
+  document.getElementById('novo-produto-desc').value = '';
+  await carregarProdutos();
+}
+
+/* ---------------- IMPORTAÇÃO CSV EM MASSA ---------------- */
+
+function importarCSV(input, tipo){
+  const file = input.files[0];
+  if(!file) return;
+  const msgEl = document.getElementById('msg-' + tipo);
+  msgEl.innerHTML = '<div class="muted">Processando...</div>';
+
+  Papa.parse(file, {
+    header: true,
+    skipEmptyLines: true,
+    complete: async (res) => {
+      const linhas = res.data;
+      let registros = [];
+
+      if(tipo === 'pessoas'){
+        registros = linhas.map(l => ({ nome: (l.nome||'').trim(), cargo: (l.cargo||'').trim() || null }))
+          .filter(r => r.nome);
+      } else if(tipo === 'veiculos'){
+        registros = linhas.map(l => ({ placa: (l.placa||'').trim().toUpperCase(), modelo: (l.modelo||'').trim() || null }))
+          .filter(r => r.placa);
+      } else if(tipo === 'motoristas'){
+        registros = linhas.map(l => ({ nome: (l.nome||'').trim() })).filter(r => r.nome);
+      } else if(tipo === 'produtos'){
+        registros = linhas.map(l => ({
+          codigo: String(l.codigo||'').trim(),
+          descricao: (l.descricao||'').trim(),
+          ean: String(l.ean||'').trim() || null,
+        })).filter(r => r.codigo && r.descricao);
+      }
+
+      if(registros.length === 0){
+        msgEl.innerHTML = '<div class="error">Nenhuma linha válida encontrada no arquivo.</div>';
+        return;
+      }
+
+      const { error } = await sb.from(tipo).upsert(registros, {
+        onConflict: tipo === 'produtos' ? 'codigo' : (tipo === 'veiculos' ? 'placa' : undefined),
+        ignoreDuplicates: false,
+      });
+
+      if(error){
+        msgEl.innerHTML = '<div class="error">Erro na importação: ' + error.message + '</div>';
+        return;
+      }
+      msgEl.innerHTML = '<div class="ok">' + registros.length + ' registro(s) importado(s) com sucesso.</div>';
+
+      if(tipo === 'pessoas') await carregarPessoas();
+      if(tipo === 'veiculos') await carregarVeiculos();
+      if(tipo === 'motoristas') await carregarMotoristas();
+      if(tipo === 'produtos') await carregarProdutos();
+      input.value = '';
+    }
+  });
+}
+function nomePor(lista, id){ const item = lista.find(x => x.id === id); return item ? (item.nome || item.placa || item.descricao) : '—'; }
+function brl(v){ return 'R$ ' + v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+
+/* ---------------- CARREGAMENTO DAS QUEBRAS ---------------- */
+
+// Busca os lançamentos reais do Supabase e converte pro formato que as funções
+// de análise abaixo esperam (mesmo shape usado durante o protótipo).
+async function carregarQuebras(){
+  const { data, error } = await sb
+    .from('quebras')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(5000); // teto de segurança — reveja isso se o histórico crescer muito
+
+  if(error){ console.error(error); quebrasCache = []; return; }
+
+  const custoPorProduto = {};
+  produtos.forEach(p => { custoPorProduto[p.id] = Number(p.custo_unitario) || 0; });
+
+  quebrasCache = (data || []).map(row => ({
+    id: row.id,
+    dataISO: row.created_at.slice(0, 10),
+    filialId: row.filial_id,
+    departamentoId: row.departamento_id,
+    produtoId: row.produto_id,
+    motivoId: row.motivo_id,
+    turnoId: row.turno_id,
+    responsavelId: row.responsavel_id,
+    lancadoPorId: row.lancado_por_id,
+    areaId: row.area_id,
+    equipamentoId: row.equipamento_id,
+    veiculoId: row.veiculo_id,
+    motoristaId: row.motorista_id,
+    quantidade: row.quantidade,
+    custo: row.quantidade * (custoPorProduto[row.produto_id] || 0),
+    fotoPath: row.foto_path,
+    status: row.status,
+  }));
+}
+
+/* ---------------- ESCOPO GLOBAL (filial + só aprovadas) ---------------- */
+
+// Toda análise/gráfico/KPI usa isso como ponto de partida: já vem filtrado pela
+// filial selecionada no topo, e só considera quebras APROVADAS — pendente pode
+// ainda ser reprovada, então não deve contar como perda consolidada.
+function escopoAprovado(){
+  let lista = quebrasCache.filter(q => q.status === 'aprovada');
+  if(filialGlobalId) lista = lista.filter(q => q.filialId == filialGlobalId);
+  return lista;
+}
+
+// Mesmo escopo de filial, mas sem travar o status — usado só onde o status
+// é o próprio assunto da tela (Aprovações, Relatório de Baixa).
+function escopoBase(){
+  return filialGlobalId ? quebrasCache.filter(q => q.filialId == filialGlobalId) : quebrasCache;
+}
+
+function renderBarChart(canvasId, labels, data, cor, opts){
+  if(chartInstances[canvasId]) chartInstances[canvasId].destroy();
+  const ctx = document.getElementById(canvasId);
+  if(!ctx) return;
+  const horizontal = opts && opts.horizontal;
+  chartInstances[canvasId] = new Chart(ctx, {
+    type: 'bar',
+    data: { labels, datasets: [{ label: (opts && opts.label) || '', data, backgroundColor: cor, borderRadius: 4 }] },
+    options: {
+      indexAxis: horizontal ? 'y' : 'x',
+      responsive: true, maintainAspectRatio: true,
+      plugins: { legend: { display: false } },
+      scales: horizontal ? { x: { beginAtZero: true } } : { y: { beginAtZero: true } },
+    },
+  });
+}
+
+function renderParetoChart(canvasId, labels, data){
+  if(chartInstances[canvasId]) chartInstances[canvasId].destroy();
+  const total = data.reduce((a,b) => a+b, 0) || 1;
+  let acumulado = 0;
+  const cumulativo = data.map(v => { acumulado += v; return +(acumulado / total * 100).toFixed(1); });
+  const ctx = document.getElementById(canvasId);
+  if(!ctx) return;
+  chartInstances[canvasId] = new Chart(ctx, {
+    data: {
+      labels,
+      datasets: [
+        { type: 'bar', label: 'Quantidade', data, backgroundColor: '#C97A1A', order: 2, yAxisID: 'y' },
+        { type: 'line', label: '% acumulado', data: cumulativo, borderColor: '#16283A', backgroundColor: '#16283A', order: 1, yAxisID: 'y1', tension: 0.25 },
+      ],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: true,
+      scales: {
+        y: { beginAtZero: true, position: 'left' },
+        y1: { beginAtZero: true, max: 100, position: 'right', grid: { drawOnChartArea: false }, ticks: { callback: v => v + '%' } },
+      },
+    },
+  });
+}
+
+function agregarPor(lista, campoId, campoValor){
+  const mapa = {};
+  lista.forEach(q => {
+    const chave = q[campoId];
+    if(chave === null || chave === undefined) return;
+    mapa[chave] = (mapa[chave] || 0) + (campoValor ? q[campoValor] : q.quantidade);
+  });
+  return mapa;
+}
+
+/* ---------------- VISÃO DIÁRIA ---------------- */
+
+function renderVisaoDiaria(){
+  const hojeISO = new Date().toISOString().slice(0, 10);
+  const baseTudo = escopoBase();
+  const doDiaAprovado = escopoAprovado().filter(q => q.dataISO === hojeISO);
+  const pendentes = baseTudo.filter(q => q.status === 'pendente');
+
+  const totalQtd = doDiaAprovado.reduce((a,q) => a+q.quantidade, 0);
+  const totalCusto = doDiaAprovado.reduce((a,q) => a+q.custo, 0);
+
+  document.getElementById('kpi-grid').innerHTML = `
+    <div class="kpi-card"><div class="label">Quebras aprovadas hoje</div><div class="value">${doDiaAprovado.length}</div></div>
+    <div class="kpi-card"><div class="label">Unidades quebradas hoje</div><div class="value">${totalQtd}</div></div>
+    <div class="kpi-card"><div class="label">Custo estimado hoje</div><div class="value">${brl(totalCusto)}</div></div>
+    <div class="kpi-card warn"><div class="label">Pendentes de aprovação</div><div class="value">${pendentes.length}</div></div>
+  `;
+
+  const ultimos7 = new Set();
+  const hoje = new Date();
+  for(let i=0;i<7;i++){ const d = new Date(hoje); d.setDate(d.getDate()-i); ultimos7.add(d.toISOString().slice(0,10)); }
+  const registros7 = escopoAprovado().filter(q => ultimos7.has(q.dataISO));
+  const porDep = agregarPor(registros7, 'departamentoId');
+  const labelsDep = departamentos.map(d => d.nome);
+  const dataDep = departamentos.map(d => porDep[d.id] || 0);
+  renderBarChart('chart-visao-departamentos', labelsDep, dataDep, '#12796B');
+
+  const doDiaTudo = baseTudo.filter(q => q.dataISO === hojeISO);
+  document.getElementById('tbl-hoje').innerHTML = doDiaTudo.slice(0,10).map(q => `
+    <tr>
+      <td>${nomePor(produtos, q.produtoId)}</td>
+      <td>${q.quantidade}</td>
+      <td>${nomePor(departamentos, q.departamentoId)}</td>
+      <td>${nomePor(motivos, q.motivoId)}</td>
+      <td><span class="status-pill status-${q.status}">${q.status}</span></td>
+    </tr>`).join('') || '<tr><td colspan="5" class="muted">Nenhum lançamento hoje ainda.</td></tr>';
+}
+
+/* ---------------- APROVAÇÕES ---------------- */
+
+function montarFiltroDepartamentoAprovacoes(){
+  const sel = document.getElementById('filtro-aprov-departamento');
+  sel.innerHTML = '<option value="">Todos os departamentos</option>' +
+    departamentos.map(d => `<option value="${d.id}">${d.nome}</option>`).join('');
+}
+
+function renderAprovacoes(){
+  const depFiltro = document.getElementById('filtro-aprov-departamento').value;
+  const mesFiltro = document.getElementById('filtro-aprov-mes').value;
+  const dataFiltro = document.getElementById('filtro-aprov-data').value;
+
+  const pendentes = escopoBase().filter(q =>
+    q.status === 'pendente' &&
+    (!depFiltro || q.departamentoId == depFiltro) &&
+    (!mesFiltro || q.dataISO.slice(0,7) === mesFiltro) &&
+    (!dataFiltro || q.dataISO === dataFiltro)
+  );
+
+  document.getElementById('tbl-aprovacoes').innerHTML = pendentes.map(q => `
+    <tr>
+      <td>${q.dataISO}</td>
+      <td><button class="btn-sm btn-outline" onclick="abrirFotoModalPorId(${q.id})">Ver foto</button></td>
+      <td>${nomePor(produtos, q.produtoId)}</td>
+      <td>${q.quantidade}</td>
+      <td>${nomePor(filiais, q.filialId)}</td>
+      <td>${nomePor(departamentos, q.departamentoId)}</td>
+      <td>${nomePor(motivos, q.motivoId)}</td>
+      <td>${nomePor(pessoas, q.lancadoPorId)}</td>
+      <td class="row-inline">
+        <button class="btn-sm btn-aprovar" onclick="decidirQuebra(${q.id}, 'aprovada')">Aprovar</button>
+        <button class="btn-sm btn-reprovar" onclick="decidirQuebra(${q.id}, 'reprovada')">Reprovar</button>
+      </td>
+    </tr>`).join('') || '<tr><td colspan="9" class="muted">Nenhuma quebra pendente com esses filtros.</td></tr>';
+}
+
+function limparFiltrosAprovacoes(){
+  document.getElementById('filtro-aprov-departamento').value = '';
+  document.getElementById('filtro-aprov-mes').value = '';
+  document.getElementById('filtro-aprov-data').value = '';
+  renderAprovacoes();
+}
+
+async function abrirFotoModalPorId(id){
+  const q = quebrasCache.find(x => x.id === id);
+  if(!q || !q.fotoPath) return;
+  const { data, error } = await sb.storage.from('fotos-quebras').createSignedUrl(q.fotoPath, 120);
+  if(error){ alert('Não foi possível carregar a foto: ' + error.message); return; }
+  document.getElementById('foto-modal-img').src = data.signedUrl;
+  document.getElementById('foto-modal').classList.remove('hidden');
+}
+function fecharFotoModal(){
+  document.getElementById('foto-modal').classList.add('hidden');
+}
+
+async function decidirQuebra(id, novoStatus){
+  const { error } = await sb.from('quebras').update({ status: novoStatus }).eq('id', id);
+  if(error){ alert('Erro ao atualizar: ' + error.message); return; }
+  const q = quebrasCache.find(x => x.id === id);
+  if(q) q.status = novoStatus;
+  renderAprovacoes();
+  renderVisaoDiaria();
+}
+
+/* ---------------- RELATÓRIO DE BAIXA ---------------- */
+
+function montarFiltrosRelatorio(){
+  document.getElementById('rel-departamento').innerHTML = '<option value="">Todos</option>' +
+    departamentos.map(d => `<option value="${d.id}">${d.nome}</option>`).join('');
+  document.getElementById('rel-motivo').innerHTML = '<option value="">Todos</option>' +
+    motivos.map(m => `<option value="${m.id}">${m.nome}</option>`).join('');
+}
+
+function gerarRelatorio(){
+  const de = document.getElementById('rel-data-de').value;
+  const ate = document.getElementById('rel-data-ate').value;
+  const dep = document.getElementById('rel-departamento').value;
+  const status = document.getElementById('rel-status').value;
+  const motivo = document.getElementById('rel-motivo').value;
+
+  relatorioFiltrado = escopoBase().filter(q =>
+    (!de || q.dataISO >= de) &&
+    (!ate || q.dataISO <= ate) &&
+    (!dep || q.departamentoId == dep) &&
+    (!status || q.status === status) &&
+    (!motivo || q.motivoId == motivo)
+  );
+
+  const totalQtd = relatorioFiltrado.reduce((a,q) => a+q.quantidade, 0);
+  const totalCusto = relatorioFiltrado.reduce((a,q) => a+q.custo, 0);
+  document.getElementById('rel-resumo').textContent =
+    relatorioFiltrado.length + ' lançamento(s) · ' + totalQtd + ' unidade(s) · custo estimado ' + brl(totalCusto);
+
+  document.getElementById('tbl-relatorio').innerHTML = relatorioFiltrado.slice(0, 200).map(q => `
+    <tr>
+      <td>${q.dataISO}</td>
+      <td>${nomePor(filiais, q.filialId)}</td>
+      <td>${nomePor(departamentos, q.departamentoId)}</td>
+      <td>${nomePor(produtos, q.produtoId)}</td>
+      <td>${q.quantidade}</td>
+      <td>${nomePor(motivos, q.motivoId)}</td>
+      <td>${nomePor(turnos, q.turnoId)}</td>
+      <td>${nomePor(pessoas, q.responsavelId)}</td>
+      <td><span class="status-pill status-${q.status}">${q.status}</span></td>
+    </tr>`).join('') || '<tr><td colspan="9" class="muted">Nenhum resultado — gere o relatório com outros filtros.</td></tr>';
+  if(relatorioFiltrado.length > 200){
+    document.getElementById('tbl-relatorio').innerHTML += '<tr><td colspan="8" class="muted">Mostrando 200 de ' + relatorioFiltrado.length + ' — exporte o CSV pra ver tudo.</td></tr>';
+  }
+}
+
+function exportarCSV(){
+  if(relatorioFiltrado.length === 0){ alert('Gere o relatório antes de exportar.'); return; }
+  const cabecalho = ['Data','Filial','Departamento','Codigo_Produto','Descricao_Produto','Quantidade','Motivo','Turno','Responsavel','Status'];
+  const linhas = relatorioFiltrado.map(q => {
+    const produto = produtos.find(p => p.id === q.produtoId);
+    return [
+      q.dataISO,
+      nomePor(filiais, q.filialId),
+      nomePor(departamentos, q.departamentoId),
+      produto ? produto.codigo : '',
+      produto ? produto.descricao : '',
+      q.quantidade,
+      nomePor(motivos, q.motivoId),
+      nomePor(turnos, q.turnoId),
+      nomePor(pessoas, q.responsavelId),
+      q.status,
+    ].map(v => '"' + String(v).replace(/"/g,'""') + '"').join(';');
+  });
+  const csv = cabecalho.join(';') + '\n' + linhas.join('\n');
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'relatorio_baixa_quebras.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+/* ---------------- ANÁLISES ---------------- */
+
+function montarFiltroAnalises(){
+  const sel = document.getElementById('an-departamento');
+  sel.innerHTML = '<option value="">Todos os departamentos</option>' +
+    departamentos.map(d => `<option value="${d.id}">${d.nome}</option>`).join('');
+}
+
+function topN(mapa, lista, n){
+  const entradas = Object.entries(mapa).map(([id, valor]) => ({ id: Number(id), valor, nome: nomePor(lista, Number(id)) }));
+  entradas.sort((a,b) => b.valor - a.valor);
+  return entradas.slice(0, n);
+}
+
+function pad2(n){ return String(n).padStart(2,'0'); }
+
+function atualizarControlesPeriodo(){
+  const tipo = document.getElementById('an-periodo-tipo').value;
+  document.getElementById('an-periodo-dia-wrap').classList.toggle('hidden', tipo !== 'dia');
+  document.getElementById('an-periodo-semana-wrap').classList.toggle('hidden', tipo !== 'semana');
+  document.getElementById('an-periodo-semana-num-wrap').classList.toggle('hidden', tipo !== 'semana');
+  document.getElementById('an-periodo-mes-wrap').classList.toggle('hidden', tipo !== 'mes');
+  document.getElementById('an-periodo-ano-wrap').classList.toggle('hidden', tipo !== 'ano');
+}
+
+function inicializarControlesPeriodo(){
+  const hoje = new Date();
+  document.getElementById('an-periodo-dia').value = hoje.toISOString().slice(0,10);
+  document.getElementById('an-periodo-mes').value = hoje.toISOString().slice(0,7);
+  document.getElementById('an-periodo-semana-mes').value = hoje.toISOString().slice(0,7);
+  document.getElementById('an-periodo-ano').value = hoje.getFullYear();
+  atualizarControlesPeriodo();
+}
+
+// Devolve {inicio, fim} em ISO (YYYY-MM-DD), inclusive dos dois lados.
+function obterPeriodo(tipo, valores){
+  if(tipo === 'dia'){
+    return { inicio: valores.dia, fim: valores.dia };
+  }
+  if(tipo === 'semana'){
+    const [ano, mes] = valores.semanaMes.split('-').map(Number);
+    const semana = Number(valores.semanaNum);
+    const diaInicio = (semana - 1) * 7 + 1;
+    const ultimoDiaMes = new Date(ano, mes, 0).getDate();
+    const diaFim = Math.min(semana * 7, ultimoDiaMes);
+    if(diaInicio > ultimoDiaMes) return { inicio: '9999-12-31', fim: '9999-12-31' };
+    return { inicio: `${ano}-${pad2(mes)}-${pad2(diaInicio)}`, fim: `${ano}-${pad2(mes)}-${pad2(diaFim)}` };
+  }
+  if(tipo === 'mes'){
+    const [ano, mes] = valores.mes.split('-').map(Number);
+    const ultimoDiaMes = new Date(ano, mes, 0).getDate();
+    return { inicio: `${ano}-${pad2(mes)}-01`, fim: `${ano}-${pad2(mes)}-${pad2(ultimoDiaMes)}` };
+  }
+  // ano
+  return { inicio: `${valores.ano}-01-01`, fim: `${valores.ano}-12-31` };
+}
+
+function obterPeriodoAnalises(){
+  const tipo = document.getElementById('an-periodo-tipo').value;
+  return obterPeriodo(tipo, {
+    dia: document.getElementById('an-periodo-dia').value,
+    semanaMes: document.getElementById('an-periodo-semana-mes').value,
+    semanaNum: document.getElementById('an-periodo-semana-num').value,
+    mes: document.getElementById('an-periodo-mes').value,
+    ano: document.getElementById('an-periodo-ano').value,
+  });
+}
+
+function filtrarPorPeriodo(lista, periodo){
+  return lista.filter(q => q.dataISO >= periodo.inicio && q.dataISO <= periodo.fim);
+}
+
+function renderAnalises(){
+  const depId = document.getElementById('an-departamento').value;
+  const periodo = obterPeriodoAnalises();
+  document.getElementById('an-periodo-resumo').textContent =
+    'Período considerado: ' + periodo.inicio + ' a ' + periodo.fim +
+    (depId ? ' · ' + nomePor(departamentos, Number(depId)) : ' · todos os departamentos');
+
+  let base = filtrarPorPeriodo(escopoAprovado(), periodo);
+  if(depId) base = base.filter(q => q.departamentoId == depId);
+
+  const porProduto = topN(agregarPor(base, 'produtoId'), produtos, 8);
+  renderBarChart('chart-produto', porProduto.map(x=>x.nome), porProduto.map(x=>x.valor), '#12796B');
+
+  const porMotivo = topN(agregarPor(base, 'motivoId'), motivos, 8);
+  renderParetoChart('chart-pareto', porMotivo.map(x=>x.nome), porMotivo.map(x=>x.valor));
+
+  const porArea = topN(agregarPor(base.filter(q=>q.areaId), 'areaId'), areas, 8);
+  renderBarChart('chart-area', porArea.map(x=>x.nome), porArea.map(x=>x.valor), '#1F3B52');
+
+  const porEquip = topN(agregarPor(base.filter(q=>q.equipamentoId), 'equipamentoId'), equipamentos, 8);
+  renderBarChart('chart-equipamento', porEquip.map(x=>x.nome), porEquip.map(x=>x.valor), '#C97A1A');
+
+  const porPlaca = topN(agregarPor(base.filter(q=>q.veiculoId), 'veiculoId'), veiculos, 8);
+  renderBarChart('chart-placa', porPlaca.map(x=>x.nome), porPlaca.map(x=>x.valor), '#A32D2D');
+
+  const porMotorista = topN(agregarPor(base.filter(q=>q.motoristaId), 'motoristaId'), motoristas, 8);
+  renderBarChart('chart-motorista', porMotorista.map(x=>x.nome), porMotorista.map(x=>x.valor), '#5B5F63');
+
+  const custoPorTurno = topN(agregarPor(base, 'turnoId', 'custo'), turnos, 8);
+  renderBarChart('chart-custo-turno', custoPorTurno.map(x=>x.nome), custoPorTurno.map(x=>+x.valor.toFixed(2)), '#12796B');
+
+  const custoPorFunc = topN(agregarPor(base, 'responsavelId', 'custo'), pessoas, 8);
+  renderBarChart('chart-custo-funcionario', custoPorFunc.map(x=>x.nome), custoPorFunc.map(x=>+x.valor.toFixed(2)), '#16283A');
+}
+
+/* ---------------- ANÁLISE POR PRODUTO ---------------- */
+
+function montarFiltroProduto(){
+  document.getElementById('prod-departamento').innerHTML = '<option value="">Todos os departamentos</option>' +
+    departamentos.map(d => `<option value="${d.id}">${d.nome}</option>`).join('');
+  document.getElementById('prod-produto-selecionado').innerHTML =
+    produtos.filter(p => p.ativo).map(p => `<option value="${p.id}">${p.descricao}</option>`).join('');
+}
+
+function atualizarControlesPeriodoProduto(){
+  const tipo = document.getElementById('prod-periodo-tipo').value;
+  document.getElementById('prod-periodo-dia-wrap').classList.toggle('hidden', tipo !== 'dia');
+  document.getElementById('prod-periodo-semana-wrap').classList.toggle('hidden', tipo !== 'semana');
+  document.getElementById('prod-periodo-semana-num-wrap').classList.toggle('hidden', tipo !== 'semana');
+  document.getElementById('prod-periodo-mes-wrap').classList.toggle('hidden', tipo !== 'mes');
+  document.getElementById('prod-periodo-ano-wrap').classList.toggle('hidden', tipo !== 'ano');
+}
+
+function inicializarControlesPeriodoProduto(){
+  const hoje = new Date();
+  document.getElementById('prod-periodo-dia').value = hoje.toISOString().slice(0,10);
+  document.getElementById('prod-periodo-mes').value = hoje.toISOString().slice(0,7);
+  document.getElementById('prod-periodo-semana-mes').value = hoje.toISOString().slice(0,7);
+  document.getElementById('prod-periodo-ano').value = hoje.getFullYear();
+  atualizarControlesPeriodoProduto();
+}
+
+function obterPeriodoProduto(){
+  const tipo = document.getElementById('prod-periodo-tipo').value;
+  return obterPeriodo(tipo, {
+    dia: document.getElementById('prod-periodo-dia').value,
+    semanaMes: document.getElementById('prod-periodo-semana-mes').value,
+    semanaNum: document.getElementById('prod-periodo-semana-num').value,
+    mes: document.getElementById('prod-periodo-mes').value,
+    ano: document.getElementById('prod-periodo-ano').value,
+  });
+}
+
+function mudarSubAbaProduto(sub){
+  produtoSubAbaAtual = sub;
+  document.querySelectorAll('#prod-subtabs .seg-btn').forEach(b => b.classList.toggle('active', b.dataset.sub === sub));
+  document.getElementById('prod-sub-diario').classList.toggle('hidden', sub !== 'diario');
+  document.getElementById('prod-sub-mensal').classList.toggle('hidden', sub !== 'mensal');
+  document.getElementById('prod-sub-ano').classList.toggle('hidden', sub !== 'ano');
+  renderAnaliseProduto();
+}
+
+function renderTendenciaProduto(produtoBaseDep, produtoId){
+  const doProduto = produtoBaseDep.filter(q => q.produtoId == produtoId);
+
+  if(produtoSubAbaAtual === 'diario'){
+    const dias = [];
+    const hoje = new Date();
+    for(let i=29;i>=0;i--){ const d = new Date(hoje); d.setDate(d.getDate()-i); dias.push(d.toISOString().slice(0,10)); }
+    const porDia = {};
+    doProduto.forEach(q => { if(dias.includes(q.dataISO)) porDia[q.dataISO] = (porDia[q.dataISO]||0) + q.quantidade; });
+    renderBarChart('chart-produto-diario', dias.map(d=>d.slice(8,10)+'/'+d.slice(5,7)), dias.map(d=>porDia[d]||0), '#12796B');
+  }
+  if(produtoSubAbaAtual === 'mensal'){
+    const porMes = {};
+    doProduto.forEach(q => { const k = q.dataISO.slice(0,7); porMes[k] = (porMes[k]||0) + q.quantidade; });
+    const meses = Object.keys(porMes).sort();
+    renderBarChart('chart-produto-mensal', meses.map(m=>m.slice(5,7)+'/'+m.slice(0,4)), meses.map(m=>porMes[m]), '#1F3B52');
+  }
+  if(produtoSubAbaAtual === 'ano'){
+    const anoAtual = new Date().getFullYear();
+    const doAno = doProduto.filter(q => q.dataISO.startsWith(String(anoAtual)));
+    const porMes = {};
+    doAno.forEach(q => { const k = q.dataISO.slice(5,7); porMes[k] = (porMes[k]||0) + q.quantidade; });
+    const mesesOrdenados = Object.keys(porMes).sort();
+    renderBarChart('chart-produto-ano', mesesOrdenados.map(m=>m+'/'+anoAtual), mesesOrdenados.map(m=>porMes[m]), '#C97A1A');
+  }
+}
+
+function renderAnaliseProduto(){
+  const depId = document.getElementById('prod-departamento').value;
+  const periodo = obterPeriodoProduto();
+  const produtoId = Number(document.getElementById('prod-produto-selecionado').value);
+
+  document.getElementById('prod-periodo-resumo').textContent =
+    'Período considerado: ' + periodo.inicio + ' a ' + periodo.fim +
+    (depId ? ' · ' + nomePor(departamentos, Number(depId)) : ' · todos os departamentos');
+
+  let base = filtrarPorPeriodo(escopoAprovado(), periodo);
+  if(depId) base = base.filter(q => q.departamentoId == depId);
+
+  // Pareto geral de produtos (todos, não só o selecionado)
+  const porProduto = topN(agregarPor(base, 'produtoId'), produtos, 10);
+  renderParetoChart('chart-pareto-produtos', porProduto.map(x=>x.nome), porProduto.map(x=>x.valor));
+
+  // Tendência do produto selecionado (diário/mensal/ano usa histórico completo, não só o período acima)
+  const historicoAprovado = escopoAprovado();
+  renderTendenciaProduto(depId ? historicoAprovado.filter(q=>q.departamentoId==depId) : historicoAprovado, produtoId);
+
+  // Drill-down do produto selecionado, dentro do período/departamento filtrados
+  const doProdutoNoPeriodo = base.filter(q => q.produtoId === produtoId);
+
+  const porTurno = topN(agregarPor(doProdutoNoPeriodo, 'turnoId'), turnos, 8);
+  renderBarChart('chart-produto-turno', porTurno.map(x=>x.nome), porTurno.map(x=>x.valor), '#12796B');
+
+  const porMotivo = topN(agregarPor(doProdutoNoPeriodo, 'motivoId'), motivos, 8);
+  renderBarChart('chart-produto-motivo', porMotivo.map(x=>x.nome), porMotivo.map(x=>x.valor), '#A32D2D');
+
+  const porDep = topN(agregarPor(doProdutoNoPeriodo, 'departamentoId'), departamentos, 8);
+  renderBarChart('chart-produto-departamento', porDep.map(x=>x.nome), porDep.map(x=>x.valor), '#16283A');
+
+  const porArea = topN(agregarPor(doProdutoNoPeriodo.filter(q=>q.areaId), 'areaId'), areas, 8);
+  renderBarChart('chart-produto-area', porArea.map(x=>x.nome), porArea.map(x=>x.valor), '#1F3B52');
+
+  const porEquip = topN(agregarPor(doProdutoNoPeriodo.filter(q=>q.equipamentoId), 'equipamentoId'), equipamentos, 8);
+  renderBarChart('chart-produto-equipamento', porEquip.map(x=>x.nome), porEquip.map(x=>x.valor), '#C97A1A');
+
+  const porPlaca = topN(agregarPor(doProdutoNoPeriodo.filter(q=>q.veiculoId), 'veiculoId'), veiculos, 8);
+  renderBarChart('chart-produto-placa', porPlaca.map(x=>x.nome), porPlaca.map(x=>x.valor), '#5B5F63');
+
+  const porMotorista = topN(agregarPor(doProdutoNoPeriodo.filter(q=>q.motoristaId), 'motoristaId'), motoristas, 8);
+  renderBarChart('chart-produto-motorista', porMotorista.map(x=>x.nome), porMotorista.map(x=>x.valor), '#12796B');
+
+  // Cross-analysis: combinações Placa x Produto e Funcionário x Produto (todos os produtos, no período/depto filtrados)
+  const combosPlaca = {};
+  base.filter(q => q.veiculoId).forEach(q => {
+    const chave = q.veiculoId + '|' + q.produtoId;
+    combosPlaca[chave] = (combosPlaca[chave] || 0) + q.quantidade;
+  });
+  const topCombosPlaca = Object.entries(combosPlaca)
+    .map(([chave, valor]) => { const [vId, pId] = chave.split('|').map(Number); return { nome: nomePor(veiculos, vId) + ' – ' + nomePor(produtos, pId), valor }; })
+    .sort((a,b) => b.valor - a.valor).slice(0, 10);
+  renderBarChart('chart-placa-produto', topCombosPlaca.map(x=>x.nome), topCombosPlaca.map(x=>x.valor), '#A32D2D', { horizontal: true });
+
+  const combosFunc = {};
+  base.forEach(q => {
+    const chave = q.responsavelId + '|' + q.produtoId;
+    combosFunc[chave] = (combosFunc[chave] || 0) + q.quantidade;
+  });
+  const topCombosFunc = Object.entries(combosFunc)
+    .map(([chave, valor]) => { const [fId, pId] = chave.split('|').map(Number); return { nome: nomePor(pessoas, fId) + ' – ' + nomePor(produtos, pId), valor }; })
+    .sort((a,b) => b.valor - a.valor).slice(0, 10);
+  renderBarChart('chart-funcionario-produto', topCombosFunc.map(x=>x.nome), topCombosFunc.map(x=>x.valor), '#16283A', { horizontal: true });
+}
+
+/* ---------------- CUSTO (diário / mensal / ano) ---------------- */
+
+function montarFiltroCusto(){
+  const sel = document.getElementById('custo-departamento');
+  sel.innerHTML = '<option value="">Geral (todos os departamentos)</option>' +
+    departamentos.map(d => `<option value="${d.id}">${d.nome}</option>`).join('');
+}
+
+function mudarSubAbaCusto(sub){
+  custoSubAbaAtual = sub;
+  document.querySelectorAll('#custo-subtabs .seg-btn').forEach(b => b.classList.toggle('active', b.dataset.sub === sub));
+  document.getElementById('custo-sub-diario').classList.toggle('hidden', sub !== 'diario');
+  document.getElementById('custo-sub-mensal').classList.toggle('hidden', sub !== 'mensal');
+  document.getElementById('custo-sub-ano').classList.toggle('hidden', sub !== 'ano');
+  renderCusto();
+}
+
+function renderCusto(){
+  const depId = document.getElementById('custo-departamento').value;
+  const baseDep = depId ? escopoAprovado().filter(q => q.departamentoId == depId) : escopoAprovado();
+
+  if(custoSubAbaAtual === 'diario'){
+    const dias = [];
+    const hoje = new Date();
+    for(let i=29;i>=0;i--){ const d = new Date(hoje); d.setDate(d.getDate()-i); dias.push(d.toISOString().slice(0,10)); }
+    const porDia = {};
+    baseDep.forEach(q => { if(dias.includes(q.dataISO)) porDia[q.dataISO] = (porDia[q.dataISO]||0) + q.custo; });
+    const labels = dias.map(d => d.slice(8,10)+'/'+d.slice(5,7));
+    const dados = dias.map(d => +(porDia[d]||0).toFixed(2));
+    renderBarChart('chart-custo-diario', labels, dados, '#12796B');
+
+    const totalPeriodo = dados.reduce((a,b)=>a+b,0);
+    document.getElementById('custo-kpi-grid').innerHTML = `
+      <div class="kpi-card"><div class="label">Custo nos últimos 30 dias</div><div class="value">${brl(totalPeriodo)}</div></div>
+      <div class="kpi-card"><div class="label">Custo médio diário</div><div class="value">${brl(totalPeriodo/30)}</div></div>
+      <div class="kpi-card"><div class="label">Escopo</div><div class="value" style="font-size:16px;">${depId ? nomePor(departamentos, Number(depId)) : 'Todos os departamentos'}</div></div>
+    `;
+  }
+
+  if(custoSubAbaAtual === 'mensal'){
+    const porMes = {};
+    baseDep.forEach(q => { const chave = q.dataISO.slice(0,7); porMes[chave] = (porMes[chave]||0) + q.custo; });
+    const meses = Object.keys(porMes).sort();
+    const labels = meses.map(m => m.slice(5,7)+'/'+m.slice(0,4));
+    const dados = meses.map(m => +porMes[m].toFixed(2));
+    renderBarChart('chart-custo-mensal', labels, dados, '#1F3B52');
+
+    const mesAtual = new Date().toISOString().slice(0,7);
+    const mesAnterior = new Date(new Date().setMonth(new Date().getMonth()-1)).toISOString().slice(0,7);
+    const custoMesAtual = porMes[mesAtual] || 0;
+    const custoMesAnterior = porMes[mesAnterior] || 0;
+    const variacao = custoMesAnterior ? (((custoMesAtual - custoMesAnterior)/custoMesAnterior)*100).toFixed(1) : '—';
+    document.getElementById('custo-kpi-grid').innerHTML = `
+      <div class="kpi-card"><div class="label">Custo no mês atual</div><div class="value">${brl(custoMesAtual)}</div></div>
+      <div class="kpi-card"><div class="label">Custo no mês anterior</div><div class="value">${brl(custoMesAnterior)}</div></div>
+      <div class="kpi-card ${variacao !== '—' && variacao > 0 ? 'warn' : ''}"><div class="label">Variação vs mês anterior</div><div class="value">${variacao === '—' ? '—' : variacao + '%'}</div></div>
+    `;
+  }
+
+  if(custoSubAbaAtual === 'ano'){
+    const anoAtual = new Date().getFullYear();
+    const doAno = baseDep.filter(q => q.dataISO.startsWith(String(anoAtual)));
+    const custoAno = doAno.reduce((a,q)=>a+q.custo,0);
+    const qtdAno = doAno.reduce((a,q)=>a+q.quantidade,0);
+    document.getElementById('custo-kpi-grid').innerHTML = `
+      <div class="kpi-card"><div class="label">Custo acumulado em ${anoAtual}</div><div class="value">${brl(custoAno)}</div></div>
+      <div class="kpi-card"><div class="label">Unidades acumuladas em ${anoAtual}</div><div class="value">${qtdAno}</div></div>
+      <div class="kpi-card"><div class="label">Escopo</div><div class="value" style="font-size:16px;">${depId ? nomePor(departamentos, Number(depId)) : 'Todos os departamentos'}</div></div>
+    `;
+
+    const doAnoTodos = escopoAprovado().filter(q => q.dataISO.startsWith(String(anoAtual)));
+    const porDep = agregarPor(doAnoTodos, 'departamentoId', 'custo');
+    const labels = departamentos.map(d => d.nome);
+    const dados = departamentos.map(d => +(porDep[d.id]||0).toFixed(2));
+    renderBarChart('chart-custo-ano-departamento', labels, dados, '#C97A1A');
+  }
+}
+
+/* ---------------- METAS ---------------- */
+
+/* ---------------- CONFIGURAÇÕES GERAIS ---------------- */
+
+let configuracoes = { exigir_validacao_foto: true };
+
+async function carregarConfiguracoes(){
+  const { data } = await sb.from('configuracoes').select('*').eq('id', 1).maybeSingle();
+  configuracoes = data || { exigir_validacao_foto: true };
+  renderConfiguracoes();
+}
+
+function renderConfiguracoes(){
+  const ligado = configuracoes.exigir_validacao_foto;
+  document.getElementById('toggle-exigir-foto').classList.toggle('on', ligado);
+  document.getElementById('label-exigir-foto').textContent = ligado
+    ? 'Ligado — foto e validação por IA obrigatórias'
+    : 'Desligado — lançamento não pede foto';
+}
+
+async function alternarExigirFoto(){
+  const novoValor = !configuracoes.exigir_validacao_foto;
+  const { error } = await sb.from('configuracoes').update({ exigir_validacao_foto: novoValor, updated_at: new Date().toISOString() }).eq('id', 1);
+  const msg = document.getElementById('config-msg');
+  if(error){ msg.innerHTML = '<div class="error">Erro ao salvar: ' + error.message + '</div>'; return; }
+  configuracoes.exigir_validacao_foto = novoValor;
+  renderConfiguracoes();
+  msg.innerHTML = '<div class="ok">Configuração salva.</div>';
+}
+
+async function carregarMetas(){
+  const [{ data: md }, { data: mt }] = await Promise.all([
+    sb.from('metas_departamento').select('*'),
+    sb.from('metas_turno').select('*'),
+  ]);
+  metasDepartamento = {};
+  departamentos.forEach(d => { metasDepartamento[d.id] = { custo: 0 }; });
+  (md || []).forEach(r => { metasDepartamento[r.departamento_id] = { custo: Number(r.custo_mensal) || 0 }; });
+
+  metasTurno = {};
+  turnos.forEach(t => { metasTurno[t.id] = { custo: 0 }; });
+  (mt || []).forEach(r => { metasTurno[r.turno_id] = { custo: Number(r.custo_mensal) || 0 }; });
+}
+
+function realizadoMesAtual(campo, id, campoValor){
+  const mesAtual = new Date().toISOString().slice(0,7);
+  return escopoAprovado()
+    .filter(q => q.dataISO.slice(0,7) === mesAtual && q[campo] === id)
+    .reduce((a,q) => a + (campoValor ? q[campoValor] : q.quantidade), 0);
+}
+
+function renderMetas(){
+  document.getElementById('tbl-metas-departamento').innerHTML = departamentos.map(d => {
+    const meta = metasDepartamento[d.id];
+    const realCusto = realizadoMesAtual('departamentoId', d.id, 'custo');
+    const pct = meta.custo ? Math.round((realCusto/meta.custo)*100) : 0;
+    return `
+      <tr>
+        <td>${d.nome}</td>
+        <td><input class="meta-input" type="number" value="${meta.custo}" onchange="metasDepartamento[${d.id}].custo = Number(this.value); renderMetas();" /></td>
+        <td>${brl(realCusto)}</td>
+        <td><span class="status-pill ${pct > 100 ? 'status-reprovada' : 'status-aprovada'}">${pct}%</span></td>
+      </tr>`;
+  }).join('');
+
+  document.getElementById('tbl-metas-turno').innerHTML = turnos.map(t => {
+    const meta = metasTurno[t.id];
+    const realCusto = realizadoMesAtual('turnoId', t.id, 'custo');
+    const pct = meta.custo ? Math.round((realCusto/meta.custo)*100) : 0;
+    return `
+      <tr>
+        <td>${t.nome}</td>
+        <td><input class="meta-input" type="number" value="${meta.custo}" onchange="metasTurno[${t.id}].custo = Number(this.value); renderMetas();" /></td>
+        <td>${brl(realCusto)}</td>
+        <td><span class="status-pill ${pct > 100 ? 'status-reprovada' : 'status-aprovada'}">${pct}%</span></td>
+      </tr>`;
+  }).join('');
+}
+
+async function salvarMetas(){
+  const linhasDep = departamentos.map(d => ({ departamento_id: d.id, custo_mensal: metasDepartamento[d.id].custo }));
+  const linhasTurno = turnos.map(t => ({ turno_id: t.id, custo_mensal: metasTurno[t.id].custo }));
+
+  const [{ error: e1 }, { error: e2 }] = await Promise.all([
+    sb.from('metas_departamento').upsert(linhasDep, { onConflict: 'departamento_id' }),
+    sb.from('metas_turno').upsert(linhasTurno, { onConflict: 'turno_id' }),
+  ]);
+
+  document.getElementById('metas-msg').innerHTML = (e1 || e2)
+    ? '<div class="error">Erro ao salvar as metas.</div>'
+    : '<div class="ok">Metas salvas.</div>';
+}
+
+</script>
+</body>
+</html>

@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>Lançamento de Quebras — COBEB</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<style>
+  :root{
+    --navy:#16283A; --navy2:#1F3B52; --teal:#12796B; --teal-l:#E4F1EE;
+    --amber:#C97A1A; --amber-l:#FBEEDD; --red:#A32D2D; --red-l:#FBEAEA;
+    --text:#24272B; --sub:#5B5F63; --card:#F3F4F2; --line:#E3E4E1; --white:#FFFFFF;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
+    color:var(--text); background:#FAFAF8; -webkit-tap-highlight-color:transparent;
+  }
+  header.top{
+    background:var(--navy); color:#fff; padding:16px 18px;
+    display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:20;
+  }
+  header.top .title{font-size:15px; font-weight:700;}
+  header.top .who{font-size:12px; color:#C7D2D9;}
+  header.top button{
+    background:transparent; border:1px solid #3A5468; color:#fff; border-radius:8px;
+    padding:8px 12px; font-size:13px;
+  }
+  main{max-width:640px; margin:0 auto; padding:16px 16px 90px;}
+  .hidden{display:none !important;}
+
+  .login-wrap{min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px;}
+  .login-card{width:100%; max-width:380px; background:#fff; border-radius:14px; padding:32px 28px; box-shadow:0 1px 3px rgba(0,0,0,.08);}
+  .login-card h1{font-size:20px; margin:0 0 4px;}
+  .login-card p.sub{color:var(--sub); font-size:13px; margin:0 0 24px;}
+  label{display:block; font-size:13px; font-weight:600; margin:14px 0 6px;}
+  input[type=email],input[type=password],input[type=text],input[type=number],select,textarea{
+    width:100%; padding:11px 12px; border:1px solid var(--line); border-radius:8px; font-size:15px;
+    background:#fff; color:var(--text); font-family:inherit;
+  }
+  input:focus,select:focus,textarea:focus{outline:2px solid var(--teal); outline-offset:1px;}
+  .btn{
+    display:inline-flex; align-items:center; justify-content:center; gap:8px;
+    border:none; border-radius:9px; padding:13px 18px; font-size:15px; font-weight:600;
+    cursor:pointer; width:100%; margin-top:18px;
+  }
+  .btn-primary{background:var(--teal); color:#fff;}
+  .btn-primary:disabled{background:#9FC7C0; cursor:not-allowed;}
+  .btn-navy{background:var(--navy); color:#fff;}
+  .error{background:var(--red-l); color:var(--red); padding:10px 12px; border-radius:8px; font-size:13px; margin-top:12px;}
+  .ok{background:var(--teal-l); color:var(--teal); padding:10px 12px; border-radius:8px; font-size:13px; margin-top:12px;}
+  .warn{background:var(--amber-l); color:#8a5b13; padding:10px 12px; border-radius:8px; font-size:13px; margin-top:12px;}
+
+  .section{margin-top:22px;}
+  .section-title{font-size:12px; text-transform:uppercase; letter-spacing:.5px; color:var(--sub); font-weight:700; margin-bottom:8px;}
+  .card{background:#fff; border:1px solid var(--line); border-radius:12px; padding:16px;}
+
+  .scan-row{display:flex; gap:8px;}
+  .scan-row input{flex:1;}
+
+  .produto-found{
+    background:var(--teal-l); border-radius:10px; padding:14px; margin-top:12px;
+    display:flex; justify-content:space-between; align-items:center; gap:10px;
+  }
+  .produto-found .info b{display:block; font-size:14px;}
+  .produto-found .info span{font-size:12px; color:var(--sub);}
+  .produto-found button.clear{background:none; border:none; color:var(--red); font-size:13px; font-weight:600;}
+
+  .qty-row{display:flex; align-items:center; gap:10px; margin-top:14px;}
+  .qty-row button{width:44px; height:44px; border-radius:9px; border:1px solid var(--line); background:#fff; font-size:20px; font-weight:700; color:var(--teal);}
+  .qty-row input{text-align:center; font-size:20px; font-weight:700; width:80px;}
+
+  .foto-preview{margin-top:12px; display:flex; align-items:center; gap:12px;}
+  .foto-preview img{width:72px; height:72px; object-fit:cover; border-radius:8px; border:1px solid var(--line);}
+  .foto-preview .status{flex:1; font-size:13px;}
+
+  .grid2{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
+  @media (max-width:480px){.grid2{grid-template-columns:1fr;}}
+
+  #scanner-modal{
+    position:fixed; inset:0; background:rgba(0,0,0,.85); z-index:50;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; padding:20px;
+  }
+  #reader{width:100%; max-width:420px; border-radius:12px; overflow:hidden;}
+  #scanner-modal .hint{color:#fff; font-size:13px; margin-top:14px; text-align:center;}
+  #scanner-modal button.close{margin-top:18px; background:#fff; color:var(--navy); border:none; border-radius:9px; padding:12px 22px; font-weight:700;}
+
+  .feed-item{display:flex; justify-content:space-between; padding:12px 0; border-bottom:1px solid var(--line); font-size:13px;}
+  .feed-item:last-child{border-bottom:none;}
+  .feed-item .desc{font-weight:600;}
+  .feed-item .meta{color:var(--sub); font-size:12px;}
+  .admin-link{font-size:12px; color:#9BB0BF; margin-top:6px;}
+  .admin-link a{color:#9BB0BF;}
+</style>
+</head>
+<body>
+
+<!-- ===================== LOGIN ===================== -->
+<div id="view-login" class="login-wrap">
+  <div class="login-card">
+    <h1>Lançamento de Quebras</h1>
+    <p class="sub">Acesso restrito a líderes e conferentes do armazém.</p>
+    <label for="login-email">E-mail</label>
+    <input type="email" id="login-email" placeholder="seu.usuario@cobeb.app" autocomplete="username" />
+    <label for="login-senha">Senha</label>
+    <input type="password" id="login-senha" autocomplete="current-password" />
+    <button class="btn btn-primary" onclick="fazerLogin()">Entrar</button>
+    <div id="login-msg"></div>
+  </div>
+</div>
+
+<!-- ===================== APP ===================== -->
+<div id="view-app" class="hidden">
+  <header class="top">
+    <div>
+      <div class="title">Lançamento de Quebras</div>
+      <div class="who" id="who-label"></div>
+    </div>
+    <button onclick="sair()">Sair</button>
+  </header>
+
+  <main>
+    <div class="section">
+      <div class="section-title">0. Departamento</div>
+      <div class="card">
+        <label>Onde ocorreu a quebra?</label>
+        <select id="sel-departamento" onchange="mudarDepartamento()"></select>
+        <p id="contador-sessao" style="font-size:12px;color:var(--sub);margin:8px 0 0;">Nenhum item lançado ainda neste departamento.</p>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">1. Produto avariado</div>
+      <div class="card">
+        <div class="scan-row">
+          <input type="text" id="codigo-manual" placeholder="Código interno, EAN ou descrição" />
+          <button class="btn" style="width:auto;margin:0;background:var(--amber);color:#fff;padding:0 16px;" onclick="buscarManual()">Buscar</button>
+        </div>
+        <button class="btn btn-primary" onclick="abrirScanner()">📷 Escanear código de barras</button>
+        <p style="font-size:12px;color:var(--sub);margin:8px 0 0;">
+          Produto sem código de barras? Digite o código da tabela impressa na área e clique em Buscar.
+        </p>
+
+        <div id="produto-found" class="produto-found hidden">
+          <div class="info">
+            <b id="produto-desc"></b>
+            <span id="produto-codigos"></span>
+          </div>
+          <button class="clear" onclick="limparProduto()">Trocar</button>
+        </div>
+
+        <div id="qty-block" class="hidden">
+          <div class="qty-row">
+            <button onclick="alterarQtd(-1)">−</button>
+            <input type="number" id="quantidade" value="1" min="1" oninput="onQuantidadeAlterada()" />
+            <button onclick="alterarQtd(1)">+</button>
+            <span style="font-size:12px;color:var(--sub);">unidades avariadas (cada leitura soma +1)</span>
+          </div>
+
+          <div id="bloco-foto">
+            <input type="file" id="foto-input" accept="image/*" capture="environment" class="hidden" onchange="onFotoSelecionada(event)" />
+            <button class="btn btn-navy" onclick="document.getElementById('foto-input').click()">📸 Tirar foto de conferência</button>
+            <p style="font-size:12px;color:var(--sub);margin:8px 0 0;">
+              Obrigatória. A IA conta as unidades na foto — se não bater com o que você digitou,
+              o lançamento fica bloqueado até corrigir.
+            </p>
+
+            <div id="foto-preview" class="foto-preview hidden">
+              <img id="foto-thumb" alt="Foto da quebra" />
+              <div class="status" id="foto-status-text">Analisando...</div>
+            </div>
+            <div id="foto-msg"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">2. Detalhes da quebra</div>
+      <div class="card">
+        <div class="grid2">
+          <div>
+            <label>Responsável pela quebra</label>
+            <select id="sel-responsavel">
+              <option value="">Sem responsável específico (achado no picking)</option>
+            </select>
+          </div>
+          <div>
+            <label>Motivo</label>
+            <select id="sel-motivo"><option value="">Selecione o motivo</option></select>
+          </div>
+          <div id="field-turno">
+            <label>Turno</label>
+            <select id="sel-turno"><option value="">Selecione o turno</option></select>
+          </div>
+          <div id="field-area">
+            <label>Área do armazém</label>
+            <select id="sel-area"><option value="">Selecione a área</option></select>
+          </div>
+          <div id="field-equipamento">
+            <label>Equipamento envolvido (opcional)</label>
+            <select id="sel-equipamento"><option value="">Nenhum</option></select>
+          </div>
+          <div id="field-veiculo">
+            <label>Placa envolvida (opcional)</label>
+            <select id="sel-veiculo"><option value="">Nenhuma</option></select>
+          </div>
+          <div id="field-motorista">
+            <label>Motorista envolvido (opcional)</label>
+            <select id="sel-motorista"><option value="">Nenhum</option></select>
+          </div>
+        </div>
+        <label>Observação (opcional)</label>
+        <textarea id="observacao" rows="2"></textarea>
+
+        <button class="btn btn-primary" id="btn-registrar" onclick="registrarQuebra()" disabled>Registrar quebra</button>
+        <div id="registro-msg"></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Últimos lançamentos</div>
+      <div class="card" id="feed"><p style="color:var(--sub);font-size:13px;">Carregando...</p></div>
+    </div>
+
+    <div class="admin-link hidden" id="admin-link"><a href="admin.html">Abrir painel gerencial →</a></div>
+  </main>
+</div>
+
+<div id="scanner-modal" class="hidden">
+  <div id="reader"></div>
+  <div class="hint">Aponte a câmera para o código de barras do produto</div>
+  <button class="close" onclick="fecharScanner()">Fechar</button>
+</div>
+
+<script>
+/* ============================================================
+   CONFIGURAÇÃO — troque pelos dados do seu projeto Supabase
+   ============================================================ */
+const SUPABASE_URL = "https://rnzeszxbizctbpuximzm.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_LPQFPQLcTD64kjOZc9rtdA_27LkTwBL";
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+let pessoaAtual = null;
+let produtoAtual = null;
+let html5QrCode = null;
+
+let departamentosCache = [];
+let camposPorDepartamento = {}; // { departamento_id: { area:true, equipamento:true, ... } }
+
+// Estado da foto/IA para o lançamento em andamento
+let fotoBase64 = null;
+let fotoMediaType = null;
+let quantidadeDetectadaIA = null;
+let fotoConfirmada = null;   // null = sem foto ainda | true | false
+let exigirValidacaoFoto = true; // vem do gerencial — aba Configurações
+let itensLancadosSessao = 0; // contador do lote atual — zera ao trocar de departamento
+
+/* ---------------- LOGIN ---------------- */
+
+async function fazerLogin(){
+  const email = document.getElementById('login-email').value.trim();
+  const senha = document.getElementById('login-senha').value;
+  const msg = document.getElementById('login-msg');
+  msg.innerHTML = '';
+
+  if(!email || !senha){ msg.innerHTML = '<div class="error">Preencha e-mail e senha.</div>'; return; }
+
+  const { data, error } = await sb.auth.signInWithPassword({ email, password: senha });
+  if(error){ msg.innerHTML = '<div class="error">Login inválido. Confira e-mail e senha.</div>'; return; }
+
+  const { data: pessoa, error: perr } = await sb
+    .from('pessoas').select('*, filiais(nome)')
+    .eq('auth_id', data.user.id).eq('ativo', true).eq('pode_logar', true)
+    .maybeSingle();
+
+  if(perr || !pessoa){
+    msg.innerHTML = '<div class="error">Seu usuário não está habilitado a lançar quebras. Fale com o gerencial.</div>';
+    await sb.auth.signOut();
+    return;
+  }
+
+  if(!pessoa.filial_id){
+    msg.innerHTML = '<div class="error">Seu cadastro não tem uma filial definida. Fale com o gerencial antes de lançar.</div>';
+    await sb.auth.signOut();
+    return;
+  }
+
+  pessoaAtual = pessoa;
+  await entrarNoApp();
+}
+
+async function sair(){
+  await sb.auth.signOut();
+  pessoaAtual = null;
+  document.getElementById('view-app').classList.add('hidden');
+  document.getElementById('view-login').classList.remove('hidden');
+}
+
+async function entrarNoApp(){
+  document.getElementById('view-login').classList.add('hidden');
+  document.getElementById('view-app').classList.remove('hidden');
+  document.getElementById('who-label').textContent = pessoaAtual.nome + ' · ' + (pessoaAtual.cargo || '') + ' · ' + (pessoaAtual.filiais ? pessoaAtual.filiais.nome : '');
+  if(pessoaAtual.is_admin){ document.getElementById('admin-link').classList.remove('hidden'); }
+  await carregarListas();
+  await carregarFeed();
+  atualizarContadorSessao();
+}
+
+(async function initSession(){
+  const { data } = await sb.auth.getSession();
+  if(data.session){
+    const { data: pessoa } = await sb
+      .from('pessoas').select('*, filiais(nome)')
+      .eq('auth_id', data.session.user.id).eq('ativo', true).eq('pode_logar', true)
+      .maybeSingle();
+    if(pessoa && pessoa.filial_id){ pessoaAtual = pessoa; await entrarNoApp(); }
+  }
+})();
+
+/* ---------------- LISTAS DE APOIO ---------------- */
+
+function preencherSelect(id, rows, labelField, manterPrimeira){
+  const sel = document.getElementById(id);
+  sel.innerHTML = manterPrimeira ? sel.options[0].outerHTML : '';
+  rows.forEach(r => {
+    const opt = document.createElement('option');
+    opt.value = r.id;
+    opt.textContent = r[labelField];
+    sel.appendChild(opt);
+  });
+}
+
+async function carregarListas(){
+  const [pessoas, motivos, turnos, areas, equipamentos, veiculos, motoristas, departamentos, campos, config] = await Promise.all([
+    sb.from('pessoas').select('id,nome').eq('ativo', true).order('nome'),
+    sb.from('motivos').select('id,nome').eq('ativo', true).order('nome'),
+    sb.from('turnos').select('id,nome').eq('ativo', true).order('nome'),
+    sb.from('areas').select('id,nome').eq('ativo', true).order('nome'),
+    sb.from('equipamentos').select('id,nome').eq('ativo', true).order('nome'),
+    sb.from('veiculos').select('id,placa').eq('ativo', true).order('placa'),
+    sb.from('motoristas').select('id,nome').eq('ativo', true).order('nome'),
+    sb.from('departamentos').select('id,nome').eq('ativo', true).order('nome'),
+    sb.from('departamento_campos').select('*'),
+    sb.from('configuracoes').select('exigir_validacao_foto').eq('id', 1).maybeSingle(),
+  ]);
+
+  exigirValidacaoFoto = config.data ? config.data.exigir_validacao_foto : true;
+  document.getElementById('bloco-foto').classList.toggle('hidden', !exigirValidacaoFoto);
+
+  preencherSelect('sel-responsavel', pessoas.data || [], 'nome', true);
+  preencherSelect('sel-motivo', motivos.data || [], 'nome', true);
+  preencherSelect('sel-turno', turnos.data || [], 'nome', true);
+  preencherSelect('sel-area', areas.data || [], 'nome', true);
+  preencherSelect('sel-equipamento', equipamentos.data || [], 'nome', true);
+  preencherSelect('sel-veiculo', veiculos.data || [], 'placa', true);
+  preencherSelect('sel-motorista', motoristas.data || [], 'nome', true);
+
+  departamentosCache = departamentos.data || [];
+  camposPorDepartamento = {};
+  (campos.data || []).forEach(c => {
+    camposPorDepartamento[c.departamento_id] = camposPorDepartamento[c.departamento_id] || {};
+    camposPorDepartamento[c.departamento_id][c.campo] = c.habilitado;
+  });
+
+  const selDep = document.getElementById('sel-departamento');
+  selDep.innerHTML = departamentosCache.map(d => `<option value="${d.id}">${d.nome}</option>`).join('');
+  mudarDepartamento();
+}
+
+function mudarDepartamento(){
+  const depId = document.getElementById('sel-departamento').value;
+  const campos = camposPorDepartamento[depId] || {};
+  ['area','equipamento','veiculo','motorista','turno'].forEach(campo => {
+    const ligado = campos[campo] !== false; // padrão ligado se não houver config
+    document.getElementById('field-' + campo).classList.toggle('hidden', !ligado);
+  });
+
+  // Trocar de departamento é um contexto novo de verdade — zera tudo, inclusive a sessão.
+  document.getElementById('sel-turno').value = '';
+  document.getElementById('sel-area').value = '';
+  document.getElementById('sel-equipamento').value = '';
+  document.getElementById('sel-veiculo').value = '';
+  document.getElementById('sel-motorista').value = '';
+  document.getElementById('sel-motivo').value = '';
+  document.getElementById('sel-responsavel').value = '';
+  document.getElementById('observacao').value = '';
+  limparProduto();
+  itensLancadosSessao = 0;
+  atualizarContadorSessao();
+}
+
+/* ---------------- SCANNER DE CÓDIGO DE BARRAS ---------------- */
+
+function abrirScanner(){
+  document.getElementById('scanner-modal').classList.remove('hidden');
+  html5QrCode = new Html5Qrcode("reader");
+  const config = { fps: 12, qrbox: { width: 260, height: 140 } };
+  html5QrCode.start(
+    { facingMode: "environment" }, config,
+    (decodedText) => { onCodigoLido(decodedText); },
+    () => {}
+  ).catch(err => { alert('Não foi possível acessar a câmera: ' + err); fecharScanner(); });
+}
+
+function fecharScanner(){
+  if(html5QrCode){ html5QrCode.stop().then(()=>html5QrCode.clear()).catch(()=>{}); }
+  document.getElementById('scanner-modal').classList.add('hidden');
+}
+
+async function onCodigoLido(codigo){
+  if(produtoAtual && (produtoAtual.ean === codigo || produtoAtual.codigo === codigo)){
+    alterarQtd(1);
+    return;
+  }
+  const encontrado = await buscarProdutoPorCodigo(codigo);
+  if(encontrado){ selecionarProduto(encontrado); fecharScanner(); }
+}
+
+async function buscarProdutoPorCodigo(codigo){
+  const { data } = await sb.from('produtos').select('*').eq('ativo', true)
+    .or(`ean.eq.${codigo},codigo.eq.${codigo}`).limit(1);
+  return (data && data[0]) || null;
+}
+
+async function buscarManual(){
+  const termo = document.getElementById('codigo-manual').value.trim();
+  if(!termo) return;
+  let produto = await buscarProdutoPorCodigo(termo);
+  if(!produto){
+    const { data } = await sb.from('produtos').select('*').eq('ativo', true).ilike('descricao', `%${termo}%`).limit(1);
+    produto = (data && data[0]) || null;
+  }
+  if(produto){ selecionarProduto(produto); } else { alert('Produto não encontrado para "' + termo + '".'); }
+}
+
+function selecionarProduto(produto){
+  produtoAtual = produto;
+  document.getElementById('produto-desc').textContent = produto.descricao;
+  document.getElementById('produto-codigos').textContent =
+    'Código: ' + produto.codigo + (produto.ean ? ' · EAN: ' + produto.ean : ' · sem código de barras');
+  document.getElementById('produto-found').classList.remove('hidden');
+  document.getElementById('qty-block').classList.remove('hidden');
+  document.getElementById('quantidade').value = 1;
+  document.getElementById('codigo-manual').value = '';
+  resetarFoto();
+}
+
+function limparProduto(){
+  produtoAtual = null;
+  document.getElementById('produto-found').classList.add('hidden');
+  document.getElementById('qty-block').classList.add('hidden');
+  resetarFoto();
+}
+
+function alterarQtd(delta){
+  const el = document.getElementById('quantidade');
+  el.value = Math.max(1, parseInt(el.value || '1', 10) + delta);
+  onQuantidadeAlterada();
+}
+
+/* ---------------- FOTO + VALIDAÇÃO POR IA (bloqueante) ---------------- */
+
+function resetarFoto(){
+  fotoBase64 = null; fotoMediaType = null;
+  quantidadeDetectadaIA = null; fotoConfirmada = null;
+  document.getElementById('foto-preview').classList.add('hidden');
+  document.getElementById('foto-msg').innerHTML = '';
+  document.getElementById('foto-input').value = '';
+  atualizarBotaoRegistrar();
+}
+
+function onFotoSelecionada(event){
+  const file = event.target.files[0];
+  if(!file) return;
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    const resultado = reader.result; // data:image/jpeg;base64,....
+    fotoMediaType = file.type || 'image/jpeg';
+    fotoBase64 = resultado.split(',')[1];
+
+    document.getElementById('foto-thumb').src = resultado;
+    document.getElementById('foto-preview').classList.remove('hidden');
+    document.getElementById('foto-status-text').textContent = 'Analisando com IA...';
+    document.getElementById('foto-msg').innerHTML = '';
+    fotoConfirmada = null;
+    atualizarBotaoRegistrar();
+
+    verificarFotoComIA();
+  };
+  reader.readAsDataURL(file);
+}
+
+async function verificarFotoComIA(){
+  const quantidade = parseInt(document.getElementById('quantidade').value || '1', 10);
+  const { data: sessao } = await sb.auth.getSession();
+
+  try{
+    const resp = await fetch(SUPABASE_URL + '/functions/v1/verificar-quebra', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': 'Bearer ' + sessao.session.access_token,
+      },
+      body: JSON.stringify({
+        imagem_base64: fotoBase64,
+        media_type: fotoMediaType,
+        produto_descricao: produtoAtual ? produtoAtual.descricao : '',
+        quantidade_apontada: quantidade,
+      }),
+    });
+    const resultado = await resp.json();
+
+    if(!resp.ok || resultado.error){
+      document.getElementById('foto-status-text').textContent = 'Erro na verificação.';
+      document.getElementById('foto-msg').innerHTML = '<div class="error">Não foi possível verificar a foto: ' +
+        (resultado.error || 'erro desconhecido') + '. Tente tirar a foto novamente.</div>';
+      fotoConfirmada = null;
+      atualizarBotaoRegistrar();
+      return;
+    }
+
+    quantidadeDetectadaIA = resultado.quantidade_detectada;
+    aplicarResultadoIA(quantidade);
+
+    if(!resultado.confere){
+      registrarTentativaBloqueada(quantidade, resultado.quantidade_detectada);
+    }
+  } catch(err){
+    document.getElementById('foto-status-text').textContent = 'Erro de conexão.';
+    document.getElementById('foto-msg').innerHTML = '<div class="error">Falha ao conectar com a verificação por IA. Confira sua internet e tente de novo.</div>';
+    fotoConfirmada = null;
+    atualizarBotaoRegistrar();
+  }
+}
+
+// Reavalia localmente sem chamar a IA de novo — usado quando o conferente
+// ajusta a quantidade pra tentar bater com o que a foto mostrou.
+function onQuantidadeAlterada(){
+  if(quantidadeDetectadaIA === null) return;
+  const quantidade = parseInt(document.getElementById('quantidade').value || '1', 10);
+  aplicarResultadoIA(quantidade);
+}
+
+function aplicarResultadoIA(quantidadeApontada){
+  fotoConfirmada = (quantidadeDetectadaIA === quantidadeApontada);
+  const statusText = document.getElementById('foto-status-text');
+  const msg = document.getElementById('foto-msg');
+
+  if(fotoConfirmada){
+    statusText.textContent = '✅ Confere — ' + quantidadeDetectadaIA + ' unidade(s) confirmada(s) pela IA.';
+    msg.innerHTML = '<div class="ok">Quantidade validada. Pode registrar.</div>';
+  } else {
+    statusText.textContent = '⚠️ Não confere.';
+    msg.innerHTML = '<div class="error">Você apontou ' + quantidadeApontada + ', mas a IA identificou ' +
+      quantidadeDetectadaIA + ' unidade(s) na foto. Ajuste a quantidade pra bater com a foto, ou tire a foto novamente. ' +
+      'O lançamento fica bloqueado até confirmar.</div>';
+  }
+  atualizarBotaoRegistrar();
+}
+
+async function registrarTentativaBloqueada(quantidadeApontada, quantidadeDetectada){
+  try{
+    await sb.from('tentativas_bloqueadas').insert({
+      pessoa_id: pessoaAtual.id,
+      produto_id: produtoAtual ? produtoAtual.id : null,
+      departamento_id: document.getElementById('sel-departamento').value || null,
+      quantidade_apontada: quantidadeApontada,
+      quantidade_detectada: quantidadeDetectada,
+    });
+  } catch(e){ /* log silencioso — não deve travar o fluxo do conferente */ }
+}
+
+function atualizarBotaoRegistrar(){
+  const fotoOk = exigirValidacaoFoto ? (fotoConfirmada === true) : true;
+  document.getElementById('btn-registrar').disabled = !(produtoAtual && fotoOk);
+}
+
+/* ---------------- REGISTRO DA QUEBRA ---------------- */
+
+async function registrarQuebra(){
+  const msg = document.getElementById('registro-msg');
+  msg.innerHTML = '';
+
+  if(!produtoAtual) return;
+  if(exigirValidacaoFoto && fotoConfirmada !== true) return;
+
+  const motivoId = document.getElementById('sel-motivo').value;
+  const departamentoId = document.getElementById('sel-departamento').value;
+  const turnoVisivel = !document.getElementById('field-turno').classList.contains('hidden');
+  const areaVisivel = !document.getElementById('field-area').classList.contains('hidden');
+  const turnoId = turnoVisivel ? document.getElementById('sel-turno').value : null;
+  const areaId = areaVisivel ? document.getElementById('sel-area').value : null;
+
+  if(!motivoId || !departamentoId || (turnoVisivel && !turnoId) || (areaVisivel && !areaId)){
+    msg.innerHTML = '<div class="error">Preencha os campos obrigatórios em destaque.</div>';
+    return;
+  }
+
+  let caminho = null;
+
+  if(exigirValidacaoFoto){
+    msg.innerHTML = '<div class="ok">Enviando foto...</div>';
+
+    // upload da foto de conferência para o Storage
+    caminho = departamentoId + '/' + produtoAtual.id + '/' + Date.now() + '.jpg';
+    const bytes = Uint8Array.from(atob(fotoBase64), c => c.charCodeAt(0));
+    const { error: uploadError } = await sb.storage.from('fotos-quebras').upload(caminho, bytes, {
+      contentType: fotoMediaType || 'image/jpeg',
+    });
+
+    if(uploadError){
+      msg.innerHTML = '<div class="error">Erro ao enviar a foto: ' + uploadError.message + '</div>';
+      return;
+    }
+  }
+
+  const payload = {
+    lancado_por_id: pessoaAtual.id,
+    responsavel_id: document.getElementById('sel-responsavel').value || null,
+    produto_id: produtoAtual.id,
+    quantidade: parseInt(document.getElementById('quantidade').value || '1', 10),
+    motivo_id: motivoId,
+    equipamento_id: document.getElementById('sel-equipamento').value || null,
+    veiculo_id: document.getElementById('sel-veiculo').value || null,
+    motorista_id: document.getElementById('sel-motorista').value || null,
+    turno_id: turnoId,
+    area_id: areaId,
+    departamento_id: departamentoId,
+    filial_id: pessoaAtual.filial_id,
+    foto_path: caminho,
+    quantidade_detectada_ia: exigirValidacaoFoto ? quantidadeDetectadaIA : null,
+    confirmado_ia: exigirValidacaoFoto,
+    observacao: document.getElementById('observacao').value.trim() || null,
+  };
+
+  const { error } = await sb.from('quebras').insert(payload);
+  if(error){
+    msg.innerHTML = '<div class="error">Erro ao registrar: ' + error.message + '</div>';
+    return;
+  }
+
+  msg.innerHTML = '<div class="ok">Quebra registrada com sucesso.</div>';
+  itensLancadosSessao++;
+  atualizarContadorSessao();
+
+  // Limpa só o que é específico deste item — turno, área, equipamento, veículo e
+  // motorista continuam preenchidos, porque normalmente valem pro próximo item também.
+  limparProduto();
+  document.getElementById('sel-motivo').value = '';
+  document.getElementById('sel-responsavel').value = '';
+  document.getElementById('observacao').value = '';
+
+  // Deixa o campo de busca pronto pro próximo scan (funciona bem com leitor Bluetooth também).
+  document.getElementById('codigo-manual').focus();
+
+  await carregarFeed();
+}
+
+function atualizarContadorSessao(){
+  const el = document.getElementById('contador-sessao');
+  el.textContent = itensLancadosSessao === 0
+    ? 'Nenhum item lançado ainda neste departamento.'
+    : itensLancadosSessao + ' ite' + (itensLancadosSessao === 1 ? 'm lançado' : 'ns lançados') + ' neste departamento.';
+}
+
+/* ---------------- FEED DE ÚLTIMOS LANÇAMENTOS ---------------- */
+
+async function carregarFeed(){
+  const feed = document.getElementById('feed');
+  const { data, error } = await sb
+    .from('quebras')
+    .select('id, created_at, quantidade, produtos(descricao), motivos(nome), departamentos(nome), areas(nome)')
+    .order('created_at', { ascending: false })
+    .limit(8);
+
+  if(error || !data || data.length === 0){
+    feed.innerHTML = '<p style="color:var(--sub);font-size:13px;">Nenhum lançamento ainda.</p>';
+    return;
+  }
+
+  feed.innerHTML = data.map(q => `
+    <div class="feed-item">
+      <div>
+        <div class="desc">${q.produtos?.descricao || '—'} (${q.quantidade}un)</div>
+        <div class="meta">${q.motivos?.nome || ''} · ${q.departamentos?.nome || ''}${q.areas?.nome ? ' · ' + q.areas.nome : ''}</div>
+      </div>
+      <div class="meta">${new Date(q.created_at).toLocaleString('pt-BR', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</div>
+    </div>
+  `).join('');
+}
+</script>
+</body>
+</html>

@@ -7,6 +7,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
   :root{
     --navy:#16283A; --teal:#12796B; --teal-l:#E4F1EE; --amber:#C97A1A; --amber-l:#FBEEDD;
@@ -225,9 +226,17 @@
         </div>
       </div>
       <div class="card">
-        <h3>Importar pessoas em massa</h3>
-        <p class="hint">Planilha CSV com colunas: <b>nome, cargo</b>. Todas entram com login desabilitado por padrão — defina a filial de cada uma depois, na tabela acima.</p>
-        <input type="file" id="file-pessoas" accept=".csv" onchange="importarCSV(this,'pessoas')" />
+        <h3>Importar pessoas em massa (Excel)</h3>
+        <p class="hint">
+          Baixe o modelo, preencha e suba de volta. Colunas: <b>nome, cargo, filial, email</b>
+          (filial deve ser escrita igual ao cadastro, ex: "Pará de Minas" — se não bater, a pessoa
+          entra sem filial e você ajusta depois na tabela acima). Todas entram com login
+          desabilitado por padrão.
+        </p>
+        <div class="row-inline" style="margin-bottom:10px;">
+          <button class="btn btn-outline" onclick="baixarModeloPessoas()">⬇ Baixar modelo (.xlsx)</button>
+        </div>
+        <input type="file" id="file-pessoas" accept=".xlsx,.xls" onchange="importarPessoasExcel(this)" />
         <div id="msg-pessoas"></div>
       </div>
     </div>
@@ -257,7 +266,7 @@
           <div style="display:flex;align-items:flex-end;"><button class="btn btn-outline" style="margin:0;" onclick="limparFiltrosAprovacoes()">Limpar filtros</button></div>
         </div>
         <table>
-          <thead><tr><th>Data</th><th>Foto</th><th>Produto</th><th>Qtd</th><th>Filial</th><th>Departamento</th><th>Motivo</th><th>Lançado por</th><th></th></tr></thead>
+          <thead><tr><th>Data</th><th>Foto</th><th>Produto</th><th>Qtd</th><th>Unid.</th><th>Filial</th><th>Departamento</th><th>Motivo</th><th>Lançado por</th><th></th></tr></thead>
           <tbody id="tbl-aprovacoes"></tbody>
         </table>
       </div>
@@ -288,7 +297,7 @@
         </div>
         <p class="muted" id="rel-resumo" style="margin-top:12px;"></p>
         <table>
-          <thead><tr><th>Data</th><th>Filial</th><th>Departamento</th><th>Produto</th><th>Qtd</th><th>Motivo</th><th>Turno</th><th>Responsável</th><th>Status</th></tr></thead>
+          <thead><tr><th>Data</th><th>Filial</th><th>Departamento</th><th>Produto</th><th>Qtd</th><th>Unid.</th><th>Motivo</th><th>Turno</th><th>Responsável</th><th>Status</th></tr></thead>
           <tbody id="tbl-relatorio"></tbody>
         </table>
       </div>
@@ -503,12 +512,26 @@
     <!-- CONFIGURAÇÕES -->
     <div class="panel" id="panel-configuracoes">
       <div class="card">
+        <h3>Leitura de código de barras / QR</h3>
+        <p class="hint">
+          Ligado, o conferente vê o botão de escanear no <code>app.html</code>. Desligado, esse
+          botão some e ele só encontra o produto digitando o código interno, o EAN ou a
+          descrição (com sugestões aparecendo enquanto digita). Use pra desligar temporariamente
+          se as embalagens estiverem com o código de barras danificado.
+        </p>
+        <div class="row-inline">
+          <button class="toggle" id="toggle-permitir-scan" onclick="alternarPermitirScan()"><span class="dot"></span></button>
+          <span id="label-permitir-scan" style="font-size:14px;font-weight:600;"></span>
+        </div>
+      </div>
+      <div class="card">
         <h3>Validação de foto por IA</h3>
         <p class="hint">
-          Quando ligado, o conferente é obrigado a tirar uma foto de conferência e o
-          lançamento fica bloqueado se a IA contar uma quantidade diferente da apontada.
-          Desligando, o lançamento de quebra no <code>app.html</code> não pede foto e
-          registra direto — use se a trava estiver atrapalhando mais do que ajudando.
+          A foto de conferência é <b>sempre obrigatória</b> no lançamento, pra você acompanhar
+          pelo gerencial — isso não depende deste interruptor. O que ele controla é só a
+          contagem automática por IA: ligado, a IA conta as unidades na foto e bloqueia o
+          lançamento se não bater com o que foi digitado. Desligado (padrão atual), a foto só
+          fica registrada, sem nenhuma checagem automática.
         </p>
         <div class="row-inline">
           <button class="toggle" id="toggle-exigir-foto" onclick="alternarExigirFoto()"><span class="dot"></span></button>
@@ -569,6 +592,7 @@
         <div class="add-row">
           <input type="text" id="novo-produto-codigo" placeholder="Código interno" />
           <input type="text" id="novo-produto-desc" placeholder="Descrição" />
+          <input type="text" id="novo-produto-ean" placeholder="EAN (opcional)" />
           <button class="btn btn-primary" onclick="adicionarProduto()">Adicionar</button>
         </div>
         <div id="msg-produto-manual"></div>
@@ -601,8 +625,8 @@
 /* ============================================================
    CONFIGURAÇÃO — mesmos dados usados em app.html
    ============================================================ */
-const SUPABASE_URL = "https://rnzeszxbizctbpuximzm.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_LPQFPQLcTD64kjOZc9rtdA_27LkTwBL";
+const SUPABASE_URL = "https://SEU-PROJETO.supabase.co";
+const SUPABASE_ANON_KEY = "SUA-CHAVE-ANON-PUBLICA";
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 let pessoaAtual = null;
@@ -1005,10 +1029,18 @@ async function carregarProdutos(){
 function renderProdutos(lista){
   document.getElementById('tbl-produtos').innerHTML = lista.map(p => `
     <tr>
-      <td>${p.codigo}</td><td>${p.descricao}</td><td>${p.ean || '<span class="tag">sem EAN</span>'}</td>
+      <td>${p.codigo}</td><td>${p.descricao}</td>
+      <td><input class="small-input" type="text" value="${p.ean || ''}" placeholder="sem EAN" onchange="atualizarEanProduto(${p.id}, this.value)" style="width:130px;" /></td>
       <td><input class="small-input" type="number" step="0.01" value="${p.custo_unitario || 0}" onchange="atualizarCustoProduto(${p.id}, this.value)" style="width:90px;" /></td>
       <td><button class="toggle ${p.ativo ? 'on' : ''}" onclick="toggleAtivo('produtos', ${p.id}, ${!p.ativo}, carregarProdutos)"><span class="dot"></span></button></td>
     </tr>`).join('');
+}
+
+async function atualizarEanProduto(id, valor){
+  const ean = valor.trim() || null;
+  const { error } = await sb.from('produtos').update({ ean }).eq('id', id);
+  if(error){ alert('Erro: ' + error.message); return; }
+  await carregarProdutos();
 }
 
 async function atualizarCustoProduto(id, valor){
@@ -1032,17 +1064,85 @@ function filtrarProdutos(){
 async function adicionarProduto(){
   const codigo = document.getElementById('novo-produto-codigo').value.trim();
   const descricao = document.getElementById('novo-produto-desc').value.trim();
+  const ean = document.getElementById('novo-produto-ean').value.trim() || null;
   const msg = document.getElementById('msg-produto-manual');
   if(!codigo || !descricao){ msg.innerHTML = '<div class="error">Preencha código e descrição.</div>'; return; }
-  const { error } = await sb.from('produtos').insert({ codigo, descricao, ean: null });
+  const { error } = await sb.from('produtos').insert({ codigo, descricao, ean });
   if(error){ msg.innerHTML = '<div class="error">Erro: ' + error.message + '</div>'; return; }
   msg.innerHTML = '<div class="ok">Produto adicionado.</div>';
   document.getElementById('novo-produto-codigo').value = '';
   document.getElementById('novo-produto-desc').value = '';
+  document.getElementById('novo-produto-ean').value = '';
   await carregarProdutos();
 }
 
 /* ---------------- IMPORTAÇÃO CSV EM MASSA ---------------- */
+
+/* ---------------- IMPORTAÇÃO DE PESSOAS VIA EXCEL ---------------- */
+
+function baixarModeloPessoas(){
+  const linhas = [
+    { nome: 'João Pereira', cargo: 'Conferente', filial: filiais[0] ? filiais[0].nome : 'Pará de Minas', email: 'joao.pereira@cobeb.app' },
+  ];
+  const planilha = XLSX.utils.json_to_sheet(linhas, { header: ['nome', 'cargo', 'filial', 'email'] });
+  planilha['!cols'] = [{ wch: 24 }, { wch: 20 }, { wch: 18 }, { wch: 28 }];
+  const livro = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(livro, planilha, 'Pessoas');
+  XLSX.writeFile(livro, 'modelo_pessoas.xlsx');
+}
+
+async function importarPessoasExcel(input){
+  const file = input.files[0];
+  if(!file) return;
+  const msgEl = document.getElementById('msg-pessoas');
+  msgEl.innerHTML = '<div class="muted">Processando...</div>';
+
+  const buffer = await file.arrayBuffer();
+  let linhas;
+  try{
+    const livro = XLSX.read(buffer, { type: 'array' });
+    const primeiraAba = livro.Sheets[livro.SheetNames[0]];
+    linhas = XLSX.utils.sheet_to_json(primeiraAba, { defval: '' });
+  } catch(e){
+    msgEl.innerHTML = '<div class="error">Não consegui ler esse arquivo. Confira se é mesmo um .xlsx exportado do Excel.</div>';
+    return;
+  }
+
+  const filialPorNome = {};
+  filiais.forEach(f => { filialPorNome[f.nome.trim().toLowerCase()] = f.id; });
+
+  const registros = linhas
+    .map(l => ({
+      nome: String(l.nome || '').trim(),
+      cargo: String(l.cargo || '').trim() || null,
+      filial_id: filialPorNome[String(l.filial || '').trim().toLowerCase()] || null,
+      email: String(l.email || '').trim() || null,
+    }))
+    .filter(r => r.nome);
+
+  if(registros.length === 0){
+    msgEl.innerHTML = '<div class="error">Nenhuma linha com nome preenchido foi encontrada no arquivo.</div>';
+    return;
+  }
+
+  let sucesso = 0;
+  const falhas = [];
+  for(const registro of registros){
+    const { error } = await sb.from('pessoas').insert(registro);
+    if(error) falhas.push(registro.nome + ' (' + error.message + ')');
+    else sucesso++;
+  }
+
+  const semFilial = registros.filter(r => !r.filial_id).length;
+  let resumo = '<div class="' + (sucesso > 0 ? 'ok' : 'error') + '">' + sucesso + ' de ' + registros.length + ' pessoa(s) importada(s).';
+  if(semFilial > 0) resumo += ' ' + semFilial + ' entraram sem filial reconhecida — ajuste na tabela acima.';
+  resumo += '</div>';
+  if(falhas.length > 0) resumo += '<div class="error">Falharam: ' + falhas.join('; ') + '</div>';
+  msgEl.innerHTML = resumo;
+
+  input.value = '';
+  await carregarPessoas();
+}
 
 function importarCSV(input, tipo){
   const file = input.files[0];
@@ -1057,10 +1157,7 @@ function importarCSV(input, tipo){
       const linhas = res.data;
       let registros = [];
 
-      if(tipo === 'pessoas'){
-        registros = linhas.map(l => ({ nome: (l.nome||'').trim(), cargo: (l.cargo||'').trim() || null }))
-          .filter(r => r.nome);
-      } else if(tipo === 'veiculos'){
+      if(tipo === 'veiculos'){
         registros = linhas.map(l => ({ placa: (l.placa||'').trim().toUpperCase(), modelo: (l.modelo||'').trim() || null }))
           .filter(r => r.placa);
       } else if(tipo === 'motoristas'){
@@ -1089,7 +1186,6 @@ function importarCSV(input, tipo){
       }
       msgEl.innerHTML = '<div class="ok">' + registros.length + ' registro(s) importado(s) com sucesso.</div>';
 
-      if(tipo === 'pessoas') await carregarPessoas();
       if(tipo === 'veiculos') await carregarVeiculos();
       if(tipo === 'motoristas') await carregarMotoristas();
       if(tipo === 'produtos') await carregarProdutos();
@@ -1131,6 +1227,7 @@ async function carregarQuebras(){
     veiculoId: row.veiculo_id,
     motoristaId: row.motorista_id,
     quantidade: row.quantidade,
+    unidadeMedida: row.unidade_medida,
     custo: row.quantidade * (custoPorProduto[row.produto_id] || 0),
     fotoPath: row.foto_path,
     status: row.status,
@@ -1268,8 +1365,13 @@ function renderAprovacoes(){
     <tr>
       <td>${q.dataISO}</td>
       <td><button class="btn-sm btn-outline" onclick="abrirFotoModalPorId(${q.id})">Ver foto</button></td>
-      <td>${nomePor(produtos, q.produtoId)}</td>
-      <td>${q.quantidade}</td>
+      <td>
+        <select class="small-input" onchange="corrigirCampoQuebra(${q.id}, 'produto_id', Number(this.value))">
+          ${produtos.filter(p => p.ativo).map(p => `<option value="${p.id}" ${p.id===q.produtoId?'selected':''}>${p.descricao}</option>`).join('')}
+        </select>
+      </td>
+      <td><input class="small-input" type="number" min="1" value="${q.quantidade}" style="width:70px;" onchange="corrigirCampoQuebra(${q.id}, 'quantidade', Number(this.value))" /></td>
+      <td>${q.unidadeMedida === 'caixa' ? 'Caixa' : 'Unidade'}</td>
       <td>${nomePor(filiais, q.filialId)}</td>
       <td>${nomePor(departamentos, q.departamentoId)}</td>
       <td>${nomePor(motivos, q.motivoId)}</td>
@@ -1277,8 +1379,9 @@ function renderAprovacoes(){
       <td class="row-inline">
         <button class="btn-sm btn-aprovar" onclick="decidirQuebra(${q.id}, 'aprovada')">Aprovar</button>
         <button class="btn-sm btn-reprovar" onclick="decidirQuebra(${q.id}, 'reprovada')">Reprovar</button>
+        <button class="btn-sm btn-reprovar" onclick="excluirQuebra(${q.id})">Excluir</button>
       </td>
-    </tr>`).join('') || '<tr><td colspan="9" class="muted">Nenhuma quebra pendente com esses filtros.</td></tr>';
+    </tr>`).join('') || '<tr><td colspan="10" class="muted">Nenhuma quebra pendente com esses filtros.</td></tr>';
 }
 
 function limparFiltrosAprovacoes(){
@@ -1305,6 +1408,36 @@ async function decidirQuebra(id, novoStatus){
   if(error){ alert('Erro ao atualizar: ' + error.message); return; }
   const q = quebrasCache.find(x => x.id === id);
   if(q) q.status = novoStatus;
+  renderAprovacoes();
+  renderVisaoDiaria();
+}
+
+// Corrige quantidade ou produto (SKU) de um lançamento ainda pendente.
+async function corrigirCampoQuebra(id, campoDb, valor){
+  const { error } = await sb.from('quebras').update({ [campoDb]: valor }).eq('id', id);
+  if(error){ alert('Erro ao corrigir: ' + error.message); return; }
+
+  const q = quebrasCache.find(x => x.id === id);
+  if(q){
+    if(campoDb === 'produto_id'){
+      q.produtoId = valor;
+      const produto = produtos.find(p => p.id === valor);
+      q.custo = q.quantidade * (produto ? Number(produto.custo_unitario) || 0 : 0);
+    }
+    if(campoDb === 'quantidade'){
+      q.quantidade = valor;
+      const produto = produtos.find(p => p.id === q.produtoId);
+      q.custo = valor * (produto ? Number(produto.custo_unitario) || 0 : 0);
+    }
+  }
+  renderAprovacoes();
+}
+
+async function excluirQuebra(id){
+  if(!confirm('Excluir este lançamento por completo? Essa ação não pode ser desfeita.')) return;
+  const { error } = await sb.from('quebras').delete().eq('id', id);
+  if(error){ alert('Erro ao excluir: ' + error.message); return; }
+  quebrasCache = quebrasCache.filter(x => x.id !== id);
   renderAprovacoes();
   renderVisaoDiaria();
 }
@@ -1345,11 +1478,12 @@ function gerarRelatorio(){
       <td>${nomePor(departamentos, q.departamentoId)}</td>
       <td>${nomePor(produtos, q.produtoId)}</td>
       <td>${q.quantidade}</td>
+      <td>${q.unidadeMedida === 'caixa' ? 'Caixa' : 'Unidade'}</td>
       <td>${nomePor(motivos, q.motivoId)}</td>
       <td>${nomePor(turnos, q.turnoId)}</td>
       <td>${nomePor(pessoas, q.responsavelId)}</td>
       <td><span class="status-pill status-${q.status}">${q.status}</span></td>
-    </tr>`).join('') || '<tr><td colspan="9" class="muted">Nenhum resultado — gere o relatório com outros filtros.</td></tr>';
+    </tr>`).join('') || '<tr><td colspan="10" class="muted">Nenhum resultado — gere o relatório com outros filtros.</td></tr>';
   if(relatorioFiltrado.length > 200){
     document.getElementById('tbl-relatorio').innerHTML += '<tr><td colspan="8" class="muted">Mostrando 200 de ' + relatorioFiltrado.length + ' — exporte o CSV pra ver tudo.</td></tr>';
   }
@@ -1357,7 +1491,7 @@ function gerarRelatorio(){
 
 function exportarCSV(){
   if(relatorioFiltrado.length === 0){ alert('Gere o relatório antes de exportar.'); return; }
-  const cabecalho = ['Data','Filial','Departamento','Codigo_Produto','Descricao_Produto','Quantidade','Motivo','Turno','Responsavel','Status'];
+  const cabecalho = ['Data','Filial','Departamento','Codigo_Produto','Descricao_Produto','Quantidade','Unidade_Medida','Motivo','Turno','Responsavel','Status'];
   const linhas = relatorioFiltrado.map(q => {
     const produto = produtos.find(p => p.id === q.produtoId);
     return [
@@ -1367,6 +1501,7 @@ function exportarCSV(){
       produto ? produto.codigo : '',
       produto ? produto.descricao : '',
       q.quantidade,
+      q.unidadeMedida === 'caixa' ? 'Caixa' : 'Unidade',
       nomePor(motivos, q.motivoId),
       nomePor(turnos, q.turnoId),
       nomePor(pessoas, q.responsavelId),
@@ -1715,16 +1850,22 @@ let configuracoes = { exigir_validacao_foto: true };
 
 async function carregarConfiguracoes(){
   const { data } = await sb.from('configuracoes').select('*').eq('id', 1).maybeSingle();
-  configuracoes = data || { exigir_validacao_foto: true };
+  configuracoes = data || { exigir_validacao_foto: false, permitir_scan: true };
   renderConfiguracoes();
 }
 
 function renderConfiguracoes(){
-  const ligado = configuracoes.exigir_validacao_foto;
-  document.getElementById('toggle-exigir-foto').classList.toggle('on', ligado);
-  document.getElementById('label-exigir-foto').textContent = ligado
-    ? 'Ligado — foto e validação por IA obrigatórias'
-    : 'Desligado — lançamento não pede foto';
+  const iaLigada = configuracoes.exigir_validacao_foto;
+  document.getElementById('toggle-exigir-foto').classList.toggle('on', iaLigada);
+  document.getElementById('label-exigir-foto').textContent = iaLigada
+    ? 'Ligado — IA confere a quantidade pela foto e bloqueia se não bater'
+    : 'Desligado — foto só fica registrada, sem checagem automática';
+
+  const scanLigado = configuracoes.permitir_scan;
+  document.getElementById('toggle-permitir-scan').classList.toggle('on', scanLigado);
+  document.getElementById('label-permitir-scan').textContent = scanLigado
+    ? 'Ligado — botão de escanear aparece no lançamento'
+    : 'Desligado — produto só por busca digitada';
 }
 
 async function alternarExigirFoto(){
@@ -1733,6 +1874,16 @@ async function alternarExigirFoto(){
   const msg = document.getElementById('config-msg');
   if(error){ msg.innerHTML = '<div class="error">Erro ao salvar: ' + error.message + '</div>'; return; }
   configuracoes.exigir_validacao_foto = novoValor;
+  renderConfiguracoes();
+  msg.innerHTML = '<div class="ok">Configuração salva.</div>';
+}
+
+async function alternarPermitirScan(){
+  const novoValor = !configuracoes.permitir_scan;
+  const { error } = await sb.from('configuracoes').update({ permitir_scan: novoValor, updated_at: new Date().toISOString() }).eq('id', 1);
+  const msg = document.getElementById('config-msg');
+  if(error){ msg.innerHTML = '<div class="error">Erro ao salvar: ' + error.message + '</div>'; return; }
+  configuracoes.permitir_scan = novoValor;
   renderConfiguracoes();
   msg.innerHTML = '<div class="ok">Configuração salva.</div>';
 }

@@ -57,6 +57,10 @@
   .card{background:#fff; border:1px solid var(--line); border-radius:12px; padding:16px;}
 
   .scan-row{display:flex; gap:8px;}
+  .autocomplete-item{padding:10px 12px; font-size:14px; cursor:pointer; border-bottom:1px solid var(--line);}
+  .autocomplete-item:last-child{border-bottom:none;}
+  .autocomplete-item:hover, .autocomplete-item:active{background:var(--teal-l);}
+  .autocomplete-item .codigo{font-size:11px; color:var(--sub); font-family:monospace;}
   .scan-row input{flex:1;}
 
   .produto-found{
@@ -133,13 +137,15 @@
     <div class="section">
       <div class="section-title">1. Produto avariado</div>
       <div class="card">
-        <div class="scan-row">
-          <input type="text" id="codigo-manual" placeholder="Código interno, EAN ou descrição" />
+        <div class="scan-row" style="position:relative;">
+          <input type="text" id="codigo-manual" placeholder="Código interno, EAN ou descrição" autocomplete="off" oninput="onDigitarBusca()" />
           <button class="btn" style="width:auto;margin:0;background:var(--amber);color:#fff;padding:0 16px;" onclick="buscarManual()">Buscar</button>
+          <div id="autocomplete-list" class="hidden" style="position:absolute; top:48px; left:0; right:0; background:#fff; border:1px solid var(--line); border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,.08); z-index:15; max-height:240px; overflow-y:auto;"></div>
         </div>
-        <button class="btn btn-primary" onclick="abrirScanner()">📷 Escanear código de barras</button>
+        <button class="btn btn-primary" id="btn-scanner" onclick="abrirScanner()">📷 Escanear código de barras</button>
         <p style="font-size:12px;color:var(--sub);margin:8px 0 0;">
-          Produto sem código de barras? Digite o código da tabela impressa na área e clique em Buscar.
+          Produto sem código de barras? Digite o código da tabela impressa na área, o EAN ou a
+          descrição — as sugestões aparecem enquanto você digita.
         </p>
 
         <div id="produto-found" class="produto-found hidden">
@@ -158,12 +164,18 @@
             <span style="font-size:12px;color:var(--sub);">unidades avariadas (cada leitura soma +1)</span>
           </div>
 
-          <div id="bloco-foto">
+          <label>Como foi apontado?</label>
+          <select id="sel-unidade-medida">
+            <option value="">Selecione</option>
+            <option value="unidade">Unidade</option>
+            <option value="caixa">Caixa</option>
+          </select>
+
+          <div id="bloco-foto" style="margin-top:14px;">
             <input type="file" id="foto-input" accept="image/*" capture="environment" class="hidden" onchange="onFotoSelecionada(event)" />
             <button class="btn btn-navy" onclick="document.getElementById('foto-input').click()">📸 Tirar foto de conferência</button>
-            <p style="font-size:12px;color:var(--sub);margin:8px 0 0;">
-              Obrigatória. A IA conta as unidades na foto — se não bater com o que você digitou,
-              o lançamento fica bloqueado até corrigir.
+            <p style="font-size:12px;color:var(--sub);margin:8px 0 0;" id="foto-instrucao">
+              Obrigatória — fica registrada pra você acompanhar pelo gerencial.
             </p>
 
             <div id="foto-preview" class="foto-preview hidden">
@@ -238,8 +250,8 @@
 /* ============================================================
    CONFIGURAÇÃO — troque pelos dados do seu projeto Supabase
    ============================================================ */
-const SUPABASE_URL = "https://rnzeszxbizctbpuximzm.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_LPQFPQLcTD64kjOZc9rtdA_27LkTwBL";
+const SUPABASE_URL = "https://SEU-PROJETO.supabase.co";
+const SUPABASE_ANON_KEY = "SUA-CHAVE-ANON-PUBLICA";
 
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -256,6 +268,7 @@ let fotoMediaType = null;
 let quantidadeDetectadaIA = null;
 let fotoConfirmada = null;   // null = sem foto ainda | true | false
 let exigirValidacaoFoto = true; // vem do gerencial — aba Configurações
+let permitirScan = true;        // vem do gerencial — aba Configurações
 let itensLancadosSessao = 0; // contador do lote atual — zera ao trocar de departamento
 
 /* ---------------- LOGIN ---------------- */
@@ -344,11 +357,15 @@ async function carregarListas(){
     sb.from('motoristas').select('id,nome').eq('ativo', true).order('nome'),
     sb.from('departamentos').select('id,nome').eq('ativo', true).order('nome'),
     sb.from('departamento_campos').select('*'),
-    sb.from('configuracoes').select('exigir_validacao_foto').eq('id', 1).maybeSingle(),
+    sb.from('configuracoes').select('exigir_validacao_foto,permitir_scan').eq('id', 1).maybeSingle(),
   ]);
 
-  exigirValidacaoFoto = config.data ? config.data.exigir_validacao_foto : true;
-  document.getElementById('bloco-foto').classList.toggle('hidden', !exigirValidacaoFoto);
+  exigirValidacaoFoto = config.data ? config.data.exigir_validacao_foto : false;
+  permitirScan = config.data ? config.data.permitir_scan : true;
+  document.getElementById('btn-scanner').classList.toggle('hidden', !permitirScan);
+  document.getElementById('foto-instrucao').textContent = exigirValidacaoFoto
+    ? 'Obrigatória. A IA conta as unidades na foto — se não bater com o que você digitou, o lançamento fica bloqueado até corrigir.'
+    : 'Obrigatória — fica registrada pra você acompanhar pelo gerencial.';
 
   preencherSelect('sel-responsavel', pessoas.data || [], 'nome', true);
   preencherSelect('sel-motivo', motivos.data || [], 'nome', true);
@@ -385,6 +402,7 @@ function mudarDepartamento(){
   document.getElementById('sel-veiculo').value = '';
   document.getElementById('sel-motorista').value = '';
   document.getElementById('sel-motivo').value = '';
+  document.getElementById('sel-unidade-medida').value = '';
   document.getElementById('sel-responsavel').value = '';
   document.getElementById('observacao').value = '';
   limparProduto();
@@ -436,6 +454,47 @@ async function buscarManual(){
   if(produto){ selecionarProduto(produto); } else { alert('Produto não encontrado para "' + termo + '".'); }
 }
 
+/* ---------------- SUGESTÕES ENQUANTO DIGITA (autocomplete) ---------------- */
+
+let temporizadorBusca = null;
+
+function onDigitarBusca(){
+  clearTimeout(temporizadorBusca);
+  const termo = document.getElementById('codigo-manual').value.trim();
+  if(termo.length < 2){ esconderSugestoes(); return; }
+  temporizadorBusca = setTimeout(() => buscarSugestoes(termo), 300);
+}
+
+async function buscarSugestoes(termo){
+  const { data } = await sb.from('produtos').select('*').eq('ativo', true)
+    .or(`descricao.ilike.%${termo}%,codigo.ilike.%${termo}%,ean.ilike.%${termo}%`)
+    .limit(8);
+  renderSugestoes(data || []);
+}
+
+function renderSugestoes(lista){
+  const el = document.getElementById('autocomplete-list');
+  if(lista.length === 0){ esconderSugestoes(); return; }
+  el.innerHTML = lista.map(p => `
+    <div class="autocomplete-item" onclick='selecionarSugestao(${p.id})'>
+      <div>${p.descricao}</div>
+      <div class="codigo">Código: ${p.codigo}${p.ean ? ' · EAN: ' + p.ean : ''}</div>
+    </div>`).join('');
+  el.classList.remove('hidden');
+  window._sugestoesAtuais = lista;
+}
+
+function selecionarSugestao(id){
+  const produto = (window._sugestoesAtuais || []).find(p => p.id === id);
+  if(produto) selecionarProduto(produto);
+}
+
+function esconderSugestoes(){
+  const el = document.getElementById('autocomplete-list');
+  el.classList.add('hidden');
+  el.innerHTML = '';
+}
+
 function selecionarProduto(produto){
   produtoAtual = produto;
   document.getElementById('produto-desc').textContent = produto.descricao;
@@ -444,7 +503,9 @@ function selecionarProduto(produto){
   document.getElementById('produto-found').classList.remove('hidden');
   document.getElementById('qty-block').classList.remove('hidden');
   document.getElementById('quantidade').value = 1;
+  document.getElementById('sel-unidade-medida').value = '';
   document.getElementById('codigo-manual').value = '';
+  esconderSugestoes();
   resetarFoto();
 }
 
@@ -484,12 +545,18 @@ function onFotoSelecionada(event){
 
     document.getElementById('foto-thumb').src = resultado;
     document.getElementById('foto-preview').classList.remove('hidden');
-    document.getElementById('foto-status-text').textContent = 'Analisando com IA...';
     document.getElementById('foto-msg').innerHTML = '';
-    fotoConfirmada = null;
-    atualizarBotaoRegistrar();
 
-    verificarFotoComIA();
+    if(exigirValidacaoFoto){
+      document.getElementById('foto-status-text').textContent = 'Analisando com IA...';
+      fotoConfirmada = null;
+      atualizarBotaoRegistrar();
+      verificarFotoComIA();
+    } else {
+      document.getElementById('foto-status-text').textContent = '✅ Foto registrada.';
+      fotoConfirmada = true;
+      atualizarBotaoRegistrar();
+    }
   };
   reader.readAsDataURL(file);
 }
@@ -576,8 +643,7 @@ async function registrarTentativaBloqueada(quantidadeApontada, quantidadeDetecta
 }
 
 function atualizarBotaoRegistrar(){
-  const fotoOk = exigirValidacaoFoto ? (fotoConfirmada === true) : true;
-  document.getElementById('btn-registrar').disabled = !(produtoAtual && fotoOk);
+  document.getElementById('btn-registrar').disabled = !(produtoAtual && fotoConfirmada === true);
 }
 
 /* ---------------- REGISTRO DA QUEBRA ---------------- */
@@ -586,37 +652,33 @@ async function registrarQuebra(){
   const msg = document.getElementById('registro-msg');
   msg.innerHTML = '';
 
-  if(!produtoAtual) return;
-  if(exigirValidacaoFoto && fotoConfirmada !== true) return;
+  if(!produtoAtual || fotoConfirmada !== true) return;
 
   const motivoId = document.getElementById('sel-motivo').value;
   const departamentoId = document.getElementById('sel-departamento').value;
+  const unidadeMedida = document.getElementById('sel-unidade-medida').value;
   const turnoVisivel = !document.getElementById('field-turno').classList.contains('hidden');
   const areaVisivel = !document.getElementById('field-area').classList.contains('hidden');
   const turnoId = turnoVisivel ? document.getElementById('sel-turno').value : null;
   const areaId = areaVisivel ? document.getElementById('sel-area').value : null;
 
-  if(!motivoId || !departamentoId || (turnoVisivel && !turnoId) || (areaVisivel && !areaId)){
+  if(!motivoId || !departamentoId || !unidadeMedida || (turnoVisivel && !turnoId) || (areaVisivel && !areaId)){
     msg.innerHTML = '<div class="error">Preencha os campos obrigatórios em destaque.</div>';
     return;
   }
 
-  let caminho = null;
+  msg.innerHTML = '<div class="ok">Enviando foto...</div>';
 
-  if(exigirValidacaoFoto){
-    msg.innerHTML = '<div class="ok">Enviando foto...</div>';
+  // upload da foto de conferência para o Storage — sempre acontece, a foto é obrigatória
+  const caminho = departamentoId + '/' + produtoAtual.id + '/' + Date.now() + '.jpg';
+  const bytes = Uint8Array.from(atob(fotoBase64), c => c.charCodeAt(0));
+  const { error: uploadError } = await sb.storage.from('fotos-quebras').upload(caminho, bytes, {
+    contentType: fotoMediaType || 'image/jpeg',
+  });
 
-    // upload da foto de conferência para o Storage
-    caminho = departamentoId + '/' + produtoAtual.id + '/' + Date.now() + '.jpg';
-    const bytes = Uint8Array.from(atob(fotoBase64), c => c.charCodeAt(0));
-    const { error: uploadError } = await sb.storage.from('fotos-quebras').upload(caminho, bytes, {
-      contentType: fotoMediaType || 'image/jpeg',
-    });
-
-    if(uploadError){
-      msg.innerHTML = '<div class="error">Erro ao enviar a foto: ' + uploadError.message + '</div>';
-      return;
-    }
+  if(uploadError){
+    msg.innerHTML = '<div class="error">Erro ao enviar a foto: ' + uploadError.message + '</div>';
+    return;
   }
 
   const payload = {
@@ -624,6 +686,7 @@ async function registrarQuebra(){
     responsavel_id: document.getElementById('sel-responsavel').value || null,
     produto_id: produtoAtual.id,
     quantidade: parseInt(document.getElementById('quantidade').value || '1', 10),
+    unidade_medida: unidadeMedida,
     motivo_id: motivoId,
     equipamento_id: document.getElementById('sel-equipamento').value || null,
     veiculo_id: document.getElementById('sel-veiculo').value || null,
@@ -652,6 +715,7 @@ async function registrarQuebra(){
   // motorista continuam preenchidos, porque normalmente valem pro próximo item também.
   limparProduto();
   document.getElementById('sel-motivo').value = '';
+  document.getElementById('sel-unidade-medida').value = '';
   document.getElementById('sel-responsavel').value = '';
   document.getElementById('observacao').value = '';
 

@@ -830,7 +830,9 @@ function onFotoSelecionada(event){
       }
     };
     img.onerror = () => {
-      document.getElementById('foto-msg').innerHTML = '<div class="error">Não consegui processar essa foto (formato não reconhecido pelo navegador). Tente tirar outra.</div>';
+      document.getElementById('foto-msg').innerHTML =
+        '<div class="error">Não consegui processar essa foto. Detalhes técnicos: tipo="' + (file.type || '(vazio)') +
+        '", tamanho=' + Math.round(file.size/1024) + 'KB, nome="' + file.name + '". Tente tirar outra, ou manda esse texto pro suporte.</div>';
     };
     img.src = reader.result;
   };

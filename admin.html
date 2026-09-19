@@ -210,12 +210,13 @@
       <div class="card">
         <h3>Habilitar login (líderes e conferentes)</h3>
         <p class="hint">
-          Passo a passo: 1) crie o acesso em Authentication → Users no painel do Supabase, com um e-mail
-          (ex: nome.sobrenome@cobeb.app) e uma senha provisória; 2) copie o "User UID" gerado; 3) cole o e-mail
-          e o UID na pessoa correspondente abaixo e marque "Pode lançar".
+          Preencha o e-mail da pessoa e clique em "Criar login" na linha dela — o sistema já
+          cria o acesso e marca "Pode lançar" sozinho. Você só precisa passar a senha
+          provisória pra pessoa depois (ela troca por uma própria quando quiser). Se alguém
+          esquecer a senha, use "Redefinir senha" na mesma linha.
         </p>
         <table>
-          <thead><tr><th>Nome</th><th>Cargo</th><th>Filial</th><th>Ativo</th><th>Pode lançar</th><th>Admin</th><th>E-mail</th><th>Auth UID</th><th></th></tr></thead>
+          <thead><tr><th>Nome</th><th>Cargo</th><th>Filial</th><th>Ativo</th><th>Pode lançar</th><th>Admin</th><th>E-mail</th><th>Acesso</th><th></th></tr></thead>
           <tbody id="tbl-pessoas"></tbody>
         </table>
         <div class="add-row">
@@ -950,7 +951,7 @@ async function carregarPessoas(){
       <td><button class="toggle ${p.pode_logar ? 'on' : ''}" onclick="atualizarPessoa(${p.id}, {pode_logar: ${!p.pode_logar}})"><span class="dot"></span></button></td>
       <td><button class="toggle ${p.is_admin ? 'on' : ''}" onclick="atualizarPessoa(${p.id}, {is_admin: ${!p.is_admin}})"><span class="dot"></span></button></td>
       <td><input class="small-input" value="${p.email || ''}" onchange="atualizarPessoa(${p.id}, {email: this.value.trim() || null})" placeholder="email@cobeb.app" /></td>
-      <td><input class="small-input" value="${p.auth_id || ''}" onchange="atualizarPessoa(${p.id}, {auth_id: this.value.trim() || null})" placeholder="UID do Supabase Auth" /></td>
+      <td><button class="btn-sm btn-outline" onclick="criarLoginPessoa(${p.id})">${p.auth_id ? '🔑 Redefinir senha' : '➕ Criar login'}</button></td>
       <td><button class="btn btn-danger" onclick="removerRegistro('pessoas', ${p.id}, carregarPessoas)">Excluir</button></td>
     </tr>`).join('');
 }
@@ -959,6 +960,40 @@ async function atualizarPessoa(id, campos){
   const { error } = await sb.from('pessoas').update(campos).eq('id', id);
   if(error){ alert('Erro: ' + error.message); }
   await carregarPessoas();
+}
+
+async function criarLoginPessoa(id){
+  const pessoa = pessoas.find(p => p.id === id);
+  if(!pessoa) return;
+  if(!pessoa.email){ alert('Preencha o e-mail dessa pessoa antes (célula "E-mail" na tabela).'); return; }
+
+  const jaTinhaLogin = !!pessoa.auth_id;
+  const acao = jaTinhaLogin ? 'Redefinir a senha' : 'Criar o login';
+  const senha = prompt(acao + ' de ' + pessoa.nome + ' — digite a nova senha provisória (mínimo 6 caracteres):');
+  if(!senha) return;
+  if(senha.length < 6){ alert('A senha precisa ter pelo menos 6 caracteres.'); return; }
+
+  const { data: sessao } = await sb.auth.getSession();
+  try{
+    const resp = await fetch(SUPABASE_URL + '/functions/v1/criar-login', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': 'Bearer ' + sessao.session.access_token,
+      },
+      body: JSON.stringify({ pessoa_id: id, email: pessoa.email, senha }),
+    });
+    const resultado = await resp.json();
+    if(!resp.ok || resultado.error){
+      alert('Erro: ' + (resultado.error || 'não foi possível completar.'));
+      return;
+    }
+    alert((jaTinhaLogin ? 'Senha redefinida' : 'Login criado') + ' com sucesso! Repasse a senha pra ' + pessoa.nome + '.');
+    await carregarPessoas();
+  } catch(e){
+    alert('Erro de conexão ao criar login: ' + e.message);
+  }
 }
 
 async function adicionarPessoa(){

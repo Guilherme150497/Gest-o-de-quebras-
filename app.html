@@ -827,6 +827,15 @@ async function onFotoSelecionada(event){
 async function normalizarFotoParaJpeg(file){
   const MAX_DIM = 1600;
 
+  // Diagnóstico: confere se os primeiros bytes batem com um JPEG de verdade
+  // (deve começar com FF D8). Se não bater, o arquivo não é o que diz ser.
+  const cabecalho = await file.slice(0, 12).arrayBuffer();
+  const bytesCabecalho = Array.from(new Uint8Array(cabecalho)).map(b => b.toString(16).padStart(2,'0')).join(' ');
+  const pareceJpeg = new Uint8Array(cabecalho)[0] === 0xFF && new Uint8Array(cabecalho)[1] === 0xD8;
+  if(!pareceJpeg){
+    throw new Error('Os primeiros bytes do arquivo não são de um JPEG válido (esperado "ff d8", veio "' + bytesCabecalho + '")');
+  }
+
   function desenharEExportar(origW, origH, desenhar){
     let w = origW, h = origH;
     if(w > MAX_DIM || h > MAX_DIM){

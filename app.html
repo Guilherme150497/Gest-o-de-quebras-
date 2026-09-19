@@ -788,55 +788,83 @@ function resetarFoto(){
   atualizarBotaoRegistrar();
 }
 
-function onFotoSelecionada(event){
+async function onFotoSelecionada(event){
   const file = event.target.files[0];
   if(!file) return;
 
-  const reader = new FileReader();
-  reader.onload = () => {
-    // Recodifica a foto num JPEG de verdade via canvas — resolve o caso de
-    // celulares (principalmente iPhone) que tiram foto em HEIC mas nomeiam
-    // o arquivo como .jpg, o que navegadores não conseguem exibir depois.
-    const img = new Image();
-    img.onload = () => {
-      const MAX_DIM = 1600;
-      let w = img.naturalWidth, h = img.naturalHeight;
-      if(w > MAX_DIM || h > MAX_DIM){
-        const escala = MAX_DIM / Math.max(w, h);
-        w = Math.round(w * escala);
-        h = Math.round(h * escala);
-      }
-      const canvas = document.createElement('canvas');
-      canvas.width = w; canvas.height = h;
-      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-      const dataUrlJpeg = canvas.toDataURL('image/jpeg', 0.85);
+  document.getElementById('foto-msg').innerHTML = '<div class="ok">Processando foto...</div>';
 
-      fotoMediaType = 'image/jpeg';
-      fotoBase64 = dataUrlJpeg.split(',')[1];
+  try{
+    const dataUrlJpeg = await normalizarFotoParaJpeg(file);
 
-      document.getElementById('foto-thumb').src = dataUrlJpeg;
-      document.getElementById('foto-preview').classList.remove('hidden');
-      document.getElementById('foto-msg').innerHTML = '';
+    fotoMediaType = 'image/jpeg';
+    fotoBase64 = dataUrlJpeg.split(',')[1];
 
-      if(exigirValidacaoFoto){
-        document.getElementById('foto-status-text').textContent = 'Analisando com IA...';
-        fotoConfirmada = null;
-        atualizarBotaoRegistrar();
-        verificarFotoComIA();
-      } else {
-        document.getElementById('foto-status-text').textContent = '✅ Foto registrada.';
-        fotoConfirmada = true;
-        atualizarBotaoRegistrar();
-      }
-    };
-    img.onerror = () => {
-      document.getElementById('foto-msg').innerHTML =
-        '<div class="error">Não consegui processar essa foto. Detalhes técnicos: tipo="' + (file.type || '(vazio)') +
-        '", tamanho=' + Math.round(file.size/1024) + 'KB, nome="' + file.name + '". Tente tirar outra, ou manda esse texto pro suporte.</div>';
-    };
-    img.src = reader.result;
-  };
-  reader.readAsDataURL(file);
+    document.getElementById('foto-thumb').src = dataUrlJpeg;
+    document.getElementById('foto-preview').classList.remove('hidden');
+    document.getElementById('foto-msg').innerHTML = '';
+
+    if(exigirValidacaoFoto){
+      document.getElementById('foto-status-text').textContent = 'Analisando com IA...';
+      fotoConfirmada = null;
+      atualizarBotaoRegistrar();
+      verificarFotoComIA();
+    } else {
+      document.getElementById('foto-status-text').textContent = '✅ Foto registrada.';
+      fotoConfirmada = true;
+      atualizarBotaoRegistrar();
+    }
+  } catch(e){
+    document.getElementById('foto-msg').innerHTML =
+      '<div class="error">Não consegui processar essa foto. Detalhes técnicos: tipo="' + (file.type || '(vazio)') +
+      '", tamanho=' + Math.round(file.size/1024) + 'KB, nome="' + file.name + '", erro="' + e.message +
+      '". Tente tirar outra, ou manda esse texto pro suporte.</div>';
+  }
+}
+
+// Decodifica a foto (por dois métodos, o mais robusto primeiro) e devolve um
+// JPEG de verdade em data URL, redimensionado se for muito grande.
+async function normalizarFotoParaJpeg(file){
+  const MAX_DIM = 1600;
+
+  function desenharEExportar(origW, origH, desenhar){
+    let w = origW, h = origH;
+    if(w > MAX_DIM || h > MAX_DIM){
+      const escala = MAX_DIM / Math.max(w, h);
+      w = Math.round(w * escala);
+      h = Math.round(h * escala);
+    }
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    desenhar(ctx, w, h);
+    return canvas.toDataURL('image/jpeg', 0.85);
+  }
+
+  // Método 1 (mais robusto, decodifica o arquivo direto): createImageBitmap
+  if(window.createImageBitmap){
+    try{
+      const bitmap = await createImageBitmap(file);
+      const resultado = desenharEExportar(bitmap.width, bitmap.height, (ctx, w, h) => ctx.drawImage(bitmap, 0, 0, w, h));
+      bitmap.close && bitmap.close();
+      return resultado;
+    } catch(e){ /* cai pro método 2 */ }
+  }
+
+  // Método 2 (fallback): FileReader + <img>
+  const dataUrlOriginal = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error('Falha ao ler o arquivo'));
+    reader.readAsDataURL(file);
+  });
+  const img = await new Promise((resolve, reject) => {
+    const im = new Image();
+    im.onload = () => resolve(im);
+    im.onerror = () => reject(new Error('Navegador não conseguiu decodificar a imagem'));
+    im.src = dataUrlOriginal;
+  });
+  return desenharEExportar(img.naturalWidth, img.naturalHeight, (ctx, w, h) => ctx.drawImage(img, 0, 0, w, h));
 }
 
 async function verificarFotoComIA(){

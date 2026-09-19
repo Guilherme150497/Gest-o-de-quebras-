@@ -330,8 +330,8 @@
 /* ============================================================
    CONFIGURAÇÃO — troque pelos dados do seu projeto Supabase
    ============================================================ */
-const SUPABASE_URL = "https://rnzeszxbizctbpuximzm.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_LPQFPQLcTD64kjOZc9rtdA_27LkTwBL";
+const SUPABASE_URL = "https://SEU-PROJETO.supabase.co";
+const SUPABASE_ANON_KEY = "SUA-CHAVE-ANON-PUBLICA";
 
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -927,8 +927,11 @@ async function registrarQuebra(){
   // upload da foto de conferência para o Storage — sempre acontece, a foto é obrigatória
   const caminho = departamentoId + '/' + produtoAtual.id + '/' + Date.now() + '.jpg';
   const bytes = Uint8Array.from(atob(fotoBase64), c => c.charCodeAt(0));
-  const { error: uploadError } = await sb.storage.from('fotos-quebras').upload(caminho, bytes, {
-    contentType: fotoMediaType || 'image/jpeg',
+  const tipoFoto = fotoMediaType || 'image/jpeg';
+  const blobFoto = new Blob([bytes], { type: tipoFoto });
+  const { error: uploadError } = await sb.storage.from('fotos-quebras').upload(caminho, blobFoto, {
+    contentType: tipoFoto,
+    upsert: false,
   });
 
   if(uploadError){

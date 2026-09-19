@@ -1498,28 +1498,17 @@ function limparFiltrosAprovacoes(){
   renderAprovacoes();
 }
 
-async function abrirFotoModalPorId(id){
+function abrirFotoModalPorId(id){
   const q = quebrasCache.find(x => x.id === id);
   if(!q || !q.fotoPath){ alert('Este lançamento não tem uma foto registrada (foto_path vazio).'); return; }
-  try{
-    const { data, error } = await sb.storage.from('fotos-quebras').createSignedUrl(q.fotoPath, 3600);
-    if(error){
-      alert('Não foi possível gerar o link da foto: ' + error.message + '\n\nCaminho tentado: ' + q.fotoPath);
-      console.error('Erro createSignedUrl:', error, 'caminho:', q.fotoPath);
-      return;
-    }
-    if(!data || !data.signedUrl){
-      alert('A busca não deu erro, mas também não veio nenhuma URL de volta. Caminho tentado: ' + q.fotoPath);
-      return;
-    }
-    document.getElementById('foto-modal-erro').classList.add('hidden');
-    document.getElementById('foto-modal-link').href = data.signedUrl;
-    document.getElementById('foto-modal-img').src = data.signedUrl;
-    document.getElementById('foto-modal').classList.remove('hidden');
-  } catch(e){
-    alert('Erro inesperado ao buscar a foto: ' + e.message);
-    console.error('Exceção em abrirFotoModalPorId:', e);
-  }
+
+  const { data } = sb.storage.from('fotos-quebras').getPublicUrl(q.fotoPath);
+  const url = data.publicUrl + '?v=' + Date.now(); // evita cache velho do navegador
+
+  document.getElementById('foto-modal-erro').classList.add('hidden');
+  document.getElementById('foto-modal-link').href = url;
+  document.getElementById('foto-modal-img').src = url;
+  document.getElementById('foto-modal').classList.remove('hidden');
 }
 function fecharFotoModal(){
   document.getElementById('foto-modal').classList.add('hidden');

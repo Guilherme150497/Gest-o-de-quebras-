@@ -6,6 +6,7 @@
 <title>Lançamento de Quebras — COBEB</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
 <style>
   :root{
     --navy:#16283A; --navy2:#1F3B52; --teal:#12796B; --teal-l:#E4F1EE;
@@ -827,13 +828,26 @@ async function onFotoSelecionada(event){
 async function normalizarFotoParaJpeg(file){
   const MAX_DIM = 1600;
 
-  // Diagnóstico: confere se os primeiros bytes batem com um JPEG de verdade
-  // (deve começar com FF D8). Se não bater, o arquivo não é o que diz ser.
+  // Confere os primeiros bytes pra saber o formato de verdade (o navegador às
+  // vezes recebe "image/jpeg" errado quando na real é HEIC/HEIF).
   const cabecalho = await file.slice(0, 12).arrayBuffer();
-  const bytesCabecalho = Array.from(new Uint8Array(cabecalho)).map(b => b.toString(16).padStart(2,'0')).join(' ');
-  const pareceJpeg = new Uint8Array(cabecalho)[0] === 0xFF && new Uint8Array(cabecalho)[1] === 0xD8;
-  if(!pareceJpeg){
-    throw new Error('Os primeiros bytes do arquivo não são de um JPEG válido (esperado "ff d8", veio "' + bytesCabecalho + '")');
+  const bytes = new Uint8Array(cabecalho);
+  const pareceJpeg = bytes[0] === 0xFF && bytes[1] === 0xD8;
+  const assinaturaFtyp = String.fromCharCode(bytes[4], bytes[5], bytes[6], bytes[7]);
+  const pareceHeic = assinaturaFtyp === 'ftyp';
+
+  let arquivo = file;
+
+  if(!pareceJpeg && pareceHeic){
+    // HEIC/HEIF — navegador não decodifica nativamente, converte com a biblioteca heic2any
+    if(typeof heic2any !== 'function'){
+      throw new Error('Essa foto veio em formato HEIC e a biblioteca de conversão não carregou (verifique sua internet e tente de novo)');
+    }
+    const convertido = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.85 });
+    arquivo = Array.isArray(convertido) ? convertido[0] : convertido;
+  } else if(!pareceJpeg){
+    const bytesCabecalho = Array.from(bytes).map(b => b.toString(16).padStart(2,'0')).join(' ');
+    throw new Error('Formato de arquivo não reconhecido (primeiros bytes: "' + bytesCabecalho + '")');
   }
 
   function desenharEExportar(origW, origH, desenhar){
@@ -853,7 +867,7 @@ async function normalizarFotoParaJpeg(file){
   // Método 1 (mais robusto, decodifica o arquivo direto): createImageBitmap
   if(window.createImageBitmap){
     try{
-      const bitmap = await createImageBitmap(file);
+      const bitmap = await createImageBitmap(arquivo);
       const resultado = desenharEExportar(bitmap.width, bitmap.height, (ctx, w, h) => ctx.drawImage(bitmap, 0, 0, w, h));
       bitmap.close && bitmap.close();
       return resultado;
@@ -865,7 +879,7 @@ async function normalizarFotoParaJpeg(file){
     const reader = new FileReader();
     reader.onload = () => resolve(reader.result);
     reader.onerror = () => reject(new Error('Falha ao ler o arquivo'));
-    reader.readAsDataURL(file);
+    reader.readAsDataURL(arquivo);
   });
   const img = await new Promise((resolve, reject) => {
     const im = new Image();

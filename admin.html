@@ -666,7 +666,11 @@
 
   <div id="foto-modal" class="hidden" style="position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:60;display:flex;align-items:center;justify-content:center;padding:20px;">
     <div style="background:#fff;border-radius:12px;padding:16px;max-width:380px;width:100%;">
-      <img id="foto-modal-img" style="width:100%;border-radius:8px;display:block;" alt="Foto da quebra" onerror="if(this.src){alert('A URL foi gerada, mas o navegador não conseguiu carregar a imagem dela (a URL em si respondeu com erro). URL: ' + this.src);}" />
+      <img id="foto-modal-img" style="width:100%;border-radius:8px;display:block;" alt="Foto da quebra" onerror="document.getElementById('foto-modal-erro').classList.remove('hidden');" />
+      <div id="foto-modal-erro" class="hidden" style="background:var(--red-l);color:var(--red);padding:10px 12px;border-radius:8px;font-size:13px;margin-top:10px;">
+        A imagem não carregou. Clique no link abaixo pra testar a URL direto, numa aba nova:<br/>
+        <a id="foto-modal-link" href="#" target="_blank" style="word-break:break-all;color:var(--red);">abrir foto em nova aba</a>
+      </div>
       <button class="btn btn-outline" style="width:100%;margin-top:12px;" onclick="fecharFotoModal()">Fechar</button>
     </div>
   </div>
@@ -1508,6 +1512,8 @@ async function abrirFotoModalPorId(id){
       alert('A busca não deu erro, mas também não veio nenhuma URL de volta. Caminho tentado: ' + q.fotoPath);
       return;
     }
+    document.getElementById('foto-modal-erro').classList.add('hidden');
+    document.getElementById('foto-modal-link').href = data.signedUrl;
     document.getElementById('foto-modal-img').src = data.signedUrl;
     document.getElementById('foto-modal').classList.remove('hidden');
   } catch(e){

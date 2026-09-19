@@ -522,21 +522,29 @@
     <!-- METAS -->
     <div class="panel" id="panel-metas">
       <div class="card">
-        <h3>Metas por departamento (mensal)</h3>
-        <p class="hint">Defina o teto de custo por mês. "Realizado" é o acumulado do mês atual pra você comparar.</p>
+        <h3>Filtrar metas</h3>
+        <p class="hint">Cada filial tem suas próprias metas, mês a mês — escolha qual quer ver/editar.</p>
+        <div class="filtro-grid" style="grid-template-columns:repeat(2,1fr);max-width:480px;">
+          <div><label class="fl">Filial</label><select id="metas-filial" onchange="carregarMetas()"></select></div>
+          <div><label class="fl">Mês</label><input type="month" id="metas-mes" onchange="carregarMetas()" /></div>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Metas por departamento</h3>
+        <p class="hint">Defina o teto de custo do mês selecionado. "Realizado" é o acumulado aprovado nesse mês, nessa filial.</p>
         <table>
           <thead><tr><th>Departamento</th><th>Meta custo/mês</th><th>Realizado (custo)</th><th>% da meta</th></tr></thead>
           <tbody id="tbl-metas-departamento"></tbody>
         </table>
       </div>
       <div class="card">
-        <h3>Metas por turno (mensal)</h3>
+        <h3>Metas por turno</h3>
         <table>
           <thead><tr><th>Turno</th><th>Meta custo/mês</th><th>Realizado (custo)</th><th>% da meta</th></tr></thead>
           <tbody id="tbl-metas-turno"></tbody>
         </table>
       </div>
-      <button class="btn btn-primary" style="width:auto;padding:12px 22px;" onclick="salvarMetas()">Salvar metas</button>
+      <button class="btn btn-primary" style="width:auto;padding:12px 22px;" onclick="salvarMetas()">Salvar metas deste mês/filial</button>
       <div id="metas-msg"></div>
     </div>
 
@@ -658,7 +666,7 @@
 
   <div id="foto-modal" class="hidden" style="position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:60;display:flex;align-items:center;justify-content:center;padding:20px;">
     <div style="background:#fff;border-radius:12px;padding:16px;max-width:380px;width:100%;">
-      <img id="foto-modal-img" style="width:100%;border-radius:8px;display:block;" alt="Foto da quebra" />
+      <img id="foto-modal-img" style="width:100%;border-radius:8px;display:block;" alt="Foto da quebra" onerror="if(this.src){alert('A URL foi gerada, mas o navegador não conseguiu carregar a imagem dela (a URL em si respondeu com erro). URL: ' + this.src);}" />
       <button class="btn btn-outline" style="width:100%;margin-top:12px;" onclick="fecharFotoModal()">Fechar</button>
     </div>
   </div>
@@ -1488,11 +1496,24 @@ function limparFiltrosAprovacoes(){
 
 async function abrirFotoModalPorId(id){
   const q = quebrasCache.find(x => x.id === id);
-  if(!q || !q.fotoPath) return;
-  const { data, error } = await sb.storage.from('fotos-quebras').createSignedUrl(q.fotoPath, 120);
-  if(error){ alert('Não foi possível carregar a foto: ' + error.message); return; }
-  document.getElementById('foto-modal-img').src = data.signedUrl;
-  document.getElementById('foto-modal').classList.remove('hidden');
+  if(!q || !q.fotoPath){ alert('Este lançamento não tem uma foto registrada (foto_path vazio).'); return; }
+  try{
+    const { data, error } = await sb.storage.from('fotos-quebras').createSignedUrl(q.fotoPath, 120);
+    if(error){
+      alert('Não foi possível gerar o link da foto: ' + error.message + '\n\nCaminho tentado: ' + q.fotoPath);
+      console.error('Erro createSignedUrl:', error, 'caminho:', q.fotoPath);
+      return;
+    }
+    if(!data || !data.signedUrl){
+      alert('A busca não deu erro, mas também não veio nenhuma URL de volta. Caminho tentado: ' + q.fotoPath);
+      return;
+    }
+    document.getElementById('foto-modal-img').src = data.signedUrl;
+    document.getElementById('foto-modal').classList.remove('hidden');
+  } catch(e){
+    alert('Erro inesperado ao buscar a foto: ' + e.message);
+    console.error('Exceção em abrirFotoModalPorId:', e);
+  }
 }
 function fecharFotoModal(){
   document.getElementById('foto-modal').classList.add('hidden');
@@ -2125,10 +2146,24 @@ async function apagarTodosLancamentosTeste(){
   renderTudo();
 }
 
+function montarFiltroMetas(){
+  const sel = document.getElementById('metas-filial');
+  if(sel.options.length === 0){
+    sel.innerHTML = filiais.map(f => `<option value="${f.id}">${f.nome}</option>`).join('');
+  }
+  const mesInput = document.getElementById('metas-mes');
+  if(!mesInput.value){ mesInput.value = new Date().toISOString().slice(0,7); }
+}
+
 async function carregarMetas(){
+  montarFiltroMetas();
+  const filialId = document.getElementById('metas-filial').value;
+  const [ano, mes] = document.getElementById('metas-mes').value.split('-').map(Number);
+  if(!filialId || !ano || !mes) return;
+
   const [{ data: md }, { data: mt }] = await Promise.all([
-    sb.from('metas_departamento').select('*'),
-    sb.from('metas_turno').select('*'),
+    sb.from('metas_departamento').select('*').eq('filial_id', filialId).eq('ano', ano).eq('mes', mes),
+    sb.from('metas_turno').select('*').eq('filial_id', filialId).eq('ano', ano).eq('mes', mes),
   ]);
   metasDepartamento = {};
   departamentos.forEach(d => { metasDepartamento[d.id] = { custo: 0 }; });
@@ -2137,19 +2172,22 @@ async function carregarMetas(){
   metasTurno = {};
   turnos.forEach(t => { metasTurno[t.id] = { custo: 0 }; });
   (mt || []).forEach(r => { metasTurno[r.turno_id] = { custo: Number(r.custo_mensal) || 0 }; });
+
+  renderMetas();
 }
 
-function realizadoMesAtual(campo, id, campoValor){
-  const mesAtual = new Date().toISOString().slice(0,7);
-  return escopoAprovado()
-    .filter(q => q.dataISO.slice(0,7) === mesAtual && q[campo] === id)
-    .reduce((a,q) => a + (campoValor ? q[campoValor] : q.quantidade), 0);
+function realizadoNoPeriodoMetas(campo, id){
+  const filialId = document.getElementById('metas-filial').value;
+  const anoMes = document.getElementById('metas-mes').value; // "YYYY-MM"
+  return quebrasCache
+    .filter(q => q.status === 'aprovada' && q.filialId == filialId && q.dataISO.slice(0,7) === anoMes && q[campo] === id)
+    .reduce((a,q) => a + q.custo, 0);
 }
 
 function renderMetas(){
   document.getElementById('tbl-metas-departamento').innerHTML = departamentos.map(d => {
     const meta = metasDepartamento[d.id];
-    const realCusto = realizadoMesAtual('departamentoId', d.id, 'custo');
+    const realCusto = realizadoNoPeriodoMetas('departamentoId', d.id);
     const pct = meta.custo ? Math.round((realCusto/meta.custo)*100) : 0;
     return `
       <tr>
@@ -2162,7 +2200,7 @@ function renderMetas(){
 
   document.getElementById('tbl-metas-turno').innerHTML = turnos.map(t => {
     const meta = metasTurno[t.id];
-    const realCusto = realizadoMesAtual('turnoId', t.id, 'custo');
+    const realCusto = realizadoNoPeriodoMetas('turnoId', t.id);
     const pct = meta.custo ? Math.round((realCusto/meta.custo)*100) : 0;
     return `
       <tr>
@@ -2175,17 +2213,20 @@ function renderMetas(){
 }
 
 async function salvarMetas(){
-  const linhasDep = departamentos.map(d => ({ departamento_id: d.id, custo_mensal: metasDepartamento[d.id].custo }));
-  const linhasTurno = turnos.map(t => ({ turno_id: t.id, custo_mensal: metasTurno[t.id].custo }));
+  const filialId = Number(document.getElementById('metas-filial').value);
+  const [ano, mes] = document.getElementById('metas-mes').value.split('-').map(Number);
+
+  const linhasDep = departamentos.map(d => ({ filial_id: filialId, departamento_id: d.id, ano, mes, custo_mensal: metasDepartamento[d.id].custo }));
+  const linhasTurno = turnos.map(t => ({ filial_id: filialId, turno_id: t.id, ano, mes, custo_mensal: metasTurno[t.id].custo }));
 
   const [{ error: e1 }, { error: e2 }] = await Promise.all([
-    sb.from('metas_departamento').upsert(linhasDep, { onConflict: 'departamento_id' }),
-    sb.from('metas_turno').upsert(linhasTurno, { onConflict: 'turno_id' }),
+    sb.from('metas_departamento').upsert(linhasDep, { onConflict: 'filial_id,departamento_id,ano,mes' }),
+    sb.from('metas_turno').upsert(linhasTurno, { onConflict: 'filial_id,turno_id,ano,mes' }),
   ]);
 
   document.getElementById('metas-msg').innerHTML = (e1 || e2)
     ? '<div class="error">Erro ao salvar as metas.</div>'
-    : '<div class="ok">Metas salvas.</div>';
+    : '<div class="ok">Metas salvas para ' + nomePor(filiais, filialId) + ' — ' + document.getElementById('metas-mes').value + '.</div>';
 }
 
 </script>

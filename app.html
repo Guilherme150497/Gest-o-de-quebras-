@@ -96,6 +96,9 @@
   .feed-item .meta{color:var(--sub); font-size:12px;}
   .admin-link{font-size:12px; color:#9BB0BF; margin-top:6px;}
   .admin-link a{color:#9BB0BF;}
+  .segmented{display:flex; background:var(--card); border-radius:9px; padding:3px; gap:2px; margin:14px 16px 0;}
+  .seg-btn{flex:1; border:none; background:transparent; padding:12px; font-size:14px; font-weight:700; color:var(--sub); border-radius:7px; cursor:pointer;}
+  .seg-btn.active{background:#fff; color:var(--teal); box-shadow:0 1px 3px rgba(0,0,0,.1);}
 </style>
 </head>
 <body>
@@ -118,13 +121,19 @@
 <div id="view-app" class="hidden">
   <header class="top">
     <div>
-      <div class="title">Lançamento de Quebras</div>
+      <div class="title">Lançamento</div>
       <div class="who" id="who-label"></div>
     </div>
     <button onclick="sair()">Sair</button>
   </header>
 
+  <div class="segmented" id="modo-subtabs">
+    <button class="seg-btn active" data-modo="quebra" onclick="mudarModo('quebra')">📦 Quebra</button>
+    <button class="seg-btn" data-modo="transferencia" onclick="mudarModo('transferencia')">🔄 Transferência</button>
+  </div>
+
   <main>
+    <div id="modo-quebra">
     <div class="section">
       <div class="section-title">0. Departamento</div>
       <div class="card">
@@ -235,6 +244,77 @@
       <div class="section-title">Últimos lançamentos</div>
       <div class="card" id="feed"><p style="color:var(--sub);font-size:13px;">Carregando...</p></div>
     </div>
+    </div>
+
+    <div id="modo-transferencia" class="hidden">
+      <div class="section">
+        <div class="section-title">1. Produto</div>
+        <div class="card">
+          <div class="scan-row" style="position:relative;">
+            <input type="text" id="codigo-transferencia" placeholder="Código interno, EAN ou descrição" autocomplete="off" oninput="onDigitarBuscaTransferencia()" />
+            <button class="btn" style="width:auto;margin:0;background:var(--amber);color:#fff;padding:0 16px;" onclick="buscarManualTransferencia()">Buscar</button>
+            <div id="autocomplete-list-transferencia" class="hidden" style="position:absolute; top:48px; left:0; right:0; background:#fff; border:1px solid var(--line); border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,.08); z-index:15; max-height:240px; overflow-y:auto;"></div>
+          </div>
+
+          <div id="produto-found-transferencia" class="produto-found hidden">
+            <div class="info">
+              <b id="produto-desc-transferencia"></b>
+              <span id="produto-codigos-transferencia"></span>
+            </div>
+            <button class="clear" onclick="limparProdutoTransferencia()">Trocar</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="section" id="detalhes-transferencia" hidden>
+        <div class="section-title">2. Detalhes da transferência</div>
+        <div class="card">
+          <div class="grid2">
+            <div>
+              <label>Depósito de origem</label>
+              <select id="sel-deposito-origem" onchange="atualizarBotaoTransferencia()"></select>
+            </div>
+            <div>
+              <label>Depósito de destino</label>
+              <select id="sel-deposito-destino" onchange="atualizarBotaoTransferencia()"></select>
+            </div>
+            <div>
+              <label>Motivo</label>
+              <select id="sel-motivo-transferencia" onchange="atualizarBotaoTransferencia()">
+                <option value="">Selecione o motivo</option>
+              </select>
+            </div>
+            <div>
+              <label>Como está sendo movido?</label>
+              <select id="sel-unidade-transferencia" onchange="atualizarBotaoTransferencia()">
+                <option value="">Selecione</option>
+                <option value="unidade">Unidade</option>
+                <option value="caixa">Caixa</option>
+                <option value="palete">Palete</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="qty-row">
+            <button onclick="alterarQtdTransferencia(-1)">−</button>
+            <input type="number" id="quantidade-transferencia" value="1" min="1" />
+            <button onclick="alterarQtdTransferencia(1)">+</button>
+            <span style="font-size:12px;color:var(--sub);">unidades a transferir</span>
+          </div>
+
+          <label>Observação (opcional)</label>
+          <textarea id="observacao-transferencia" rows="2"></textarea>
+
+          <button class="btn btn-primary" id="btn-registrar-transferencia" onclick="registrarTransferencia()" disabled>Registrar transferência</button>
+          <div id="registro-transferencia-msg"></div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">Últimas transferências</div>
+        <div class="card" id="feed-transferencia"><p style="color:var(--sub);font-size:13px;">Carregando...</p></div>
+      </div>
+    </div>
 
     <div class="admin-link hidden" id="admin-link"><a href="admin.html">Abrir painel gerencial →</a></div>
   </main>
@@ -319,6 +399,7 @@ async function entrarNoApp(){
   if(pessoaAtual.is_admin){ document.getElementById('admin-link').classList.remove('hidden'); }
   await carregarListas();
   await carregarFeed();
+  await carregarFeedTransferencia();
   atualizarContadorSessao();
 }
 
@@ -347,7 +428,7 @@ function preencherSelect(id, rows, labelField, manterPrimeira){
 }
 
 async function carregarListas(){
-  const [pessoas, motivos, turnos, areas, equipamentos, veiculos, motoristas, departamentos, campos, config] = await Promise.all([
+  const [pessoas, motivos, turnos, areas, equipamentos, veiculos, motoristas, departamentos, campos, config, depositosResp, motivosTransfResp] = await Promise.all([
     sb.from('pessoas').select('id,nome').eq('ativo', true).order('nome'),
     sb.from('motivos').select('id,nome').eq('ativo', true).order('nome'),
     sb.from('turnos').select('id,nome').eq('ativo', true).order('nome'),
@@ -358,6 +439,8 @@ async function carregarListas(){
     sb.from('departamentos').select('id,nome').eq('ativo', true).order('nome'),
     sb.from('departamento_campos').select('*'),
     sb.from('configuracoes').select('exigir_validacao_foto,permitir_scan').eq('id', 1).maybeSingle(),
+    sb.from('depositos').select('id,nome').eq('ativo', true).order('nome'),
+    sb.from('motivos_transferencia').select('id,nome').eq('ativo', true).order('nome'),
   ]);
 
   exigirValidacaoFoto = config.data ? config.data.exigir_validacao_foto : false;
@@ -385,6 +468,19 @@ async function carregarListas(){
   const selDep = document.getElementById('sel-departamento');
   selDep.innerHTML = departamentosCache.map(d => `<option value="${d.id}">${d.nome}</option>`).join('');
   mudarDepartamento();
+
+  // Módulo de transferência
+  depositosCache = depositosResp.data || [];
+  const opcoesDeposito = depositosCache.map(d => `<option value="${d.id}">${d.nome}</option>`).join('');
+  document.getElementById('sel-deposito-origem').innerHTML = '<option value="">Selecione</option>' + opcoesDeposito;
+  document.getElementById('sel-deposito-destino').innerHTML = '<option value="">Selecione</option>' + opcoesDeposito;
+  preencherSelect('sel-motivo-transferencia', motivosTransfResp.data || [], 'nome', true);
+}
+
+function mudarModo(modo){
+  document.querySelectorAll('#modo-subtabs .seg-btn').forEach(b => b.classList.toggle('active', b.dataset.modo === modo));
+  document.getElementById('modo-quebra').classList.toggle('hidden', modo !== 'quebra');
+  document.getElementById('modo-transferencia').classList.toggle('hidden', modo !== 'transferencia');
 }
 
 function mudarDepartamento(){
@@ -493,6 +589,165 @@ function esconderSugestoes(){
   const el = document.getElementById('autocomplete-list');
   el.classList.add('hidden');
   el.innerHTML = '';
+}
+
+/* ============================================================
+   MÓDULO DE TRANSFERÊNCIA ENTRE DEPÓSITOS
+   ============================================================ */
+
+let produtoAtualTransferencia = null;
+let depositosCache = [];
+let temporizadorBuscaTransferencia = null;
+
+async function buscarManualTransferencia(){
+  const termo = document.getElementById('codigo-transferencia').value.trim();
+  if(!termo) return;
+  let produto = await buscarProdutoPorCodigo(termo);
+  if(!produto){
+    const { data } = await sb.from('produtos').select('*').eq('ativo', true).ilike('descricao', `%${termo}%`).limit(1);
+    produto = (data && data[0]) || null;
+  }
+  if(produto){ selecionarProdutoTransferencia(produto); } else { alert('Produto não encontrado para "' + termo + '".'); }
+}
+
+function onDigitarBuscaTransferencia(){
+  clearTimeout(temporizadorBuscaTransferencia);
+  const termo = document.getElementById('codigo-transferencia').value.trim();
+  if(termo.length < 2){ esconderSugestoesTransferencia(); return; }
+  temporizadorBuscaTransferencia = setTimeout(() => buscarSugestoesTransferencia(termo), 300);
+}
+
+async function buscarSugestoesTransferencia(termo){
+  const { data } = await sb.from('produtos').select('*').eq('ativo', true)
+    .or(`descricao.ilike.%${termo}%,codigo.ilike.%${termo}%,ean.ilike.%${termo}%`)
+    .limit(8);
+  renderSugestoesTransferencia(data || []);
+}
+
+function renderSugestoesTransferencia(lista){
+  const el = document.getElementById('autocomplete-list-transferencia');
+  if(lista.length === 0){ esconderSugestoesTransferencia(); return; }
+  el.innerHTML = lista.map(p => `
+    <div class="autocomplete-item" onclick='selecionarSugestaoTransferencia(${p.id})'>
+      <div>${p.descricao}</div>
+      <div class="codigo">Código: ${p.codigo}${p.ean ? ' · EAN: ' + p.ean : ''}</div>
+    </div>`).join('');
+  el.classList.remove('hidden');
+  window._sugestoesAtuaisTransferencia = lista;
+}
+
+function selecionarSugestaoTransferencia(id){
+  const produto = (window._sugestoesAtuaisTransferencia || []).find(p => p.id === id);
+  if(produto) selecionarProdutoTransferencia(produto);
+}
+
+function esconderSugestoesTransferencia(){
+  const el = document.getElementById('autocomplete-list-transferencia');
+  el.classList.add('hidden');
+  el.innerHTML = '';
+}
+
+function selecionarProdutoTransferencia(produto){
+  produtoAtualTransferencia = produto;
+  document.getElementById('produto-desc-transferencia').textContent = produto.descricao;
+  document.getElementById('produto-codigos-transferencia').textContent =
+    'Código: ' + produto.codigo + (produto.ean ? ' · EAN: ' + produto.ean : ' · sem código de barras');
+  document.getElementById('produto-found-transferencia').classList.remove('hidden');
+  document.getElementById('detalhes-transferencia').hidden = false;
+  document.getElementById('codigo-transferencia').value = '';
+  document.getElementById('quantidade-transferencia').value = 1;
+  esconderSugestoesTransferencia();
+  atualizarBotaoTransferencia();
+}
+
+function limparProdutoTransferencia(){
+  produtoAtualTransferencia = null;
+  document.getElementById('produto-found-transferencia').classList.add('hidden');
+  document.getElementById('detalhes-transferencia').hidden = true;
+  atualizarBotaoTransferencia();
+}
+
+function alterarQtdTransferencia(delta){
+  const el = document.getElementById('quantidade-transferencia');
+  el.value = Math.max(1, parseInt(el.value || '1', 10) + delta);
+}
+
+function atualizarBotaoTransferencia(){
+  const origem = document.getElementById('sel-deposito-origem').value;
+  const destino = document.getElementById('sel-deposito-destino').value;
+  const motivo = document.getElementById('sel-motivo-transferencia').value;
+  const unidade = document.getElementById('sel-unidade-transferencia').value;
+  const ok = produtoAtualTransferencia && origem && destino && origem !== destino && motivo && unidade;
+  document.getElementById('btn-registrar-transferencia').disabled = !ok;
+}
+
+async function registrarTransferencia(){
+  const msg = document.getElementById('registro-transferencia-msg');
+  msg.innerHTML = '';
+
+  const origem = document.getElementById('sel-deposito-origem').value;
+  const destino = document.getElementById('sel-deposito-destino').value;
+  const motivo = document.getElementById('sel-motivo-transferencia').value;
+  const unidade = document.getElementById('sel-unidade-transferencia').value;
+
+  if(!produtoAtualTransferencia || !origem || !destino || !motivo || !unidade) return;
+  if(origem === destino){
+    msg.innerHTML = '<div class="error">O depósito de origem e destino não podem ser o mesmo.</div>';
+    return;
+  }
+
+  const payload = {
+    lancado_por_id: pessoaAtual.id,
+    filial_id: pessoaAtual.filial_id,
+    produto_id: produtoAtualTransferencia.id,
+    deposito_origem_id: origem,
+    deposito_destino_id: destino,
+    quantidade: parseInt(document.getElementById('quantidade-transferencia').value || '1', 10),
+    unidade_medida: unidade,
+    motivo_id: motivo,
+    observacao: document.getElementById('observacao-transferencia').value.trim() || null,
+  };
+
+  const { error } = await sb.from('transferencias').insert(payload);
+  if(error){
+    msg.innerHTML = '<div class="error">Erro ao registrar: ' + error.message + '</div>';
+    return;
+  }
+
+  msg.innerHTML = '<div class="ok">Transferência registrada com sucesso.</div>';
+
+  // Origem, destino e unidade continuam preenchidos — normalmente vale pro próximo item
+  // do mesmo lote. Só o produto/quantidade/motivo são específicos de cada item.
+  limparProdutoTransferencia();
+  document.getElementById('sel-motivo-transferencia').value = '';
+  document.getElementById('observacao-transferencia').value = '';
+  document.getElementById('codigo-transferencia').focus();
+
+  await carregarFeedTransferencia();
+}
+
+async function carregarFeedTransferencia(){
+  const feed = document.getElementById('feed-transferencia');
+  const { data, error } = await sb
+    .from('transferencias')
+    .select('id, created_at, quantidade, unidade_medida, produtos(descricao), motivos_transferencia(nome)')
+    .order('created_at', { ascending: false })
+    .limit(8);
+
+  if(error || !data || data.length === 0){
+    feed.innerHTML = '<p style="color:var(--sub);font-size:13px;">Nenhuma transferência ainda.</p>';
+    return;
+  }
+
+  feed.innerHTML = data.map(t => `
+    <div class="feed-item">
+      <div>
+        <div class="desc">${t.produtos?.descricao || '—'} (${t.quantidade} ${t.unidade_medida})</div>
+        <div class="meta">${t.motivos_transferencia?.nome || ''}</div>
+      </div>
+      <div class="meta">${new Date(t.created_at).toLocaleString('pt-BR', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</div>
+    </div>
+  `).join('');
 }
 
 function selecionarProduto(produto){

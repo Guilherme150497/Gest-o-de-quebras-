@@ -159,6 +159,10 @@
         <div class="tab" data-tab="configuracoes">Configurações</div>
       </div>
       <div class="nav-group">
+        <div class="nav-group-title">Transferências</div>
+        <div class="tab" data-tab="transferencias">Transferências</div>
+      </div>
+      <div class="nav-group">
         <div class="nav-group-title">Cadastros</div>
         <div class="tab" data-tab="filiais">Filiais</div>
         <div class="tab" data-tab="departamentos">Departamentos</div>
@@ -170,6 +174,8 @@
         <div class="tab" data-tab="veiculos">Veículos</div>
         <div class="tab" data-tab="motoristas">Motoristas</div>
         <div class="tab" data-tab="produtos">Produtos</div>
+        <div class="tab" data-tab="depositos">Depósitos</div>
+        <div class="tab" data-tab="motivos_transferencia">Motivos Transf.</div>
       </div>
     </nav>
 
@@ -300,6 +306,30 @@
         <table>
           <thead><tr><th>Data</th><th>Filial</th><th>Departamento</th><th>Produto</th><th>Qtd</th><th>Unid.</th><th>Motivo</th><th>Turno</th><th>Responsável</th><th>Status</th></tr></thead>
           <tbody id="tbl-relatorio"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- TRANSFERÊNCIAS ENTRE DEPÓSITOS -->
+    <div class="panel" id="panel-transferencias">
+      <div class="card">
+        <h3>Transferências entre depósitos</h3>
+        <p class="hint">Filtre e exporte em CSV. Não passa por aprovação — é um registro direto do que foi movimentado.</p>
+        <div class="filtro-grid">
+          <div><label class="fl">De</label><input type="date" id="transf-data-de" /></div>
+          <div><label class="fl">Até</label><input type="date" id="transf-data-ate" /></div>
+          <div><label class="fl">Depósito origem</label><select id="transf-origem"><option value="">Todos</option></select></div>
+          <div><label class="fl">Depósito destino</label><select id="transf-destino"><option value="">Todos</option></select></div>
+          <div><label class="fl">Motivo</label><select id="transf-motivo"><option value="">Todos</option></select></div>
+        </div>
+        <div class="row-inline" style="margin-top:14px;">
+          <button class="btn btn-primary" onclick="gerarRelatorioTransferencias()">Gerar relatório</button>
+          <button class="btn btn-outline" onclick="exportarCSVTransferencias()">Exportar CSV</button>
+        </div>
+        <p class="muted" id="transf-resumo" style="margin-top:12px;"></p>
+        <table>
+          <thead><tr><th>Data</th><th>Filial</th><th>Produto</th><th>Origem</th><th>Destino</th><th>Qtd</th><th>Unid.</th><th>Motivo</th><th>Lançado por</th><th></th></tr></thead>
+          <tbody id="tbl-transferencias"></tbody>
         </table>
       </div>
     </div>
@@ -540,6 +570,16 @@
         </div>
         <div id="config-msg"></div>
       </div>
+      <div class="card" style="border-color:#E7B9B9;">
+        <h3 style="color:var(--red);">Zona de risco</h3>
+        <p class="hint">
+          Apaga <b>todos</b> os lançamentos de quebras e transferências (aprovados, pendentes,
+          reprovados, tudo) — pra você limpar os testes antes de colocar a equipe de verdade pra
+          usar. Não mexe em cadastros (pessoas, produtos, depósitos, etc.), só nos lançamentos.
+        </p>
+        <button class="btn btn-danger" style="width:auto;padding:12px 20px;" onclick="apagarTodosLancamentosTeste()">🗑️ Apagar todos os lançamentos (teste)</button>
+        <div id="zona-risco-msg"></div>
+      </div>
     </div>
 
     <!-- LISTAS SIMPLES (áreas, equipamentos, motivos, turnos) -->
@@ -547,6 +587,8 @@
     <div class="panel" id="panel-equipamentos"></div>
     <div class="panel" id="panel-motivos"></div>
     <div class="panel" id="panel-turnos"></div>
+    <div class="panel" id="panel-depositos"></div>
+    <div class="panel" id="panel-motivos_transferencia"></div>
 
     <!-- VEÍCULOS -->
     <div class="panel" id="panel-veiculos">
@@ -648,6 +690,10 @@ let todosProdutos = [];
 let quebrasCache = [];
 let metasDepartamento = {};
 let metasTurno = {};
+let depositos = [];
+let motivos_transferencia = [];
+let transferenciasCache = [];
+let relatorioTransferenciaFiltrado = [];
 
 let filialGlobalId = '';
 let relatorioFiltrado = [];
@@ -712,6 +758,7 @@ document.querySelectorAll('.tab').forEach(tab => {
     if(tab.dataset.tab === 'produto-analise') renderAnaliseProduto();
     if(tab.dataset.tab === 'custo') renderCusto();
     if(tab.dataset.tab === 'metas') renderMetas();
+    if(tab.dataset.tab === 'transferencias') renderTransferencias();
   });
 });
 
@@ -720,7 +767,7 @@ document.querySelectorAll('.tab').forEach(tab => {
 async function carregarTudo(){
   await carregarFiliais();
   await carregarDepartamentos();
-  await Promise.all([carregarAreas(), carregarEquipamentos(), carregarMotivos(), carregarTurnos()]);
+  await Promise.all([carregarAreas(), carregarEquipamentos(), carregarMotivos(), carregarTurnos(), carregarDepositos(), carregarMotivosTransferencia()]);
   await carregarVeiculos();
   await carregarMotoristas();
   await carregarPessoas();
@@ -728,6 +775,7 @@ async function carregarTudo(){
   await carregarMetas();
   await carregarConfiguracoes();
   await carregarQuebras();
+  await carregarTransferencias();
 
   montarFiltroFilialGlobal();
   montarFiltroDepartamentoAprovacoes();
@@ -737,6 +785,7 @@ async function carregarTudo(){
   montarFiltroProduto();
   inicializarControlesPeriodoProduto();
   montarFiltroCusto();
+  montarFiltrosTransferencias();
 
   renderTudo();
 }
@@ -748,6 +797,7 @@ function renderTudo(){
   renderAnaliseProduto();
   renderCusto();
   renderMetas();
+  renderTransferencias();
 }
 
 /* ---------------- HELPERS GENÉRICOS DE CRUD ---------------- */
@@ -881,12 +931,16 @@ function setCacheSimples(tabela, dados){
   else if(tabela === 'equipamentos') equipamentos = dados;
   else if(tabela === 'motivos') motivos = dados;
   else if(tabela === 'turnos') turnos = dados;
+  else if(tabela === 'depositos') depositos = dados;
+  else if(tabela === 'motivos_transferencia') motivos_transferencia = dados;
 }
 function getCacheSimples(tabela){
   if(tabela === 'areas') return areas;
   if(tabela === 'equipamentos') return equipamentos;
   if(tabela === 'motivos') return motivos;
   if(tabela === 'turnos') return turnos;
+  if(tabela === 'depositos') return depositos;
+  if(tabela === 'motivos_transferencia') return motivos_transferencia;
   return [];
 }
 
@@ -894,6 +948,8 @@ async function carregarAreas(){ await carregarSimples('areas', 'Áreas do armaz�
 async function carregarEquipamentos(){ await carregarSimples('equipamentos', 'Equipamentos', 'Novo equipamento'); }
 async function carregarMotivos(){ await carregarSimples('motivos', 'Motivos de quebra', 'Novo motivo'); }
 async function carregarTurnos(){ await carregarSimples('turnos', 'Turnos', 'Novo turno'); }
+async function carregarDepositos(){ await carregarSimples('depositos', 'Depósitos', 'Novo depósito'); }
+async function carregarMotivosTransferencia(){ await carregarSimples('motivos_transferencia', 'Motivos de transferência', 'Novo motivo'); }
 
 async function carregarSimples(tabela, titulo, placeholder){
   const painel = document.getElementById('panel-' + tabela);
@@ -928,7 +984,7 @@ async function adicionarSimples(tabela){
   const { error } = await sb.from(tabela).insert({ nome });
   if(error){ alert('Erro: ' + error.message); return; }
   input.value = '';
-  const cfgs = { areas: carregarAreas, equipamentos: carregarEquipamentos, motivos: carregarMotivos, turnos: carregarTurnos };
+  const cfgs = { areas: carregarAreas, equipamentos: carregarEquipamentos, motivos: carregarMotivos, turnos: carregarTurnos, depositos: carregarDepositos, motivos_transferencia: carregarMotivosTransferencia };
   await cfgs[tabela]();
 }
 
@@ -1408,7 +1464,11 @@ function renderAprovacoes(){
       <td><input class="small-input" type="number" min="1" value="${q.quantidade}" style="width:70px;" onchange="corrigirCampoQuebra(${q.id}, 'quantidade', Number(this.value))" /></td>
       <td>${q.unidadeMedida === 'caixa' ? 'Caixa' : 'Unidade'}</td>
       <td>${nomePor(filiais, q.filialId)}</td>
-      <td>${nomePor(departamentos, q.departamentoId)}</td>
+      <td>
+        <select class="small-input" onchange="corrigirCampoQuebra(${q.id}, 'departamento_id', Number(this.value))">
+          ${departamentos.filter(d => d.ativo).map(d => `<option value="${d.id}" ${d.id===q.departamentoId?'selected':''}>${d.nome}</option>`).join('')}
+        </select>
+      </td>
       <td>${nomePor(motivos, q.motivoId)}</td>
       <td>${nomePor(pessoas, q.lancadoPorId)}</td>
       <td class="row-inline">
@@ -1463,6 +1523,9 @@ async function corrigirCampoQuebra(id, campoDb, valor){
       q.quantidade = valor;
       const produto = produtos.find(p => p.id === q.produtoId);
       q.custo = valor * (produto ? Number(produto.custo_unitario) || 0 : 0);
+    }
+    if(campoDb === 'departamento_id'){
+      q.departamentoId = valor;
     }
   }
   renderAprovacoes();
@@ -1548,6 +1611,124 @@ function exportarCSV(){
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url; a.download = 'relatorio_baixa_quebras.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+/* ---------------- TRANSFERÊNCIAS ENTRE DEPÓSITOS ---------------- */
+
+async function carregarTransferencias(){
+  const { data, error } = await sb
+    .from('transferencias')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(5000);
+
+  if(error){ console.error(error); transferenciasCache = []; return; }
+
+  transferenciasCache = (data || []).map(row => ({
+    id: row.id,
+    dataISO: row.created_at.slice(0, 10),
+    filialId: row.filial_id,
+    produtoId: row.produto_id,
+    depositoOrigemId: row.deposito_origem_id,
+    depositoDestinoId: row.deposito_destino_id,
+    quantidade: row.quantidade,
+    unidadeMedida: row.unidade_medida,
+    motivoId: row.motivo_id,
+    lancadoPorId: row.lancado_por_id,
+    observacao: row.observacao,
+  }));
+}
+
+function escopoBaseTransferencias(){
+  return filialGlobalId ? transferenciasCache.filter(t => t.filialId == filialGlobalId) : transferenciasCache;
+}
+
+function montarFiltrosTransferencias(){
+  const opcoesDeposito = '<option value="">Todos</option>' + depositos.map(d => `<option value="${d.id}">${d.nome}</option>`).join('');
+  document.getElementById('transf-origem').innerHTML = opcoesDeposito;
+  document.getElementById('transf-destino').innerHTML = opcoesDeposito;
+  document.getElementById('transf-motivo').innerHTML = '<option value="">Todos</option>' +
+    motivos_transferencia.map(m => `<option value="${m.id}">${m.nome}</option>`).join('');
+}
+
+function renderTransferencias(){
+  // sem filtro nenhum aplicado ainda — mostra os mais recentes, igual um feed
+  relatorioTransferenciaFiltrado = escopoBaseTransferencias().slice(0, 50);
+  renderTabelaTransferencias();
+}
+
+function gerarRelatorioTransferencias(){
+  const de = document.getElementById('transf-data-de').value;
+  const ate = document.getElementById('transf-data-ate').value;
+  const origem = document.getElementById('transf-origem').value;
+  const destino = document.getElementById('transf-destino').value;
+  const motivo = document.getElementById('transf-motivo').value;
+
+  relatorioTransferenciaFiltrado = escopoBaseTransferencias().filter(t =>
+    (!de || t.dataISO >= de) &&
+    (!ate || t.dataISO <= ate) &&
+    (!origem || t.depositoOrigemId == origem) &&
+    (!destino || t.depositoDestinoId == destino) &&
+    (!motivo || t.motivoId == motivo)
+  );
+
+  renderTabelaTransferencias();
+}
+
+function renderTabelaTransferencias(){
+  const totalQtd = relatorioTransferenciaFiltrado.reduce((a,t) => a+t.quantidade, 0);
+  document.getElementById('transf-resumo').textContent =
+    relatorioTransferenciaFiltrado.length + ' transferência(s) · ' + totalQtd + ' unidade(s) no total';
+
+  document.getElementById('tbl-transferencias').innerHTML = relatorioTransferenciaFiltrado.slice(0, 200).map(t => `
+    <tr>
+      <td>${t.dataISO}</td>
+      <td>${nomePor(filiais, t.filialId)}</td>
+      <td>${nomePor(produtos, t.produtoId)}</td>
+      <td>${nomePor(depositos, t.depositoOrigemId)}</td>
+      <td>${nomePor(depositos, t.depositoDestinoId)}</td>
+      <td>${t.quantidade}</td>
+      <td>${t.unidadeMedida === 'caixa' ? 'Caixa' : t.unidadeMedida === 'palete' ? 'Palete' : 'Unidade'}</td>
+      <td>${nomePor(motivos_transferencia, t.motivoId)}</td>
+      <td>${nomePor(pessoas, t.lancadoPorId)}</td>
+      <td><button class="btn-sm btn-reprovar" onclick="excluirTransferencia(${t.id})">Excluir</button></td>
+    </tr>`).join('') || '<tr><td colspan="10" class="muted">Nenhuma transferência encontrada.</td></tr>';
+}
+
+async function excluirTransferencia(id){
+  if(!confirm('Excluir esta transferência? Essa ação não pode ser desfeita.')) return;
+  const { error } = await sb.from('transferencias').delete().eq('id', id);
+  if(error){ alert('Erro ao excluir: ' + error.message); return; }
+  transferenciasCache = transferenciasCache.filter(t => t.id !== id);
+  relatorioTransferenciaFiltrado = relatorioTransferenciaFiltrado.filter(t => t.id !== id);
+  renderTabelaTransferencias();
+}
+
+function exportarCSVTransferencias(){
+  if(relatorioTransferenciaFiltrado.length === 0){ alert('Gere o relatório antes de exportar.'); return; }
+  const cabecalho = ['Data','Filial','Codigo_Produto','Descricao_Produto','Deposito_Origem','Deposito_Destino','Quantidade','Unidade_Medida','Motivo','Lancado_Por'];
+  const linhas = relatorioTransferenciaFiltrado.map(t => {
+    const produto = produtos.find(p => p.id === t.produtoId);
+    return [
+      t.dataISO,
+      nomePor(filiais, t.filialId),
+      produto ? produto.codigo : '',
+      produto ? produto.descricao : '',
+      nomePor(depositos, t.depositoOrigemId),
+      nomePor(depositos, t.depositoDestinoId),
+      t.quantidade,
+      t.unidadeMedida === 'caixa' ? 'Caixa' : t.unidadeMedida === 'palete' ? 'Palete' : 'Unidade',
+      nomePor(motivos_transferencia, t.motivoId),
+      nomePor(pessoas, t.lancadoPorId),
+    ].map(v => '"' + String(v).replace(/"/g,'""') + '"').join(';');
+  });
+  const csv = cabecalho.join(';') + '\n' + linhas.join('\n');
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'transferencias.csv';
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
@@ -1921,6 +2102,27 @@ async function alternarPermitirScan(){
   configuracoes.permitir_scan = novoValor;
   renderConfiguracoes();
   msg.innerHTML = '<div class="ok">Configuração salva.</div>';
+}
+
+async function apagarTodosLancamentosTeste(){
+  const msg = document.getElementById('zona-risco-msg');
+  msg.innerHTML = '';
+  const confirmacao = prompt('Isso vai apagar TODOS os lançamentos de quebras e transferências (não afeta cadastros). Para confirmar, digite APAGAR (tudo em maiúsculas):');
+  if(confirmacao === null) return;
+  if(confirmacao !== 'APAGAR'){ msg.innerHTML = '<div class="error">Cancelado — o texto digitado não bateu com "APAGAR".</div>'; return; }
+
+  const { error: e1 } = await sb.from('quebras').delete().neq('id', 0);
+  const { error: e2 } = await sb.from('transferencias').delete().neq('id', 0);
+
+  if(e1 || e2){
+    msg.innerHTML = '<div class="error">Erro ao apagar: ' + (e1 ? e1.message : e2.message) + '</div>';
+    return;
+  }
+
+  msg.innerHTML = '<div class="ok">Todos os lançamentos foram apagados.</div>';
+  await carregarQuebras();
+  await carregarTransferencias();
+  renderTudo();
 }
 
 async function carregarMetas(){

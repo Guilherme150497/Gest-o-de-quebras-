@@ -330,8 +330,8 @@
 /* ============================================================
    CONFIGURAÇÃO — troque pelos dados do seu projeto Supabase
    ============================================================ */
-const SUPABASE_URL = "https://SEU-PROJETO.supabase.co";
-const SUPABASE_ANON_KEY = "SUA-CHAVE-ANON-PUBLICA";
+const SUPABASE_URL = "https://rnzeszxbizctbpuximzm.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_LPQFPQLcTD64kjOZc9rtdA_27LkTwBL";
 
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -794,24 +794,45 @@ function onFotoSelecionada(event){
 
   const reader = new FileReader();
   reader.onload = () => {
-    const resultado = reader.result; // data:image/jpeg;base64,....
-    fotoMediaType = file.type || 'image/jpeg';
-    fotoBase64 = resultado.split(',')[1];
+    // Recodifica a foto num JPEG de verdade via canvas — resolve o caso de
+    // celulares (principalmente iPhone) que tiram foto em HEIC mas nomeiam
+    // o arquivo como .jpg, o que navegadores não conseguem exibir depois.
+    const img = new Image();
+    img.onload = () => {
+      const MAX_DIM = 1600;
+      let w = img.naturalWidth, h = img.naturalHeight;
+      if(w > MAX_DIM || h > MAX_DIM){
+        const escala = MAX_DIM / Math.max(w, h);
+        w = Math.round(w * escala);
+        h = Math.round(h * escala);
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      const dataUrlJpeg = canvas.toDataURL('image/jpeg', 0.85);
 
-    document.getElementById('foto-thumb').src = resultado;
-    document.getElementById('foto-preview').classList.remove('hidden');
-    document.getElementById('foto-msg').innerHTML = '';
+      fotoMediaType = 'image/jpeg';
+      fotoBase64 = dataUrlJpeg.split(',')[1];
 
-    if(exigirValidacaoFoto){
-      document.getElementById('foto-status-text').textContent = 'Analisando com IA...';
-      fotoConfirmada = null;
-      atualizarBotaoRegistrar();
-      verificarFotoComIA();
-    } else {
-      document.getElementById('foto-status-text').textContent = '✅ Foto registrada.';
-      fotoConfirmada = true;
-      atualizarBotaoRegistrar();
-    }
+      document.getElementById('foto-thumb').src = dataUrlJpeg;
+      document.getElementById('foto-preview').classList.remove('hidden');
+      document.getElementById('foto-msg').innerHTML = '';
+
+      if(exigirValidacaoFoto){
+        document.getElementById('foto-status-text').textContent = 'Analisando com IA...';
+        fotoConfirmada = null;
+        atualizarBotaoRegistrar();
+        verificarFotoComIA();
+      } else {
+        document.getElementById('foto-status-text').textContent = '✅ Foto registrada.';
+        fotoConfirmada = true;
+        atualizarBotaoRegistrar();
+      }
+    };
+    img.onerror = () => {
+      document.getElementById('foto-msg').innerHTML = '<div class="error">Não consegui processar essa foto (formato não reconhecido pelo navegador). Tente tirar outra.</div>';
+    };
+    img.src = reader.result;
   };
   reader.readAsDataURL(file);
 }

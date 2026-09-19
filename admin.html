@@ -1502,7 +1502,7 @@ async function abrirFotoModalPorId(id){
   const q = quebrasCache.find(x => x.id === id);
   if(!q || !q.fotoPath){ alert('Este lançamento não tem uma foto registrada (foto_path vazio).'); return; }
   try{
-    const { data, error } = await sb.storage.from('fotos-quebras').createSignedUrl(q.fotoPath, 120);
+    const { data, error } = await sb.storage.from('fotos-quebras').createSignedUrl(q.fotoPath, 3600);
     if(error){
       alert('Não foi possível gerar o link da foto: ' + error.message + '\n\nCaminho tentado: ' + q.fotoPath);
       console.error('Erro createSignedUrl:', error, 'caminho:', q.fotoPath);

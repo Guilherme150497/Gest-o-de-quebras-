@@ -235,10 +235,12 @@
       <div class="card">
         <h3>Importar pessoas em massa (Excel)</h3>
         <p class="hint">
-          Baixe o modelo, preencha e suba de volta. Colunas: <b>nome, cargo, filial, email</b>
+          Baixe o modelo, preencha e suba de volta. Colunas: <b>nome, cargo, filial, email, senha</b>
           (filial deve ser escrita igual ao cadastro, ex: "Pará de Minas" — se não bater, a pessoa
-          entra sem filial e você ajusta depois na tabela acima). Todas entram com login
-          desabilitado por padrão.
+          entra sem filial e você ajusta depois na tabela acima). Preenchendo email + senha
+          (mínimo 6 caracteres), o login já sai pronto — a pessoa já consegue logar com essa senha
+          assim que a importação terminar. Deixando a senha em branco, ela entra sem login,
+          igual antes.
         </p>
         <div class="row-inline" style="margin-bottom:10px;">
           <button class="btn btn-outline" onclick="baixarModeloPessoas()">⬇ Baixar modelo (.xlsx)</button>
@@ -683,6 +685,11 @@
 const SUPABASE_URL = "https://rnzeszxbizctbpuximzm.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_LPQFPQLcTD64kjOZc9rtdA_27LkTwBL";
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// Cliente auxiliar, isolado, só pra criar logins novos (signUp) sem afetar
+// a sua própria sessão de admin logada no 'sb' acima.
+const sbAuxiliar = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: { persistSession: false, autoRefreshToken: false },
+});
 
 let pessoaAtual = null;
 
@@ -1019,7 +1026,7 @@ async function carregarPessoas(){
       <td><button class="toggle ${p.pode_logar ? 'on' : ''}" onclick="atualizarPessoa(${p.id}, {pode_logar: ${!p.pode_logar}})"><span class="dot"></span></button></td>
       <td><button class="toggle ${p.is_admin ? 'on' : ''}" onclick="atualizarPessoa(${p.id}, {is_admin: ${!p.is_admin}})"><span class="dot"></span></button></td>
       <td><input class="small-input" value="${p.email || ''}" onchange="atualizarPessoa(${p.id}, {email: this.value.trim() || null})" placeholder="email@cobeb.app" /></td>
-      <td><button class="btn-sm btn-outline" onclick="criarLoginPessoa(${p.id})">${p.auth_id ? '🔑 Redefinir senha' : '➕ Criar login'}</button></td>
+      <td><button class="btn-sm btn-outline" onclick="${p.auth_id ? 'redefinirSenhaPessoa' : 'criarLoginPessoa'}(${p.id})">${p.auth_id ? '🔑 Redefinir senha' : '➕ Criar login'}</button></td>
       <td><button class="btn btn-danger" onclick="removerRegistro('pessoas', ${p.id}, carregarPessoas)">Excluir</button></td>
     </tr>`).join('');
 }
@@ -1035,9 +1042,46 @@ async function criarLoginPessoa(id){
   if(!pessoa) return;
   if(!pessoa.email){ alert('Preencha o e-mail dessa pessoa antes (célula "E-mail" na tabela).'); return; }
 
-  const jaTinhaLogin = !!pessoa.auth_id;
-  const acao = jaTinhaLogin ? 'Redefinir a senha' : 'Criar o login';
-  const senha = prompt(acao + ' de ' + pessoa.nome + ' — digite a nova senha provisória (mínimo 6 caracteres):');
+  if(pessoa.auth_id){
+    // Já tem login — troca de senha exige API de administrador, que pede uma
+    // Edge Function separada. Direciona pro fluxo certo em vez de tentar de novo aqui.
+    alert('Essa pessoa já tem login. Pra redefinir a senha dela, use o botão "🔑 Redefinir senha" (função separada).');
+    return;
+  }
+
+  const senha = prompt('Criar o login de ' + pessoa.nome + ' — digite a senha provisória (mínimo 6 caracteres):');
+  if(!senha) return;
+  if(senha.length < 6){ alert('A senha precisa ter pelo menos 6 caracteres.'); return; }
+
+  const { data, error } = await sbAuxiliar.auth.signUp({ email: pessoa.email, password: senha });
+
+  if(error){
+    alert('Erro ao criar login: ' + error.message);
+    return;
+  }
+  if(!data || !data.user){
+    alert('Não veio erro, mas também não veio um usuário de volta. Isso pode acontecer se "Confirm email" ainda estiver ligado no Supabase — confira em Authentication → Sign In / Providers → Email.');
+    return;
+  }
+
+  const { error: erroPessoa } = await sb.from('pessoas')
+    .update({ auth_id: data.user.id, pode_logar: true })
+    .eq('id', id);
+
+  if(erroPessoa){
+    alert('O login foi criado (UID: ' + data.user.id + '), mas falhou ao salvar na tabela pessoas: ' + erroPessoa.message + '. Copie esse UID e cole manualmente na linha da pessoa, se precisar.');
+    return;
+  }
+
+  alert('Login criado com sucesso! Repasse a senha pra ' + pessoa.nome + '.');
+  await carregarPessoas();
+}
+
+async function redefinirSenhaPessoa(id){
+  const pessoa = pessoas.find(p => p.id === id);
+  if(!pessoa || !pessoa.auth_id) return;
+
+  const senha = prompt('Redefinir a senha de ' + pessoa.nome + ' — digite a nova senha provisória (mínimo 6 caracteres):');
   if(!senha) return;
   if(senha.length < 6){ alert('A senha precisa ter pelo menos 6 caracteres.'); return; }
 
@@ -1054,13 +1098,13 @@ async function criarLoginPessoa(id){
     });
     const resultado = await resp.json();
     if(!resp.ok || resultado.error){
-      alert('Erro: ' + (resultado.error || 'não foi possível completar.'));
+      alert('Erro ao redefinir: ' + (resultado.error || 'não foi possível completar.') +
+        '\n\nSe continuar falhando, um jeito garantido: apague essa pessoa aqui (isso não apaga o login dela) e crie de novo com o mesmo e-mail — ela vai poder logar com a senha antiga até você pedir pra trocar direto com ela.');
       return;
     }
-    alert((jaTinhaLogin ? 'Senha redefinida' : 'Login criado') + ' com sucesso! Repasse a senha pra ' + pessoa.nome + '.');
-    await carregarPessoas();
+    alert('Senha redefinida com sucesso! Repasse a senha pra ' + pessoa.nome + '.');
   } catch(e){
-    alert('Erro de conexão ao criar login: ' + e.message);
+    alert('Erro de conexão: ' + e.message);
   }
 }
 
@@ -1185,10 +1229,10 @@ async function adicionarProduto(){
 
 function baixarModeloPessoas(){
   const linhas = [
-    { nome: 'João Pereira', cargo: 'Conferente', filial: filiais[0] ? filiais[0].nome : 'Pará de Minas', email: 'joao.pereira@cobeb.app' },
+    { nome: 'João Pereira', cargo: 'Conferente', filial: filiais[0] ? filiais[0].nome : 'Pará de Minas', email: 'joao.pereira@cobeb.app', senha: 'Cobeb2026!' },
   ];
-  const planilha = XLSX.utils.json_to_sheet(linhas, { header: ['nome', 'cargo', 'filial', 'email'] });
-  planilha['!cols'] = [{ wch: 24 }, { wch: 20 }, { wch: 18 }, { wch: 28 }];
+  const planilha = XLSX.utils.json_to_sheet(linhas, { header: ['nome', 'cargo', 'filial', 'email', 'senha'] });
+  planilha['!cols'] = [{ wch: 24 }, { wch: 20 }, { wch: 18 }, { wch: 28 }, { wch: 16 }];
   const livro = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(livro, planilha, 'Pessoas');
   XLSX.writeFile(livro, 'modelo_pessoas.xlsx');
@@ -1220,6 +1264,7 @@ async function importarPessoasExcel(input){
       cargo: String(l.cargo || '').trim() || null,
       filial_id: filialPorNome[String(l.filial || '').trim().toLowerCase()] || null,
       email: String(l.email || '').trim() || null,
+      senha: String(l.senha || '').trim() || null,
     }))
     .filter(r => r.nome);
 
@@ -1228,16 +1273,35 @@ async function importarPessoasExcel(input){
     return;
   }
 
-  let sucesso = 0;
+  let sucesso = 0, sucessoComLogin = 0;
   const falhas = [];
   for(const registro of registros){
-    const { error } = await sb.from('pessoas').insert(registro);
-    if(error) falhas.push(registro.nome + ' (' + error.message + ')');
-    else sucesso++;
+    const { senha, ...dadosPessoa } = registro;
+    const { data: inserido, error } = await sb.from('pessoas').insert(dadosPessoa).select().maybeSingle();
+    if(error){ falhas.push(registro.nome + ': cadastro falhou (' + error.message + ')'); continue; }
+    sucesso++;
+
+    if(registro.email && senha){
+      if(senha.length < 6){
+        falhas.push(registro.nome + ': cadastrada, mas senha tem menos de 6 caracteres — sem login');
+        continue;
+      }
+      const { data: authData, error: authError } = await sbAuxiliar.auth.signUp({ email: registro.email, password: senha });
+      if(authError){
+        falhas.push(registro.nome + ': cadastrada, mas login falhou (' + authError.message + ')');
+        continue;
+      }
+      if(!authData || !authData.user){
+        falhas.push(registro.nome + ': cadastrada, mas login não retornou usuário (confira se "Confirm email" está desligado no Supabase)');
+        continue;
+      }
+      await sb.from('pessoas').update({ auth_id: authData.user.id, pode_logar: true }).eq('id', inserido.id);
+      sucessoComLogin++;
+    }
   }
 
   const semFilial = registros.filter(r => !r.filial_id).length;
-  let resumo = '<div class="' + (sucesso > 0 ? 'ok' : 'error') + '">' + sucesso + ' de ' + registros.length + ' pessoa(s) importada(s).';
+  let resumo = '<div class="' + (sucesso > 0 ? 'ok' : 'error') + '">' + sucesso + ' de ' + registros.length + ' pessoa(s) importada(s), ' + sucessoComLogin + ' já com login pronto pra usar.';
   if(semFilial > 0) resumo += ' ' + semFilial + ' entraram sem filial reconhecida — ajuste na tabela acima.';
   resumo += '</div>';
   if(falhas.length > 0) resumo += '<div class="error">Falharam: ' + falhas.join('; ') + '</div>';

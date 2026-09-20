@@ -1527,18 +1527,30 @@ async function importarPlanilhaMensal(input){
 
   const TAMANHO_LOTE = 200;
   let sucesso = 0;
+  const falhas = [];
   for(let i = 0; i < produtosNovos.length; i += TAMANHO_LOTE){
     const lote = produtosNovos.slice(i, i + TAMANHO_LOTE);
     msgEl.innerHTML = '<div class="muted">Salvando... ' + sucesso + ' de ' + produtosNovos.length + '</div>';
     const { error } = await sb.from('produtos').upsert(lote, { onConflict: 'codigo' });
-    if(error){
-      msgEl.innerHTML = '<div class="error">Erro ao salvar (parou em ' + sucesso + ' de ' + produtosNovos.length + '): ' + error.message + '</div>';
-      return;
+    if(!error){
+      sucesso += lote.length;
+      continue;
     }
-    sucesso += lote.length;
+    // O lote inteiro falhou — normalmente é 1 produto com EAN batendo com outro
+    // código já cadastrado. Tenta um por um pra isolar só o(s) item(ns) com problema
+    // e deixar o resto do lote passar.
+    for(const produto of lote){
+      const { error: erroUnico } = await sb.from('produtos').upsert([produto], { onConflict: 'codigo' });
+      if(erroUnico) falhas.push(produto.codigo + ' — ' + produto.descricao + ' (' + erroUnico.message + ')');
+      else sucesso++;
+    }
   }
 
-  msgEl.innerHTML = '<div class="ok">' + sucesso + ' produtos atualizados — ' + totalNormais + ' produtos + ' + totalVasilhames + ' vasilhames.</div>';
+  let resumo = '<div class="' + (sucesso > 0 ? 'ok' : 'error') + '">' + sucesso + ' de ' + produtosNovos.length + ' produtos atualizados — ' + totalNormais + ' produtos + ' + totalVasilhames + ' vasilhames.</div>';
+  if(falhas.length > 0){
+    resumo += '<div class="error">Ficaram de fora (provavelmente EAN duplicado com outro código já cadastrado — confira em "Produtos cadastrados" e ajuste manualmente qual dos dois deve ficar com esse EAN):<br>' + falhas.join('<br>') + '</div>';
+  }
+  msgEl.innerHTML = resumo;
   input.value = '';
   await carregarProdutos();
 }

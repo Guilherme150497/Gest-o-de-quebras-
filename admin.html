@@ -773,7 +773,7 @@
 /* ============================================================
    CONFIGURAÇÃO — mesmos dados usados em app.html
    ============================================================ */
-const SUPABASE_URL = "https://rnzeszxbizctbpuximzm.supabase.co";
+const SUPABASE_URL = ""https://rnzeszxbizctbpuximzm.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_LPQFPQLcTD64kjOZc9rtdA_27LkTwBL";
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // Cliente auxiliar, isolado, só pra criar logins novos (signUp) sem afetar
@@ -1757,7 +1757,9 @@ async function carregarQuebras(){
     motoristaId: row.motorista_id,
     quantidade: row.quantidade,
     unidadeMedida: row.unidade_medida,
-    custo: row.quantidade * (row.unidade_medida === 'caixa' ? (fatorPorProduto[row.produto_id] || 1) : 1) * (custoPorProduto[row.produto_id] || 0),
+    // Usa o custo GRAVADO no lançamento (congelado no dia) — só recalcula ao vivo
+    // como reserva, pra registros antigos que por algum motivo ficaram sem valor salvo.
+    custo: row.custo != null ? Number(row.custo) : row.quantidade * (row.unidade_medida === 'caixa' ? (fatorPorProduto[row.produto_id] || 1) : 1) * (custoPorProduto[row.produto_id] || 0),
     fotoPath: row.foto_path,
     status: row.status,
   }));
@@ -1975,6 +1977,11 @@ async function corrigirCampoQuebra(id, campoDb, valor){
     }
     if(campoDb === 'departamento_id'){
       q.departamentoId = valor;
+    }
+    // Corrigir produto ou quantidade também atualiza o custo gravado no lançamento —
+    // é uma correção legítima do registro, não uma mudança de preço retroativa.
+    if(campoDb === 'produto_id' || campoDb === 'quantidade'){
+      await sb.from('quebras').update({ custo: q.custo }).eq('id', id);
     }
   }
   renderAprovacoes();

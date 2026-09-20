@@ -1037,11 +1037,15 @@ async function registrarQuebra(){
     return;
   }
 
+  const quantidadeLancada = parseInt(document.getElementById('quantidade').value || '1', 10);
+  const fatorAplicado = unidadeMedida === 'caixa' ? (Number(produtoAtual.fator_caixa) || 1) : 1;
+  const custoCongelado = quantidadeLancada * fatorAplicado * (Number(produtoAtual.custo_unitario) || 0);
+
   const payload = {
     lancado_por_id: pessoaAtual.id,
     responsavel_id: document.getElementById('sel-responsavel').value || null,
     produto_id: produtoAtual.id,
-    quantidade: parseInt(document.getElementById('quantidade').value || '1', 10),
+    quantidade: quantidadeLancada,
     unidade_medida: unidadeMedida,
     motivo_id: motivoId,
     equipamento_id: document.getElementById('sel-equipamento').value || null,
@@ -1055,6 +1059,7 @@ async function registrarQuebra(){
     quantidade_detectada_ia: exigirValidacaoFoto ? quantidadeDetectadaIA : null,
     confirmado_ia: exigirValidacaoFoto,
     observacao: document.getElementById('observacao').value.trim() || null,
+    custo: custoCongelado, // grava o custo de hoje — não muda se o produto for atualizado depois
   };
 
   const { error } = await sb.from('quebras').insert(payload);

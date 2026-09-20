@@ -72,6 +72,7 @@
   .panel.active{display:block;}
 
   .card{background:#fff; border:1px solid var(--line); border-radius:12px; padding:18px; margin-bottom:16px;}
+  .chart-wrap{position:relative; height:280px; width:100%;}
   .card h3{margin:0 0 4px; font-size:15px;}
   .card p.hint{color:var(--sub); font-size:12.5px; margin:0 0 14px;}
 
@@ -314,8 +315,8 @@
     <div class="panel active" id="panel-visao-diaria">
       <div class="kpi-grid" id="kpi-grid"></div>
       <div class="card">
-        <h3>Quebras por departamento — últimos 7 dias</h3>
-        <canvas id="chart-visao-departamentos" height="90"></canvas>
+        <h3>Custo de quebras por departamento — últimos 7 dias</h3>
+        <div class="chart-wrap"><canvas id="chart-visao-departamentos"></canvas></div>
       </div>
       <div class="card">
         <h3>Lançamentos de hoje</h3>
@@ -440,19 +441,26 @@
             <label class="fl">Departamento</label>
             <select id="an-departamento" onchange="renderAnalises()"></select>
           </div>
+          <div>
+            <label class="fl">Ver em</label>
+            <div class="segmented" style="margin:0;">
+              <button class="seg-btn active" id="btn-an-quantidade" onclick="mudarModoAnalises(false)">Quantidade</button>
+              <button class="seg-btn" id="btn-an-custo" onclick="mudarModoAnalises(true)">Custo (R$)</button>
+            </div>
+          </div>
         </div>
         <p class="muted" id="an-periodo-resumo" style="margin-top:10px;"></p>
       </div>
 
       <div class="analise-grid">
-        <div class="card"><h3>Por produto (quantidade)</h3><canvas id="chart-produto"></canvas></div>
-        <div class="card"><h3>Por motivo — Pareto</h3><canvas id="chart-pareto"></canvas></div>
-        <div class="card"><h3>Por área</h3><canvas id="chart-area"></canvas></div>
-        <div class="card"><h3>Por equipamento</h3><canvas id="chart-equipamento"></canvas></div>
-        <div class="card"><h3>Por placa</h3><canvas id="chart-placa"></canvas></div>
-        <div class="card"><h3>Por motorista</h3><canvas id="chart-motorista"></canvas></div>
-        <div class="card"><h3>Custo por turno</h3><canvas id="chart-custo-turno"></canvas></div>
-        <div class="card"><h3>Custo por funcionário (responsável)</h3><canvas id="chart-custo-funcionario"></canvas></div>
+        <div class="card"><h3 id="titulo-chart-produto">Por produto</h3><div class="chart-wrap"><canvas id="chart-produto"></canvas></div></div>
+        <div class="card"><h3 id="titulo-chart-pareto">Por motivo — Pareto</h3><div class="chart-wrap"><canvas id="chart-pareto"></canvas></div></div>
+        <div class="card"><h3 id="titulo-chart-area">Por área</h3><div class="chart-wrap"><canvas id="chart-area"></canvas></div></div>
+        <div class="card"><h3 id="titulo-chart-equipamento">Por equipamento</h3><div class="chart-wrap"><canvas id="chart-equipamento"></canvas></div></div>
+        <div class="card"><h3 id="titulo-chart-placa">Por placa</h3><div class="chart-wrap"><canvas id="chart-placa"></canvas></div></div>
+        <div class="card"><h3 id="titulo-chart-motorista">Por motorista</h3><div class="chart-wrap"><canvas id="chart-motorista"></canvas></div></div>
+        <div class="card"><h3 id="titulo-chart-custo-turno">Por turno</h3><div class="chart-wrap"><canvas id="chart-custo-turno"></canvas></div></div>
+        <div class="card"><h3 id="titulo-chart-custo-funcionario">Por responsável</h3><div class="chart-wrap"><canvas id="chart-custo-funcionario"></canvas></div></div>
       </div>
     </div>
 
@@ -507,7 +515,7 @@
       <div class="card">
         <h3>Pareto de produtos (quantidade)</h3>
         <p class="hint">Ranking de todos os produtos no período e departamento filtrados acima.</p>
-        <canvas id="chart-pareto-produtos"></canvas>
+        <div class="chart-wrap"><canvas id="chart-pareto-produtos"></canvas></div>
       </div>
 
       <div class="card">
@@ -521,30 +529,30 @@
           <button class="seg-btn" data-sub="mensal" onclick="mudarSubAbaProduto('mensal')">Mensal</button>
           <button class="seg-btn" data-sub="ano" onclick="mudarSubAbaProduto('ano')">Acumulado no ano</button>
         </div>
-        <div id="prod-sub-diario" style="margin-top:14px;"><canvas id="chart-produto-diario"></canvas></div>
-        <div id="prod-sub-mensal" class="hidden" style="margin-top:14px;"><canvas id="chart-produto-mensal"></canvas></div>
-        <div id="prod-sub-ano" class="hidden" style="margin-top:14px;"><canvas id="chart-produto-ano"></canvas></div>
+        <div id="prod-sub-diario" style="margin-top:14px;"><div class="chart-wrap"><canvas id="chart-produto-diario"></canvas></div></div>
+        <div id="prod-sub-mensal" class="hidden" style="margin-top:14px;"><div class="chart-wrap"><canvas id="chart-produto-mensal"></canvas></div></div>
+        <div id="prod-sub-ano" class="hidden" style="margin-top:14px;"><div class="chart-wrap"><canvas id="chart-produto-ano"></canvas></div></div>
       </div>
 
-      <div class="card"><h3>Por turno</h3><canvas id="chart-produto-turno"></canvas></div>
+      <div class="card"><h3>Por turno</h3><div class="chart-wrap"><canvas id="chart-produto-turno"></canvas></div></div>
 
       <div class="analise-grid">
-        <div class="card"><h3>Por motivo</h3><canvas id="chart-produto-motivo"></canvas></div>
-        <div class="card"><h3>Por departamento</h3><canvas id="chart-produto-departamento"></canvas></div>
-        <div class="card"><h3>Por área</h3><canvas id="chart-produto-area"></canvas></div>
-        <div class="card"><h3>Por equipamento</h3><canvas id="chart-produto-equipamento"></canvas></div>
-        <div class="card"><h3>Por placa</h3><canvas id="chart-produto-placa"></canvas></div>
-        <div class="card"><h3>Por motorista</h3><canvas id="chart-produto-motorista"></canvas></div>
+        <div class="card"><h3>Por motivo</h3><div class="chart-wrap"><canvas id="chart-produto-motivo"></canvas></div></div>
+        <div class="card"><h3>Por departamento</h3><div class="chart-wrap"><canvas id="chart-produto-departamento"></canvas></div></div>
+        <div class="card"><h3>Por área</h3><div class="chart-wrap"><canvas id="chart-produto-area"></canvas></div></div>
+        <div class="card"><h3>Por equipamento</h3><div class="chart-wrap"><canvas id="chart-produto-equipamento"></canvas></div></div>
+        <div class="card"><h3>Por placa</h3><div class="chart-wrap"><canvas id="chart-produto-placa"></canvas></div></div>
+        <div class="card"><h3>Por motorista</h3><div class="chart-wrap"><canvas id="chart-produto-motorista"></canvas></div></div>
       </div>
 
       <div class="card">
         <h3>Top combinações Placa × Produto</h3>
         <p class="hint">Olha todos os produtos (não só o selecionado acima) — pra achar padrões tipo "essa placa sempre quebra esse produto".</p>
-        <canvas id="chart-placa-produto"></canvas>
+        <div class="chart-wrap"><canvas id="chart-placa-produto"></canvas></div>
       </div>
       <div class="card">
         <h3>Top combinações Funcionário × Produto</h3>
-        <canvas id="chart-funcionario-produto"></canvas>
+        <div class="chart-wrap"><canvas id="chart-funcionario-produto"></canvas></div>
       </div>
     </div>
 
@@ -568,16 +576,16 @@
 
       <div class="card" id="custo-sub-diario">
         <h3>Custo diário — últimos 30 dias</h3>
-        <canvas id="chart-custo-diario"></canvas>
+        <div class="chart-wrap"><canvas id="chart-custo-diario"></canvas></div>
       </div>
       <div class="card hidden" id="custo-sub-mensal">
         <h3>Custo por mês</h3>
-        <canvas id="chart-custo-mensal"></canvas>
+        <div class="chart-wrap"><canvas id="chart-custo-mensal"></canvas></div>
       </div>
       <div class="card hidden" id="custo-sub-ano">
         <h3>Custo acumulado no ano, por departamento</h3>
         <p class="hint">Este gráfico sempre mostra todos os departamentos, mesmo com um filtro específico selecionado acima — é justamente pra comparar entre eles.</p>
-        <canvas id="chart-custo-ano-departamento"></canvas>
+        <div class="chart-wrap"><canvas id="chart-custo-ano-departamento"></canvas></div>
       </div>
     </div>
 
@@ -773,7 +781,7 @@
 /* ============================================================
    CONFIGURAÇÃO — mesmos dados usados em app.html
    ============================================================ */
-const SUPABASE_URL = ""https://rnzeszxbizctbpuximzm.supabase.co";
+const SUPABASE_URL = "https://rnzeszxbizctbpuximzm.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_LPQFPQLcTD64kjOZc9rtdA_27LkTwBL";
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // Cliente auxiliar, isolado, só pra criar logins novos (signUp) sem afetar
@@ -1801,14 +1809,14 @@ function renderBarChart(canvasId, labels, data, cor, opts){
     data: { labels, datasets: [{ label: (opts && opts.label) || '', data, backgroundColor: cor, borderRadius: 4 }] },
     options: {
       indexAxis: horizontal ? 'y' : 'x',
-      responsive: true, maintainAspectRatio: true,
+      responsive: true, maintainAspectRatio: false,
       plugins: { legend: { display: false } },
       scales: horizontal ? { x: { beginAtZero: true } } : { y: { beginAtZero: true } },
     },
   });
 }
 
-function renderParetoChart(canvasId, labels, data){
+function renderParetoChart(canvasId, labels, data, rotuloBarra){
   if(chartInstances[canvasId]) chartInstances[canvasId].destroy();
   const total = data.reduce((a,b) => a+b, 0) || 1;
   let acumulado = 0;
@@ -1819,12 +1827,12 @@ function renderParetoChart(canvasId, labels, data){
     data: {
       labels,
       datasets: [
-        { type: 'bar', label: 'Quantidade', data, backgroundColor: '#C97A1A', order: 2, yAxisID: 'y' },
+        { type: 'bar', label: rotuloBarra || 'Quantidade', data, backgroundColor: '#C97A1A', order: 2, yAxisID: 'y' },
         { type: 'line', label: '% acumulado', data: cumulativo, borderColor: '#16283A', backgroundColor: '#16283A', order: 1, yAxisID: 'y1', tension: 0.25 },
       ],
     },
     options: {
-      responsive: true, maintainAspectRatio: true,
+      responsive: true, maintainAspectRatio: false,
       scales: {
         y: { beginAtZero: true, position: 'left' },
         y1: { beginAtZero: true, max: 100, position: 'right', grid: { drawOnChartArea: false }, ticks: { callback: v => v + '%' } },
@@ -1865,9 +1873,9 @@ function renderVisaoDiaria(){
   const hoje = new Date();
   for(let i=0;i<7;i++){ const d = new Date(hoje); d.setDate(d.getDate()-i); ultimos7.add(d.toISOString().slice(0,10)); }
   const registros7 = escopoAprovado().filter(q => ultimos7.has(q.dataISO));
-  const porDep = agregarPor(registros7, 'departamentoId');
+  const porDep = agregarPor(registros7, 'departamentoId', 'custo');
   const labelsDep = departamentos.map(d => d.nome);
-  const dataDep = departamentos.map(d => porDep[d.id] || 0);
+  const dataDep = departamentos.map(d => +((porDep[d.id] || 0).toFixed(2)));
   renderBarChart('chart-visao-departamentos', labelsDep, dataDep, '#12796B');
 
   const doDiaTudo = baseTudo.filter(q => q.dataISO === hojeISO);
@@ -2261,6 +2269,15 @@ function filtrarPorPeriodo(lista, periodo){
   return lista.filter(q => q.dataISO >= periodo.inicio && q.dataISO <= periodo.fim);
 }
 
+let analisesModoCusto = false;
+
+function mudarModoAnalises(mostrarCusto){
+  analisesModoCusto = mostrarCusto;
+  document.getElementById('btn-an-quantidade').classList.toggle('active', !mostrarCusto);
+  document.getElementById('btn-an-custo').classList.toggle('active', mostrarCusto);
+  renderAnalises();
+}
+
 function renderAnalises(){
   const depId = document.getElementById('an-departamento').value;
   const periodo = obterPeriodoAnalises();
@@ -2271,29 +2288,43 @@ function renderAnalises(){
   let base = filtrarPorPeriodo(escopoAprovado(), periodo);
   if(depId) base = base.filter(q => q.departamentoId == depId);
 
-  const porProduto = topN(agregarPor(base, 'produtoId'), produtos, 8);
-  renderBarChart('chart-produto', porProduto.map(x=>x.nome), porProduto.map(x=>x.valor), '#12796B');
+  const campo = analisesModoCusto ? 'custo' : null;
+  const sufixo = analisesModoCusto ? ' (custo)' : ' (quantidade)';
+  const rotuloBarra = analisesModoCusto ? 'Custo (R$)' : 'Quantidade';
+  const converter = v => analisesModoCusto ? +v.toFixed(2) : v;
 
-  const porMotivo = topN(agregarPor(base, 'motivoId'), motivos, 8);
-  renderParetoChart('chart-pareto', porMotivo.map(x=>x.nome), porMotivo.map(x=>x.valor));
+  document.getElementById('titulo-chart-produto').textContent = 'Por produto' + sufixo;
+  document.getElementById('titulo-chart-pareto').textContent = 'Por motivo — Pareto' + sufixo;
+  document.getElementById('titulo-chart-area').textContent = 'Por área' + sufixo;
+  document.getElementById('titulo-chart-equipamento').textContent = 'Por equipamento' + sufixo;
+  document.getElementById('titulo-chart-placa').textContent = 'Por placa' + sufixo;
+  document.getElementById('titulo-chart-motorista').textContent = 'Por motorista' + sufixo;
+  document.getElementById('titulo-chart-custo-turno').textContent = 'Por turno' + sufixo;
+  document.getElementById('titulo-chart-custo-funcionario').textContent = 'Por responsável' + sufixo;
 
-  const porArea = topN(agregarPor(base.filter(q=>q.areaId), 'areaId'), areas, 8);
-  renderBarChart('chart-area', porArea.map(x=>x.nome), porArea.map(x=>x.valor), '#1F3B52');
+  const porProduto = topN(agregarPor(base, 'produtoId', campo), produtos, 8);
+  renderBarChart('chart-produto', porProduto.map(x=>x.nome), porProduto.map(x=>converter(x.valor)), '#12796B', { label: rotuloBarra });
 
-  const porEquip = topN(agregarPor(base.filter(q=>q.equipamentoId), 'equipamentoId'), equipamentos, 8);
-  renderBarChart('chart-equipamento', porEquip.map(x=>x.nome), porEquip.map(x=>x.valor), '#C97A1A');
+  const porMotivo = topN(agregarPor(base, 'motivoId', campo), motivos, 8);
+  renderParetoChart('chart-pareto', porMotivo.map(x=>x.nome), porMotivo.map(x=>converter(x.valor)), rotuloBarra);
 
-  const porPlaca = topN(agregarPor(base.filter(q=>q.veiculoId), 'veiculoId'), veiculos, 8);
-  renderBarChart('chart-placa', porPlaca.map(x=>x.nome), porPlaca.map(x=>x.valor), '#A32D2D');
+  const porArea = topN(agregarPor(base.filter(q=>q.areaId), 'areaId', campo), areas, 8);
+  renderBarChart('chart-area', porArea.map(x=>x.nome), porArea.map(x=>converter(x.valor)), '#1F3B52', { label: rotuloBarra });
 
-  const porMotorista = topN(agregarPor(base.filter(q=>q.motoristaId), 'motoristaId'), motoristas, 8);
-  renderBarChart('chart-motorista', porMotorista.map(x=>x.nome), porMotorista.map(x=>x.valor), '#5B5F63');
+  const porEquip = topN(agregarPor(base.filter(q=>q.equipamentoId), 'equipamentoId', campo), equipamentos, 8);
+  renderBarChart('chart-equipamento', porEquip.map(x=>x.nome), porEquip.map(x=>converter(x.valor)), '#C97A1A', { label: rotuloBarra });
 
-  const custoPorTurno = topN(agregarPor(base, 'turnoId', 'custo'), turnos, 8);
-  renderBarChart('chart-custo-turno', custoPorTurno.map(x=>x.nome), custoPorTurno.map(x=>+x.valor.toFixed(2)), '#12796B');
+  const porPlaca = topN(agregarPor(base.filter(q=>q.veiculoId), 'veiculoId', campo), veiculos, 8);
+  renderBarChart('chart-placa', porPlaca.map(x=>x.nome), porPlaca.map(x=>converter(x.valor)), '#A32D2D', { label: rotuloBarra });
 
-  const custoPorFunc = topN(agregarPor(base, 'responsavelId', 'custo'), pessoas, 8);
-  renderBarChart('chart-custo-funcionario', custoPorFunc.map(x=>x.nome), custoPorFunc.map(x=>+x.valor.toFixed(2)), '#16283A');
+  const porMotorista = topN(agregarPor(base.filter(q=>q.motoristaId), 'motoristaId', campo), motoristas, 8);
+  renderBarChart('chart-motorista', porMotorista.map(x=>x.nome), porMotorista.map(x=>converter(x.valor)), '#5B5F63', { label: rotuloBarra });
+
+  const porTurno = topN(agregarPor(base, 'turnoId', campo), turnos, 8);
+  renderBarChart('chart-custo-turno', porTurno.map(x=>x.nome), porTurno.map(x=>converter(x.valor)), '#12796B', { label: rotuloBarra });
+
+  const porFunc = topN(agregarPor(base, 'responsavelId', campo), pessoas, 8);
+  renderBarChart('chart-custo-funcionario', porFunc.map(x=>x.nome), porFunc.map(x=>converter(x.valor)), '#16283A', { label: rotuloBarra });
 }
 
 /* ---------------- ANÁLISE POR PRODUTO ---------------- */

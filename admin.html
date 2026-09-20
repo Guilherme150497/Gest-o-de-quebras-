@@ -31,7 +31,12 @@
   .nav-group-title{
     font-size:10.5px; text-transform:uppercase; letter-spacing:.6px; font-weight:700;
     color:var(--sub); padding:0 18px; margin-bottom:6px;
+    cursor:pointer; display:flex; align-items:center; justify-content:space-between; user-select:none;
   }
+  .nav-group-title:hover{color:var(--teal);}
+  .nav-group-title::after{content:'▾'; font-size:9px; transition:transform .15s;}
+  .nav-group.collapsed .nav-group-title::after{transform:rotate(-90deg);}
+  .nav-group.collapsed .tab{display:none;}
   .tab{
     padding:9px 18px; font-size:13.5px; font-weight:600; color:var(--text); cursor:pointer;
     border-left:3px solid transparent; white-space:nowrap;
@@ -148,7 +153,7 @@
         <div class="tab" data-tab="relatorio">Relatório de Baixa</div>
       </div>
       <div class="nav-group">
-        <div class="nav-group-title">Análises</div>
+        <div class="nav-group-title">Análises das Quebras</div>
         <div class="tab" data-tab="analises">Análises</div>
         <div class="tab" data-tab="produto-analise">Análise por Produto</div>
         <div class="tab" data-tab="custo">Custo</div>
@@ -604,17 +609,25 @@
     <div class="panel" id="panel-veiculos">
       <div class="card">
         <h3>Veículos</h3>
-        <table><thead><tr><th>Placa</th><th>Modelo</th><th>Ativo</th><th></th></tr></thead><tbody id="tbl-veiculos"></tbody></table>
+        <table><thead><tr><th>Placa</th><th>Modelo</th><th>Filial</th><th>Ativo</th><th></th></tr></thead><tbody id="tbl-veiculos"></tbody></table>
         <div class="add-row">
           <input type="text" id="novo-veiculo-placa" placeholder="Placa" />
           <input type="text" id="novo-veiculo-modelo" placeholder="Modelo (opcional)" />
+          <select id="novo-veiculo-filial"><option value="">Sem filial</option></select>
           <button class="btn btn-primary" onclick="adicionarVeiculo()">Adicionar</button>
         </div>
       </div>
       <div class="card">
-        <h3>Importar veículos em massa</h3>
-        <p class="hint">Planilha CSV com colunas: <b>placa, modelo</b>.</p>
-        <input type="file" id="file-veiculos" accept=".csv" onchange="importarCSV(this,'veiculos')" />
+        <h3>Importar veículos em massa (Excel)</h3>
+        <p class="hint">
+          Baixe o modelo, preencha e suba de volta. Colunas: <b>placa, filial</b> (filial deve
+          ser escrita igual ao cadastro, ex: "Pará de Minas" — se não bater, o veículo entra sem
+          filial e você ajusta depois na tabela acima).
+        </p>
+        <div class="row-inline" style="margin-bottom:10px;">
+          <button class="btn btn-outline" onclick="baixarModeloVeiculos()">⬇ Baixar modelo (.xlsx)</button>
+        </div>
+        <input type="file" id="file-veiculos" accept=".xlsx,.xls" onchange="importarVeiculosExcel(this)" />
         <div id="msg-veiculos"></div>
       </div>
     </div>
@@ -623,16 +636,24 @@
     <div class="panel" id="panel-motoristas">
       <div class="card">
         <h3>Motoristas</h3>
-        <table><thead><tr><th>Nome</th><th>Ativo</th><th></th></tr></thead><tbody id="tbl-motoristas"></tbody></table>
+        <table><thead><tr><th>Nome</th><th>Filial</th><th>Ativo</th><th></th></tr></thead><tbody id="tbl-motoristas"></tbody></table>
         <div class="add-row">
           <input type="text" id="novo-motorista-nome" placeholder="Nome do motorista" />
+          <select id="novo-motorista-filial"><option value="">Sem filial</option></select>
           <button class="btn btn-primary" onclick="adicionarMotorista()">Adicionar</button>
         </div>
       </div>
       <div class="card">
-        <h3>Importar motoristas em massa</h3>
-        <p class="hint">Planilha CSV com coluna: <b>nome</b>.</p>
-        <input type="file" id="file-motoristas" accept=".csv" onchange="importarCSV(this,'motoristas')" />
+        <h3>Importar motoristas em massa (Excel)</h3>
+        <p class="hint">
+          Baixe o modelo, preencha e suba de volta. Colunas: <b>nome, filial</b> (filial deve ser
+          escrita igual ao cadastro, ex: "Pará de Minas" — se não bater, o motorista entra sem
+          filial e você ajusta depois na tabela acima).
+        </p>
+        <div class="row-inline" style="margin-bottom:10px;">
+          <button class="btn btn-outline" onclick="baixarModeloMotoristas()">⬇ Baixar modelo (.xlsx)</button>
+        </div>
+        <input type="file" id="file-motoristas" accept=".xlsx,.xls" onchange="importarMotoristasExcel(this)" />
         <div id="msg-motoristas"></div>
       </div>
     </div>
@@ -762,6 +783,17 @@ function entrarNoAdmin(){
 })();
 
 /* ---------------- TABS ---------------- */
+
+// Menu lateral em blocos que expandem/colapsam — só o bloco com a aba ativa
+// começa aberto, os outros ficam fechados até o usuário clicar no título.
+document.querySelectorAll('.nav-group').forEach(grupo => {
+  const temAbaAtiva = !!grupo.querySelector('.tab.active');
+  if(!temAbaAtiva) grupo.classList.add('collapsed');
+
+  grupo.querySelector('.nav-group-title').addEventListener('click', () => {
+    grupo.classList.toggle('collapsed');
+  });
+});
 
 document.querySelectorAll('.tab').forEach(tab => {
   tab.addEventListener('click', () => {
@@ -1125,9 +1157,19 @@ async function adicionarPessoa(){
 async function carregarVeiculos(){
   const { data } = await sb.from('veiculos').select('*').order('placa');
   veiculos = data || [];
+  const selFilial = document.getElementById('novo-veiculo-filial');
+  if(selFilial.options.length <= 1){
+    selFilial.innerHTML = '<option value="">Sem filial</option>' + filiais.map(f => `<option value="${f.id}">${f.nome}</option>`).join('');
+  }
   document.getElementById('tbl-veiculos').innerHTML = veiculos.map(v => `
     <tr>
       <td>${v.placa}</td><td>${v.modelo || ''}</td>
+      <td>
+        <select class="small-input" onchange="sb.from('veiculos').update({filial_id: this.value || null}).eq('id', ${v.id}).then(() => carregarVeiculos());">
+          <option value="">Sem filial</option>
+          ${filiais.map(f => `<option value="${f.id}" ${f.id===v.filial_id?'selected':''}>${f.nome}</option>`).join('')}
+        </select>
+      </td>
       <td><button class="toggle ${v.ativo ? 'on' : ''}" onclick="toggleAtivo('veiculos', ${v.id}, ${!v.ativo}, carregarVeiculos)"><span class="dot"></span></button></td>
       <td><button class="btn btn-danger" onclick="removerRegistro('veiculos', ${v.id}, carregarVeiculos)">Excluir</button></td>
     </tr>`).join('');
@@ -1136,20 +1178,91 @@ async function carregarVeiculos(){
 async function adicionarVeiculo(){
   const placa = document.getElementById('novo-veiculo-placa').value.trim();
   const modelo = document.getElementById('novo-veiculo-modelo').value.trim();
+  const filial_id = document.getElementById('novo-veiculo-filial').value || null;
   if(!placa) return;
-  const { error } = await sb.from('veiculos').insert({ placa, modelo });
+  const { error } = await sb.from('veiculos').insert({ placa, modelo, filial_id });
   if(error){ alert('Erro: ' + error.message); return; }
   document.getElementById('novo-veiculo-placa').value = '';
   document.getElementById('novo-veiculo-modelo').value = '';
   await carregarVeiculos();
 }
 
+function baixarModeloVeiculos(){
+  const linhas = [
+    { placa: 'ABC1D23', filial: filiais[0] ? filiais[0].nome : 'Pará de Minas' },
+  ];
+  const planilha = XLSX.utils.json_to_sheet(linhas, { header: ['placa', 'filial'] });
+  planilha['!cols'] = [{ wch: 14 }, { wch: 18 }];
+  const livro = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(livro, planilha, 'Veiculos');
+  XLSX.writeFile(livro, 'modelo_veiculos.xlsx');
+}
+
+async function importarVeiculosExcel(input){
+  const file = input.files[0];
+  if(!file) return;
+  const msgEl = document.getElementById('msg-veiculos');
+  msgEl.innerHTML = '<div class="muted">Processando...</div>';
+
+  let linhas;
+  try{
+    const livro = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+    linhas = XLSX.utils.sheet_to_json(livro.Sheets[livro.SheetNames[0]], { defval: '' });
+  } catch(e){
+    msgEl.innerHTML = '<div class="error">Não consegui ler esse arquivo. Confira se é mesmo um .xlsx exportado do Excel.</div>';
+    return;
+  }
+
+  const filialPorNome = {};
+  filiais.forEach(f => { filialPorNome[f.nome.trim().toLowerCase()] = f.id; });
+
+  const registros = linhas
+    .map(l => ({
+      placa: String(l.placa || '').trim().toUpperCase(),
+      filial_id: filialPorNome[String(l.filial || '').trim().toLowerCase()] || null,
+    }))
+    .filter(r => r.placa);
+
+  if(registros.length === 0){
+    msgEl.innerHTML = '<div class="error">Nenhuma linha com placa preenchida foi encontrada no arquivo.</div>';
+    return;
+  }
+
+  let sucesso = 0;
+  const falhas = [];
+  for(const registro of registros){
+    const { error } = await sb.from('veiculos').insert(registro);
+    if(error) falhas.push(registro.placa + ' (' + error.message + ')');
+    else sucesso++;
+  }
+
+  const semFilial = registros.filter(r => !r.filial_id).length;
+  let resumo = '<div class="' + (sucesso > 0 ? 'ok' : 'error') + '">' + sucesso + ' de ' + registros.length + ' veículo(s) importado(s).';
+  if(semFilial > 0) resumo += ' ' + semFilial + ' entraram sem filial reconhecida — ajuste na tabela acima.';
+  resumo += '</div>';
+  if(falhas.length > 0) resumo += '<div class="error">Falharam: ' + falhas.join('; ') + '</div>';
+  msgEl.innerHTML = resumo;
+
+  input.value = '';
+  await carregarVeiculos();
+}
+
 async function carregarMotoristas(){
   const { data } = await sb.from('motoristas').select('*').order('nome');
   motoristas = data || [];
+  const selFilial = document.getElementById('novo-motorista-filial');
+  if(selFilial.options.length <= 1){
+    selFilial.innerHTML = '<option value="">Sem filial</option>' + filiais.map(f => `<option value="${f.id}">${f.nome}</option>`).join('');
+  }
   document.getElementById('tbl-motoristas').innerHTML = motoristas.map(m => `
     <tr>
       <td>${m.nome}</td>
+      <td>
+        <select class="small-input" onchange="sb.from('motoristas').update({filial_id: this.value || null}).eq('id', ${m.id}).then(() => carregarMotoristas());">
+          <option value="">Sem filial</option>
+          ${filiais.map(f => `<option value="${f.id}" ${f.id===m.filial_id?'selected':''}>${f.nome}</option>`).join('')}
+        </select>
+      </td>
       <td><button class="toggle ${m.ativo ? 'on' : ''}" onclick="toggleAtivo('motoristas', ${m.id}, ${!m.ativo}, carregarMotoristas)"><span class="dot"></span></button></td>
       <td><button class="btn btn-danger" onclick="removerRegistro('motoristas', ${m.id}, carregarMotoristas)">Excluir</button></td>
     </tr>`).join('');
@@ -1157,10 +1270,71 @@ async function carregarMotoristas(){
 
 async function adicionarMotorista(){
   const nome = document.getElementById('novo-motorista-nome').value.trim();
+  const filial_id = document.getElementById('novo-motorista-filial').value || null;
   if(!nome) return;
-  const { error } = await sb.from('motoristas').insert({ nome });
+  const { error } = await sb.from('motoristas').insert({ nome, filial_id });
   if(error){ alert('Erro: ' + error.message); return; }
   document.getElementById('novo-motorista-nome').value = '';
+  await carregarMotoristas();
+}
+
+function baixarModeloMotoristas(){
+  const linhas = [
+    { nome: 'José da Silva', filial: filiais[0] ? filiais[0].nome : 'Pará de Minas' },
+  ];
+  const planilha = XLSX.utils.json_to_sheet(linhas, { header: ['nome', 'filial'] });
+  planilha['!cols'] = [{ wch: 24 }, { wch: 18 }];
+  const livro = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(livro, planilha, 'Motoristas');
+  XLSX.writeFile(livro, 'modelo_motoristas.xlsx');
+}
+
+async function importarMotoristasExcel(input){
+  const file = input.files[0];
+  if(!file) return;
+  const msgEl = document.getElementById('msg-motoristas');
+  msgEl.innerHTML = '<div class="muted">Processando...</div>';
+
+  let linhas;
+  try{
+    const livro = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+    linhas = XLSX.utils.sheet_to_json(livro.Sheets[livro.SheetNames[0]], { defval: '' });
+  } catch(e){
+    msgEl.innerHTML = '<div class="error">Não consegui ler esse arquivo. Confira se é mesmo um .xlsx exportado do Excel.</div>';
+    return;
+  }
+
+  const filialPorNome = {};
+  filiais.forEach(f => { filialPorNome[f.nome.trim().toLowerCase()] = f.id; });
+
+  const registros = linhas
+    .map(l => ({
+      nome: String(l.nome || '').trim(),
+      filial_id: filialPorNome[String(l.filial || '').trim().toLowerCase()] || null,
+    }))
+    .filter(r => r.nome);
+
+  if(registros.length === 0){
+    msgEl.innerHTML = '<div class="error">Nenhuma linha com nome preenchido foi encontrada no arquivo.</div>';
+    return;
+  }
+
+  let sucesso = 0;
+  const falhas = [];
+  for(const registro of registros){
+    const { error } = await sb.from('motoristas').insert(registro);
+    if(error) falhas.push(registro.nome + ' (' + error.message + ')');
+    else sucesso++;
+  }
+
+  const semFilial = registros.filter(r => !r.filial_id).length;
+  let resumo = '<div class="' + (sucesso > 0 ? 'ok' : 'error') + '">' + sucesso + ' de ' + registros.length + ' motorista(s) importado(s).';
+  if(semFilial > 0) resumo += ' ' + semFilial + ' entraram sem filial reconhecida — ajuste na tabela acima.';
+  resumo += '</div>';
+  if(falhas.length > 0) resumo += '<div class="error">Falharam: ' + falhas.join('; ') + '</div>';
+  msgEl.innerHTML = resumo;
+
+  input.value = '';
   await carregarMotoristas();
 }
 
@@ -1322,28 +1496,19 @@ function importarCSV(input, tipo){
     skipEmptyLines: true,
     complete: async (res) => {
       const linhas = res.data;
-      let registros = [];
-
-      if(tipo === 'veiculos'){
-        registros = linhas.map(l => ({ placa: (l.placa||'').trim().toUpperCase(), modelo: (l.modelo||'').trim() || null }))
-          .filter(r => r.placa);
-      } else if(tipo === 'motoristas'){
-        registros = linhas.map(l => ({ nome: (l.nome||'').trim() })).filter(r => r.nome);
-      } else if(tipo === 'produtos'){
-        registros = linhas.map(l => ({
-          codigo: String(l.codigo||'').trim(),
-          descricao: (l.descricao||'').trim(),
-          ean: String(l.ean||'').trim() || null,
-        })).filter(r => r.codigo && r.descricao);
-      }
+      const registros = linhas.map(l => ({
+        codigo: String(l.codigo||'').trim(),
+        descricao: (l.descricao||'').trim(),
+        ean: String(l.ean||'').trim() || null,
+      })).filter(r => r.codigo && r.descricao);
 
       if(registros.length === 0){
         msgEl.innerHTML = '<div class="error">Nenhuma linha válida encontrada no arquivo.</div>';
         return;
       }
 
-      const { error } = await sb.from(tipo).upsert(registros, {
-        onConflict: tipo === 'produtos' ? 'codigo' : (tipo === 'veiculos' ? 'placa' : undefined),
+      const { error } = await sb.from('produtos').upsert(registros, {
+        onConflict: 'codigo',
         ignoreDuplicates: false,
       });
 
@@ -1352,10 +1517,7 @@ function importarCSV(input, tipo){
         return;
       }
       msgEl.innerHTML = '<div class="ok">' + registros.length + ' registro(s) importado(s) com sucesso.</div>';
-
-      if(tipo === 'veiculos') await carregarVeiculos();
-      if(tipo === 'motoristas') await carregarMotoristas();
-      if(tipo === 'produtos') await carregarProdutos();
+      await carregarProdutos();
       input.value = '';
     }
   });

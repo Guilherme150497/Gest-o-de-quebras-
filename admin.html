@@ -461,6 +461,7 @@
         <div class="card"><h3 id="titulo-chart-motorista">Por motorista</h3><div class="chart-wrap"><canvas id="chart-motorista"></canvas></div></div>
         <div class="card"><h3 id="titulo-chart-custo-turno">Por turno</h3><div class="chart-wrap"><canvas id="chart-custo-turno"></canvas></div></div>
         <div class="card"><h3 id="titulo-chart-custo-funcionario">Por responsável</h3><div class="chart-wrap"><canvas id="chart-custo-funcionario"></canvas></div></div>
+        <div class="card"><h3 id="titulo-chart-embalagem">Por embalagem — Pareto</h3><div class="chart-wrap"><canvas id="chart-embalagem"></canvas></div></div>
       </div>
     </div>
 
@@ -508,12 +509,19 @@
             <label class="fl">Departamento</label>
             <select id="prod-departamento" onchange="renderAnaliseProduto()"></select>
           </div>
+          <div>
+            <label class="fl">Ver em</label>
+            <div class="segmented" style="margin:0;">
+              <button class="seg-btn active" id="btn-prod-quantidade" onclick="mudarModoAnaliseProduto(false)">Quantidade</button>
+              <button class="seg-btn" id="btn-prod-custo" onclick="mudarModoAnaliseProduto(true)">Custo (R$)</button>
+            </div>
+          </div>
         </div>
         <p class="muted" id="prod-periodo-resumo" style="margin-top:10px;"></p>
       </div>
 
       <div class="card">
-        <h3>Pareto de produtos (quantidade)</h3>
+        <h3 id="titulo-chart-pareto-produtos">Pareto de produtos (quantidade)</h3>
         <p class="hint">Ranking de todos os produtos no período e departamento filtrados acima.</p>
         <div class="chart-wrap"><canvas id="chart-pareto-produtos"></canvas></div>
       </div>
@@ -534,15 +542,15 @@
         <div id="prod-sub-ano" class="hidden" style="margin-top:14px;"><div class="chart-wrap"><canvas id="chart-produto-ano"></canvas></div></div>
       </div>
 
-      <div class="card"><h3>Por turno</h3><div class="chart-wrap"><canvas id="chart-produto-turno"></canvas></div></div>
+      <div class="card"><h3 id="titulo-chart-produto-turno">Por turno</h3><div class="chart-wrap"><canvas id="chart-produto-turno"></canvas></div></div>
 
       <div class="analise-grid">
-        <div class="card"><h3>Por motivo</h3><div class="chart-wrap"><canvas id="chart-produto-motivo"></canvas></div></div>
-        <div class="card"><h3>Por departamento</h3><div class="chart-wrap"><canvas id="chart-produto-departamento"></canvas></div></div>
-        <div class="card"><h3>Por área</h3><div class="chart-wrap"><canvas id="chart-produto-area"></canvas></div></div>
-        <div class="card"><h3>Por equipamento</h3><div class="chart-wrap"><canvas id="chart-produto-equipamento"></canvas></div></div>
-        <div class="card"><h3>Por placa</h3><div class="chart-wrap"><canvas id="chart-produto-placa"></canvas></div></div>
-        <div class="card"><h3>Por motorista</h3><div class="chart-wrap"><canvas id="chart-produto-motorista"></canvas></div></div>
+        <div class="card"><h3 id="titulo-chart-produto-motivo">Por motivo</h3><div class="chart-wrap"><canvas id="chart-produto-motivo"></canvas></div></div>
+        <div class="card"><h3 id="titulo-chart-produto-departamento">Por departamento</h3><div class="chart-wrap"><canvas id="chart-produto-departamento"></canvas></div></div>
+        <div class="card"><h3 id="titulo-chart-produto-area">Por área</h3><div class="chart-wrap"><canvas id="chart-produto-area"></canvas></div></div>
+        <div class="card"><h3 id="titulo-chart-produto-equipamento">Por equipamento</h3><div class="chart-wrap"><canvas id="chart-produto-equipamento"></canvas></div></div>
+        <div class="card"><h3 id="titulo-chart-produto-placa">Por placa</h3><div class="chart-wrap"><canvas id="chart-produto-placa"></canvas></div></div>
+        <div class="card"><h3 id="titulo-chart-produto-motorista">Por motorista</h3><div class="chart-wrap"><canvas id="chart-produto-motorista"></canvas></div></div>
       </div>
 
       <div class="card">
@@ -728,12 +736,14 @@
         <p class="hint">
           Sobe o arquivo do relatório mensal (com as abas <b>01.11</b>, <b>01.12</b> e
           <b>02.05.02</b>, do jeito que você recebe todo mês, sem precisar editar nada antes).
-          O sistema lê sozinho: código, descrição, EAN e fator caixa→unidade da 01.11; código e
-          descrição de vasilhame da 01.12; e o custo médio de cada um na 02.05.02 (coluna Y pros
-          produtos normais, coluna Z pros vasilhames). Só entra quem tem custo conhecido — isso
-          já filtra o catálogo nacional gigante pros produtos que essa filial realmente usa.
-          Produtos que já existem são atualizados (código, descrição, EAN, fator e custo);
-          produtos novos são criados automaticamente.
+          O sistema lê sozinho: código, descrição, EAN, embalagem e fator caixa→unidade da
+          01.11; código e descrição de vasilhame da 01.12; e o custo médio de cada um na
+          02.05.02 (coluna Y pros produtos normais, coluna Z pros vasilhames). Quando um código
+          não tem custo direto mas outro código com o mesmo EAN tem (variantes do mesmo produto
+          por filial de origem), empresta esse custo. Só fica de fora quem não tem custo nenhum
+          conhecido — isso já filtra o catálogo nacional gigante pros produtos que essa filial
+          realmente usa. Produtos que já existem são atualizados (código, descrição, EAN,
+          embalagem, fator e custo); produtos novos são criados automaticamente.
         </p>
         <input type="file" id="file-planilha-mensal" accept=".xlsx,.xls" onchange="importarPlanilhaMensal(this)" />
         <div id="msg-planilha-mensal"></div>
@@ -1492,17 +1502,33 @@ async function importarPlanilhaMensal(input){
     custoPorCodigo[String(codigo).trim()] = { y: Number(l[24]) || 0, z: Number(l[25]) || 0 };
   });
 
-  // Produtos normais (01.11): A=código(0) B=descrição(1) N=fator(13) T=ean(19)
+  // Alguns produtos têm vários códigos pro mesmo EAN (variantes por filial de origem),
+  // e só um desses códigos costuma ter custo cadastrado. Monta um mapa por EAN também,
+  // pra usar de reserva quando o código específico não tiver custo direto.
+  const custoPorEan = {};
+  XLSX.utils.sheet_to_json(abaProdutos, { header: 1, range: 1 }).forEach(l => {
+    const codigo = l[0];
+    const ean = l[19];
+    if(codigo == null || !ean) return;
+    const custo = custoPorCodigo[String(codigo).trim()];
+    if(custo) custoPorEan[String(ean).trim()] = custo;
+  });
+
+  // Produtos normais (01.11): A=código(0) B=descrição(1) G=embalagem(6) N=fator(13) T=ean(19)
   const produtosNovos = [];
+  let usandoCustoPorEan = 0;
   XLSX.utils.sheet_to_json(abaProdutos, { header: 1, range: 1 }).forEach(l => {
     const codigo = l[0];
     if(codigo == null || codigo === '') return;
-    const custo = custoPorCodigo[String(codigo).trim()];
-    if(!custo) return; // só entra quem tem custo conhecido — filtra pro que essa filial usa
+    const ean = l[19] ? String(l[19]).trim() : null;
+    let custo = custoPorCodigo[String(codigo).trim()];
+    if(!custo && ean && custoPorEan[ean]){ custo = custoPorEan[ean]; usandoCustoPorEan++; }
+    if(!custo) return; // só entra quem tem custo conhecido (direto ou por outro código do mesmo EAN)
     produtosNovos.push({
       codigo: String(codigo).trim(),
       descricao: String(l[1] || '').trim(),
-      ean: l[19] ? String(l[19]).trim() : null,
+      ean,
+      embalagem: String(l[6] || '').trim() || null,
       fator_caixa: Number(l[13]) || 1,
       custo_unitario: custo.y,
       eh_vasilhame: false,
@@ -1519,6 +1545,7 @@ async function importarPlanilhaMensal(input){
       codigo: String(codigo).trim(),
       descricao: String(l[2] || '').trim(),
       ean: null,
+      embalagem: null,
       fator_caixa: 1,
       custo_unitario: custo.z,
       eh_vasilhame: true,
@@ -1554,7 +1581,8 @@ async function importarPlanilhaMensal(input){
     }
   }
 
-  let resumo = '<div class="' + (sucesso > 0 ? 'ok' : 'error') + '">' + sucesso + ' de ' + produtosNovos.length + ' produtos atualizados — ' + totalNormais + ' produtos + ' + totalVasilhames + ' vasilhames.</div>';
+  let resumo = '<div class="' + (sucesso > 0 ? 'ok' : 'error') + '">' + sucesso + ' de ' + produtosNovos.length + ' produtos atualizados — ' + totalNormais + ' produtos + ' + totalVasilhames + ' vasilhames.' +
+    (usandoCustoPorEan > 0 ? ' (' + usandoCustoPorEan + ' pegaram o custo emprestado de outro código com o mesmo EAN.)' : '') + '</div>';
   if(falhas.length > 0){
     resumo += '<div class="error">Ficaram de fora (provavelmente EAN duplicado com outro código já cadastrado — confira em "Produtos cadastrados" e ajuste manualmente qual dos dois deve ficar com esse EAN):<br>' + falhas.join('<br>') + '</div>';
   }
@@ -1846,6 +1874,19 @@ function agregarPor(lista, campoId, campoValor){
   lista.forEach(q => {
     const chave = q[campoId];
     if(chave === null || chave === undefined) return;
+    mapa[chave] = (mapa[chave] || 0) + (campoValor ? q[campoValor] : q.quantidade);
+  });
+  return mapa;
+}
+
+// Embalagem é um atributo do PRODUTO, não da quebra em si — agrega através
+// do produto de cada lançamento em vez de um campo direto na quebra.
+function agregarPorEmbalagem(lista, campoValor){
+  const mapa = {};
+  lista.forEach(q => {
+    const produto = produtos.find(p => p.id === q.produtoId);
+    const chave = produto ? (produto.embalagem || 'Sem embalagem informada') : null;
+    if(!chave) return;
     mapa[chave] = (mapa[chave] || 0) + (campoValor ? q[campoValor] : q.quantidade);
   });
   return mapa;
@@ -2211,6 +2252,14 @@ function topN(mapa, lista, n){
   return entradas.slice(0, n);
 }
 
+// Mesma ideia do topN, mas pra mapas cuja chave já é o texto (como embalagem),
+// não um id numérico que precisa de lookup numa lista.
+function topNTexto(mapa, n){
+  const entradas = Object.entries(mapa).map(([nome, valor]) => ({ nome, valor }));
+  entradas.sort((a,b) => b.valor - a.valor);
+  return entradas.slice(0, n);
+}
+
 function pad2(n){ return String(n).padStart(2,'0'); }
 
 function atualizarControlesPeriodo(){
@@ -2301,6 +2350,7 @@ function renderAnalises(){
   document.getElementById('titulo-chart-motorista').textContent = 'Por motorista' + sufixo;
   document.getElementById('titulo-chart-custo-turno').textContent = 'Por turno' + sufixo;
   document.getElementById('titulo-chart-custo-funcionario').textContent = 'Por responsável' + sufixo;
+  document.getElementById('titulo-chart-embalagem').textContent = 'Por embalagem — Pareto' + sufixo;
 
   const porProduto = topN(agregarPor(base, 'produtoId', campo), produtos, 8);
   renderBarChart('chart-produto', porProduto.map(x=>x.nome), porProduto.map(x=>converter(x.valor)), '#12796B', { label: rotuloBarra });
@@ -2325,6 +2375,9 @@ function renderAnalises(){
 
   const porFunc = topN(agregarPor(base, 'responsavelId', campo), pessoas, 8);
   renderBarChart('chart-custo-funcionario', porFunc.map(x=>x.nome), porFunc.map(x=>converter(x.valor)), '#16283A', { label: rotuloBarra });
+
+  const porEmbalagem = topNTexto(agregarPorEmbalagem(base, campo), 8);
+  renderParetoChart('chart-embalagem', porEmbalagem.map(x=>x.nome), porEmbalagem.map(x=>converter(x.valor)), rotuloBarra);
 }
 
 /* ---------------- ANÁLISE POR PRODUTO ---------------- */
@@ -2374,30 +2427,41 @@ function mudarSubAbaProduto(sub){
   renderAnaliseProduto();
 }
 
+let analiseProdutoModoCusto = false;
+
+function mudarModoAnaliseProduto(mostrarCusto){
+  analiseProdutoModoCusto = mostrarCusto;
+  document.getElementById('btn-prod-quantidade').classList.toggle('active', !mostrarCusto);
+  document.getElementById('btn-prod-custo').classList.toggle('active', mostrarCusto);
+  renderAnaliseProduto();
+}
+
 function renderTendenciaProduto(produtoBaseDep, produtoId){
   const doProduto = produtoBaseDep.filter(q => q.produtoId == produtoId);
+  const campo = analiseProdutoModoCusto ? 'custo' : null;
+  const converter = v => analiseProdutoModoCusto ? +v.toFixed(2) : v;
 
   if(produtoSubAbaAtual === 'diario'){
     const dias = [];
     const hoje = new Date();
     for(let i=29;i>=0;i--){ const d = new Date(hoje); d.setDate(d.getDate()-i); dias.push(d.toISOString().slice(0,10)); }
     const porDia = {};
-    doProduto.forEach(q => { if(dias.includes(q.dataISO)) porDia[q.dataISO] = (porDia[q.dataISO]||0) + q.quantidade; });
-    renderBarChart('chart-produto-diario', dias.map(d=>d.slice(8,10)+'/'+d.slice(5,7)), dias.map(d=>porDia[d]||0), '#12796B');
+    doProduto.forEach(q => { if(dias.includes(q.dataISO)) porDia[q.dataISO] = (porDia[q.dataISO]||0) + (campo ? q[campo] : q.quantidade); });
+    renderBarChart('chart-produto-diario', dias.map(d=>d.slice(8,10)+'/'+d.slice(5,7)), dias.map(d=>converter(porDia[d]||0)), '#12796B', { label: analiseProdutoModoCusto ? 'Custo (R$)' : 'Quantidade' });
   }
   if(produtoSubAbaAtual === 'mensal'){
     const porMes = {};
-    doProduto.forEach(q => { const k = q.dataISO.slice(0,7); porMes[k] = (porMes[k]||0) + q.quantidade; });
+    doProduto.forEach(q => { const k = q.dataISO.slice(0,7); porMes[k] = (porMes[k]||0) + (campo ? q[campo] : q.quantidade); });
     const meses = Object.keys(porMes).sort();
-    renderBarChart('chart-produto-mensal', meses.map(m=>m.slice(5,7)+'/'+m.slice(0,4)), meses.map(m=>porMes[m]), '#1F3B52');
+    renderBarChart('chart-produto-mensal', meses.map(m=>m.slice(5,7)+'/'+m.slice(0,4)), meses.map(m=>converter(porMes[m])), '#1F3B52', { label: analiseProdutoModoCusto ? 'Custo (R$)' : 'Quantidade' });
   }
   if(produtoSubAbaAtual === 'ano'){
     const anoAtual = new Date().getFullYear();
     const doAno = doProduto.filter(q => q.dataISO.startsWith(String(anoAtual)));
     const porMes = {};
-    doAno.forEach(q => { const k = q.dataISO.slice(5,7); porMes[k] = (porMes[k]||0) + q.quantidade; });
+    doAno.forEach(q => { const k = q.dataISO.slice(5,7); porMes[k] = (porMes[k]||0) + (campo ? q[campo] : q.quantidade); });
     const mesesOrdenados = Object.keys(porMes).sort();
-    renderBarChart('chart-produto-ano', mesesOrdenados.map(m=>m+'/'+anoAtual), mesesOrdenados.map(m=>porMes[m]), '#C97A1A');
+    renderBarChart('chart-produto-ano', mesesOrdenados.map(m=>m+'/'+anoAtual), mesesOrdenados.map(m=>converter(porMes[m])), '#C97A1A', { label: analiseProdutoModoCusto ? 'Custo (R$)' : 'Quantidade' });
   }
 }
 
@@ -2413,9 +2477,23 @@ function renderAnaliseProduto(){
   let base = filtrarPorPeriodo(escopoAprovado(), periodo);
   if(depId) base = base.filter(q => q.departamentoId == depId);
 
+  const campo = analiseProdutoModoCusto ? 'custo' : null;
+  const sufixo = analiseProdutoModoCusto ? ' (custo)' : ' (quantidade)';
+  const rotuloBarra = analiseProdutoModoCusto ? 'Custo (R$)' : 'Quantidade';
+  const converter = v => analiseProdutoModoCusto ? +v.toFixed(2) : v;
+
+  document.getElementById('titulo-chart-pareto-produtos').textContent = 'Pareto de produtos' + sufixo;
+  document.getElementById('titulo-chart-produto-turno').textContent = 'Por turno' + sufixo;
+  document.getElementById('titulo-chart-produto-motivo').textContent = 'Por motivo' + sufixo;
+  document.getElementById('titulo-chart-produto-departamento').textContent = 'Por departamento' + sufixo;
+  document.getElementById('titulo-chart-produto-area').textContent = 'Por área' + sufixo;
+  document.getElementById('titulo-chart-produto-equipamento').textContent = 'Por equipamento' + sufixo;
+  document.getElementById('titulo-chart-produto-placa').textContent = 'Por placa' + sufixo;
+  document.getElementById('titulo-chart-produto-motorista').textContent = 'Por motorista' + sufixo;
+
   // Pareto geral de produtos (todos, não só o selecionado)
-  const porProduto = topN(agregarPor(base, 'produtoId'), produtos, 10);
-  renderParetoChart('chart-pareto-produtos', porProduto.map(x=>x.nome), porProduto.map(x=>x.valor));
+  const porProduto = topN(agregarPor(base, 'produtoId', campo), produtos, 10);
+  renderParetoChart('chart-pareto-produtos', porProduto.map(x=>x.nome), porProduto.map(x=>converter(x.valor)), rotuloBarra);
 
   // Tendência do produto selecionado (diário/mensal/ano usa histórico completo, não só o período acima)
   const historicoAprovado = escopoAprovado();
@@ -2424,47 +2502,47 @@ function renderAnaliseProduto(){
   // Drill-down do produto selecionado, dentro do período/departamento filtrados
   const doProdutoNoPeriodo = base.filter(q => q.produtoId === produtoId);
 
-  const porTurno = topN(agregarPor(doProdutoNoPeriodo, 'turnoId'), turnos, 8);
-  renderBarChart('chart-produto-turno', porTurno.map(x=>x.nome), porTurno.map(x=>x.valor), '#12796B');
+  const porTurno = topN(agregarPor(doProdutoNoPeriodo, 'turnoId', campo), turnos, 8);
+  renderBarChart('chart-produto-turno', porTurno.map(x=>x.nome), porTurno.map(x=>converter(x.valor)), '#12796B', { label: rotuloBarra });
 
-  const porMotivo = topN(agregarPor(doProdutoNoPeriodo, 'motivoId'), motivos, 8);
-  renderBarChart('chart-produto-motivo', porMotivo.map(x=>x.nome), porMotivo.map(x=>x.valor), '#A32D2D');
+  const porMotivo = topN(agregarPor(doProdutoNoPeriodo, 'motivoId', campo), motivos, 8);
+  renderBarChart('chart-produto-motivo', porMotivo.map(x=>x.nome), porMotivo.map(x=>converter(x.valor)), '#A32D2D', { label: rotuloBarra });
 
-  const porDep = topN(agregarPor(doProdutoNoPeriodo, 'departamentoId'), departamentos, 8);
-  renderBarChart('chart-produto-departamento', porDep.map(x=>x.nome), porDep.map(x=>x.valor), '#16283A');
+  const porDep = topN(agregarPor(doProdutoNoPeriodo, 'departamentoId', campo), departamentos, 8);
+  renderBarChart('chart-produto-departamento', porDep.map(x=>x.nome), porDep.map(x=>converter(x.valor)), '#16283A', { label: rotuloBarra });
 
-  const porArea = topN(agregarPor(doProdutoNoPeriodo.filter(q=>q.areaId), 'areaId'), areas, 8);
-  renderBarChart('chart-produto-area', porArea.map(x=>x.nome), porArea.map(x=>x.valor), '#1F3B52');
+  const porArea = topN(agregarPor(doProdutoNoPeriodo.filter(q=>q.areaId), 'areaId', campo), areas, 8);
+  renderBarChart('chart-produto-area', porArea.map(x=>x.nome), porArea.map(x=>converter(x.valor)), '#1F3B52', { label: rotuloBarra });
 
-  const porEquip = topN(agregarPor(doProdutoNoPeriodo.filter(q=>q.equipamentoId), 'equipamentoId'), equipamentos, 8);
-  renderBarChart('chart-produto-equipamento', porEquip.map(x=>x.nome), porEquip.map(x=>x.valor), '#C97A1A');
+  const porEquip = topN(agregarPor(doProdutoNoPeriodo.filter(q=>q.equipamentoId), 'equipamentoId', campo), equipamentos, 8);
+  renderBarChart('chart-produto-equipamento', porEquip.map(x=>x.nome), porEquip.map(x=>converter(x.valor)), '#C97A1A', { label: rotuloBarra });
 
-  const porPlaca = topN(agregarPor(doProdutoNoPeriodo.filter(q=>q.veiculoId), 'veiculoId'), veiculos, 8);
-  renderBarChart('chart-produto-placa', porPlaca.map(x=>x.nome), porPlaca.map(x=>x.valor), '#5B5F63');
+  const porPlaca = topN(agregarPor(doProdutoNoPeriodo.filter(q=>q.veiculoId), 'veiculoId', campo), veiculos, 8);
+  renderBarChart('chart-produto-placa', porPlaca.map(x=>x.nome), porPlaca.map(x=>converter(x.valor)), '#5B5F63', { label: rotuloBarra });
 
-  const porMotorista = topN(agregarPor(doProdutoNoPeriodo.filter(q=>q.motoristaId), 'motoristaId'), motoristas, 8);
-  renderBarChart('chart-produto-motorista', porMotorista.map(x=>x.nome), porMotorista.map(x=>x.valor), '#12796B');
+  const porMotorista = topN(agregarPor(doProdutoNoPeriodo.filter(q=>q.motoristaId), 'motoristaId', campo), motoristas, 8);
+  renderBarChart('chart-produto-motorista', porMotorista.map(x=>x.nome), porMotorista.map(x=>converter(x.valor)), '#12796B', { label: rotuloBarra });
 
   // Cross-analysis: combinações Placa x Produto e Funcionário x Produto (todos os produtos, no período/depto filtrados)
   const combosPlaca = {};
   base.filter(q => q.veiculoId).forEach(q => {
     const chave = q.veiculoId + '|' + q.produtoId;
-    combosPlaca[chave] = (combosPlaca[chave] || 0) + q.quantidade;
+    combosPlaca[chave] = (combosPlaca[chave] || 0) + (campo ? q[campo] : q.quantidade);
   });
   const topCombosPlaca = Object.entries(combosPlaca)
-    .map(([chave, valor]) => { const [vId, pId] = chave.split('|').map(Number); return { nome: nomePor(veiculos, vId) + ' – ' + nomePor(produtos, pId), valor }; })
+    .map(([chave, valor]) => { const [vId, pId] = chave.split('|').map(Number); return { nome: nomePor(veiculos, vId) + ' – ' + nomePor(produtos, pId), valor: converter(valor) }; })
     .sort((a,b) => b.valor - a.valor).slice(0, 10);
-  renderBarChart('chart-placa-produto', topCombosPlaca.map(x=>x.nome), topCombosPlaca.map(x=>x.valor), '#A32D2D', { horizontal: true });
+  renderBarChart('chart-placa-produto', topCombosPlaca.map(x=>x.nome), topCombosPlaca.map(x=>x.valor), '#A32D2D', { horizontal: true, label: rotuloBarra });
 
   const combosFunc = {};
   base.forEach(q => {
     const chave = q.responsavelId + '|' + q.produtoId;
-    combosFunc[chave] = (combosFunc[chave] || 0) + q.quantidade;
+    combosFunc[chave] = (combosFunc[chave] || 0) + (campo ? q[campo] : q.quantidade);
   });
   const topCombosFunc = Object.entries(combosFunc)
-    .map(([chave, valor]) => { const [fId, pId] = chave.split('|').map(Number); return { nome: nomePor(pessoas, fId) + ' – ' + nomePor(produtos, pId), valor }; })
+    .map(([chave, valor]) => { const [fId, pId] = chave.split('|').map(Number); return { nome: nomePor(pessoas, fId) + ' – ' + nomePor(produtos, pId), valor: converter(valor) }; })
     .sort((a,b) => b.valor - a.valor).slice(0, 10);
-  renderBarChart('chart-funcionario-produto', topCombosFunc.map(x=>x.nome), topCombosFunc.map(x=>x.valor), '#16283A', { horizontal: true });
+  renderBarChart('chart-funcionario-produto', topCombosFunc.map(x=>x.nome), topCombosFunc.map(x=>x.valor), '#16283A', { horizontal: true, label: rotuloBarra });
 }
 
 /* ---------------- CUSTO (diário / mensal / ano) ---------------- */

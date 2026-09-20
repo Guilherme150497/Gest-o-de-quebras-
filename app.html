@@ -147,13 +147,17 @@
     <div class="section">
       <div class="section-title">1. Produto avariado</div>
       <div class="card">
+        <div class="row-inline" style="margin-bottom:12px;">
+          <button class="toggle" id="toggle-vasilhame" onclick="alternarModoVasilhame()"><span class="dot"></span></button>
+          <span style="font-size:14px;font-weight:600;">🍾 Isso é um vasilhame?</span>
+        </div>
         <div class="scan-row" style="position:relative;">
           <input type="text" id="codigo-manual" placeholder="Código interno, EAN ou descrição" autocomplete="off" oninput="onDigitarBusca()" />
           <button class="btn" style="width:auto;margin:0;background:var(--amber);color:#fff;padding:0 16px;" onclick="buscarManual()">Buscar</button>
           <div id="autocomplete-list" class="hidden" style="position:absolute; top:48px; left:0; right:0; background:#fff; border:1px solid var(--line); border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,.08); z-index:15; max-height:240px; overflow-y:auto;"></div>
         </div>
         <button class="btn btn-primary" id="btn-scanner" onclick="abrirScanner()">📷 Escanear código de barras</button>
-        <p style="font-size:12px;color:var(--sub);margin:8px 0 0;">
+        <p style="font-size:12px;color:var(--sub);margin:8px 0 0;" id="dica-busca-produto">
           Produto sem código de barras? Digite o código da tabela impressa na área, o EAN ou a
           descrição — as sugestões aparecem enquanto você digita.
         </p>
@@ -530,12 +534,25 @@ async function onCodigoLido(codigo){
     alterarQtd(1);
     return;
   }
-  const encontrado = await buscarProdutoPorCodigo(codigo);
+  const encontrado = await buscarProdutoPorCodigo(codigo, modoVasilhame);
   if(encontrado){ selecionarProduto(encontrado); fecharScanner(); }
 }
 
-async function buscarProdutoPorCodigo(codigo){
-  const { data } = await sb.from('produtos').select('*').eq('ativo', true)
+let modoVasilhame = false;
+
+function alternarModoVasilhame(){
+  modoVasilhame = !modoVasilhame;
+  document.getElementById('toggle-vasilhame').classList.toggle('on', modoVasilhame);
+  document.getElementById('dica-busca-produto').textContent = modoVasilhame
+    ? 'Digite o código ou a descrição do vasilhame — as sugestões aparecem enquanto você digita.'
+    : 'Produto sem código de barras? Digite o código da tabela impressa na área, o EAN ou a descrição — as sugestões aparecem enquanto você digita.';
+  limparProduto();
+  esconderSugestoes();
+  document.getElementById('codigo-manual').value = '';
+}
+
+async function buscarProdutoPorCodigo(codigo, vasilhame){
+  const { data } = await sb.from('produtos').select('*').eq('ativo', true).eq('eh_vasilhame', !!vasilhame)
     .or(`ean.eq.${codigo},codigo.eq.${codigo}`).limit(1);
   return (data && data[0]) || null;
 }
@@ -543,12 +560,12 @@ async function buscarProdutoPorCodigo(codigo){
 async function buscarManual(){
   const termo = document.getElementById('codigo-manual').value.trim();
   if(!termo) return;
-  let produto = await buscarProdutoPorCodigo(termo);
+  let produto = await buscarProdutoPorCodigo(termo, modoVasilhame);
   if(!produto){
-    const { data } = await sb.from('produtos').select('*').eq('ativo', true).ilike('descricao', `%${termo}%`).limit(1);
+    const { data } = await sb.from('produtos').select('*').eq('ativo', true).eq('eh_vasilhame', modoVasilhame).ilike('descricao', `%${termo}%`).limit(1);
     produto = (data && data[0]) || null;
   }
-  if(produto){ selecionarProduto(produto); } else { alert('Produto não encontrado para "' + termo + '".'); }
+  if(produto){ selecionarProduto(produto); } else { alert((modoVasilhame ? 'Vasilhame' : 'Produto') + ' não encontrado para "' + termo + '".'); }
 }
 
 /* ---------------- SUGESTÕES ENQUANTO DIGITA (autocomplete) ---------------- */
@@ -563,7 +580,7 @@ function onDigitarBusca(){
 }
 
 async function buscarSugestoes(termo){
-  const { data } = await sb.from('produtos').select('*').eq('ativo', true)
+  const { data } = await sb.from('produtos').select('*').eq('ativo', true).eq('eh_vasilhame', modoVasilhame)
     .or(`descricao.ilike.%${termo}%,codigo.ilike.%${termo}%,ean.ilike.%${termo}%`)
     .limit(8);
   renderSugestoes(data || []);
@@ -603,9 +620,9 @@ let temporizadorBuscaTransferencia = null;
 async function buscarManualTransferencia(){
   const termo = document.getElementById('codigo-transferencia').value.trim();
   if(!termo) return;
-  let produto = await buscarProdutoPorCodigo(termo);
+  let produto = await buscarProdutoPorCodigo(termo, false);
   if(!produto){
-    const { data } = await sb.from('produtos').select('*').eq('ativo', true).ilike('descricao', `%${termo}%`).limit(1);
+    const { data } = await sb.from('produtos').select('*').eq('ativo', true).eq('eh_vasilhame', false).ilike('descricao', `%${termo}%`).limit(1);
     produto = (data && data[0]) || null;
   }
   if(produto){ selecionarProdutoTransferencia(produto); } else { alert('Produto não encontrado para "' + termo + '".'); }
@@ -619,7 +636,7 @@ function onDigitarBuscaTransferencia(){
 }
 
 async function buscarSugestoesTransferencia(termo){
-  const { data } = await sb.from('produtos').select('*').eq('ativo', true)
+  const { data } = await sb.from('produtos').select('*').eq('ativo', true).eq('eh_vasilhame', false)
     .or(`descricao.ilike.%${termo}%,codigo.ilike.%${termo}%,ean.ilike.%${termo}%`)
     .limit(8);
   renderSugestoesTransferencia(data || []);
@@ -759,7 +776,14 @@ function selecionarProduto(produto){
   document.getElementById('produto-found').classList.remove('hidden');
   document.getElementById('qty-block').classList.remove('hidden');
   document.getElementById('quantidade').value = 1;
-  document.getElementById('sel-unidade-medida').value = '';
+  const selUnidade = document.getElementById('sel-unidade-medida');
+  if(modoVasilhame){
+    selUnidade.value = 'unidade';
+    selUnidade.disabled = true;
+  } else {
+    selUnidade.disabled = false;
+    selUnidade.value = '';
+  }
   document.getElementById('codigo-manual').value = '';
   esconderSugestoes();
   resetarFoto();

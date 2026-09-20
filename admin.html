@@ -47,6 +47,17 @@
   main{flex:1; overflow-y:auto; padding:20px 24px;}
 
   .login-wrap{min-height:100vh; display:flex; align-items:center; justify-content:center;}
+  .card-modulo{
+    background:#fff; border-radius:14px; padding:20px; text-align:left; cursor:pointer;
+    border:1px solid #E3E9F2; transition:transform .1s, box-shadow .15s;
+  }
+  .card-modulo:hover{transform:translateY(-2px); box-shadow:0 6px 16px rgba(11,37,69,.08);}
+  .icone-modulo{
+    width:42px; height:42px; border-radius:11px; background:var(--cor-modulo-fundo);
+    display:flex; align-items:center; justify-content:center; font-size:20px; margin-bottom:12px;
+  }
+  .titulo-modulo{font-weight:800; font-size:15px; color:var(--cor-modulo); margin-bottom:4px;}
+  .desc-modulo{font-size:12.5px; color:#7A8CA6; line-height:1.4;}
   .login-card{width:100%; max-width:360px; background:#fff; border-radius:14px; padding:28px; box-shadow:0 1px 3px rgba(0,0,0,.08);}
   label{display:block; font-size:13px; font-weight:600; margin:12px 0 6px;}
   input, select, textarea{width:100%; padding:10px 11px; border:1px solid var(--line); border-radius:8px; font-size:14px; font-family:inherit;}
@@ -131,6 +142,49 @@
   </div>
 </div>
 
+<div id="view-modulos" class="hidden" style="min-height:100vh;background:#EAF0FA;">
+  <header style="background:#003DA5;padding:16px 28px;display:flex;align-items:center;justify-content:space-between;">
+    <div style="color:#fff;font-weight:800;font-size:19px;display:flex;align-items:center;gap:10px;">
+      <span style="width:30px;height:30px;border-radius:50%;border:2.5px solid #fff;display:inline-block;"></span>
+      COBEB <span style="font-weight:400;opacity:.8;font-size:12px;letter-spacing:.5px;">DISTRIBUIDORA</span>
+    </div>
+    <a href="#" onclick="sair(); return false;" style="color:#fff;font-size:13px;">→ Sair</a>
+  </header>
+  <div style="max-width:640px;margin:0 auto;padding:48px 20px;text-align:center;">
+    <div id="avatar-modulos" style="width:58px;height:58px;border-radius:14px;background:#003DA5;color:#FFC72C;font-weight:800;font-size:22px;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;"></div>
+    <div id="saudacao-modulos" style="font-weight:800;font-size:19px;color:#0B2545;"></div>
+    <div style="color:#7A8CA6;font-size:13.5px;margin-top:4px;">Selecione o módulo de acesso</div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:16px;margin-top:34px;">
+      <div class="card-modulo" style="--cor-modulo:#003DA5;--cor-modulo-fundo:#E7EEFC;" onclick="abrirModulo('visao-diaria')">
+        <div class="icone-modulo">📊</div>
+        <div class="titulo-modulo">Visão Geral</div>
+        <div class="desc-modulo">Painel diário, aprovações e relatório de baixa</div>
+      </div>
+      <div class="card-modulo" style="--cor-modulo:#7C3AED;--cor-modulo-fundo:#F1E9FE;" onclick="abrirModulo('analises')">
+        <div class="icone-modulo">📈</div>
+        <div class="titulo-modulo">Análises das Quebras</div>
+        <div class="desc-modulo">Gráficos, pareto de motivos e análise por produto</div>
+      </div>
+      <div class="card-modulo" style="--cor-modulo:#B7791F;--cor-modulo-fundo:#FCF1DC;" onclick="abrirModulo('metas')">
+        <div class="icone-modulo">🎯</div>
+        <div class="titulo-modulo">Planejamento</div>
+        <div class="desc-modulo">Metas por filial e mês, configurações do sistema</div>
+      </div>
+      <div class="card-modulo" style="--cor-modulo:#0E8E7D;--cor-modulo-fundo:#E1F4F0;" onclick="abrirModulo('transferencias')">
+        <div class="icone-modulo">🔄</div>
+        <div class="titulo-modulo">Transferências</div>
+        <div class="desc-modulo">Movimentação de produtos entre depósitos</div>
+      </div>
+      <div class="card-modulo" style="--cor-modulo:#475569;--cor-modulo-fundo:#E7EAEE;" onclick="abrirModulo('filiais')">
+        <div class="icone-modulo">🗂️</div>
+        <div class="titulo-modulo">Cadastros</div>
+        <div class="desc-modulo">Pessoas, produtos, veículos, depósitos e mais</div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div id="view-admin" class="hidden">
   <header class="top">
     <div>
@@ -139,6 +193,7 @@
     </div>
     <div class="row-inline">
       <select id="filtro-filial-global" onchange="mudarFilialGlobal()" style="padding:7px 10px;border-radius:7px;border:1px solid #3A5468;background:#1F3B52;color:#fff;font-size:12.5px;"></select>
+      <a href="#" onclick="voltarModulos(); return false;" style="margin-left:10px;">🗂️ Módulos</a>
       <a href="app.html" style="margin-left:10px;">← Lançamento</a>
       <button class="btn btn-outline" onclick="sair()">Sair</button>
     </div>
@@ -660,6 +715,21 @@
 
     <!-- PRODUTOS -->
     <div class="panel" id="panel-produtos">
+      <div class="card" style="border-color:var(--teal);background:var(--teal-l);">
+        <h3>📅 Atualizar produtos e custos (planilha mensal)</h3>
+        <p class="hint">
+          Sobe o arquivo do relatório mensal (com as abas <b>01.11</b>, <b>01.12</b> e
+          <b>02.05.02</b>, do jeito que você recebe todo mês, sem precisar editar nada antes).
+          O sistema lê sozinho: código, descrição, EAN e fator caixa→unidade da 01.11; código e
+          descrição de vasilhame da 01.12; e o custo médio de cada um na 02.05.02 (coluna Y pros
+          produtos normais, coluna Z pros vasilhames). Só entra quem tem custo conhecido — isso
+          já filtra o catálogo nacional gigante pros produtos que essa filial realmente usa.
+          Produtos que já existem são atualizados (código, descrição, EAN, fator e custo);
+          produtos novos são criados automaticamente.
+        </p>
+        <input type="file" id="file-planilha-mensal" accept=".xlsx,.xls" onchange="importarPlanilhaMensal(this)" />
+        <div id="msg-planilha-mensal"></div>
+      </div>
       <div class="card">
         <h3>Adicionar produto sem código de barras</h3>
         <p class="hint">Use o mesmo código que está impresso na tabela fixada na área.</p>
@@ -672,16 +742,16 @@
         <div id="msg-produto-manual"></div>
       </div>
       <div class="card">
-        <h3>Importar produtos em massa</h3>
-        <p class="hint">Planilha CSV com colunas: <b>codigo, descricao, ean</b> (deixe ean em branco quando não houver código de barras).</p>
+        <h3>Importar produtos em massa (CSV simples)</h3>
+        <p class="hint">Planilha CSV com colunas: <b>codigo, descricao, ean</b> — pra cadastros avulsos fora do fluxo mensal.</p>
         <input type="file" id="file-produtos" accept=".csv" onchange="importarCSV(this,'produtos')" />
         <div id="msg-produtos"></div>
       </div>
       <div class="card">
         <h3>Produtos cadastrados</h3>
-        <p class="hint">O <b>custo unitário</b> aqui alimenta todos os gráficos e KPIs de custo do gerencial — edite direto na tabela.</p>
+        <p class="hint">O <b>custo unitário</b> aqui alimenta todos os gráficos e KPIs de custo do gerencial — edite direto na tabela. "Fator" é quantas unidades vêm numa caixa fechada (usado pra calcular o custo certo quando a quebra é lançada em caixa).</p>
         <input type="text" id="busca-produto" placeholder="Buscar por código, EAN ou descrição..." onkeyup="filtrarProdutos()" style="margin-bottom:10px;" />
-        <table><thead><tr><th>Código</th><th>Descrição</th><th>EAN</th><th>Custo unitário</th><th>Ativo</th></tr></thead><tbody id="tbl-produtos"></tbody></table>
+        <table><thead><tr><th>Código</th><th>Descrição</th><th>EAN</th><th>Custo unitário</th><th>Fator caixa</th><th>Vasilhame</th><th>Ativo</th></tr></thead><tbody id="tbl-produtos"></tbody></table>
       </div>
     </div>
   </main>
@@ -769,9 +839,27 @@ async function sair(){
 
 function entrarNoAdmin(){
   document.getElementById('view-login').classList.add('hidden');
-  document.getElementById('view-admin').classList.remove('hidden');
+  document.getElementById('view-modulos').classList.remove('hidden');
   document.getElementById('who-label').textContent = pessoaAtual.nome;
+  document.getElementById('avatar-modulos').textContent = (pessoaAtual.nome || '?').trim().charAt(0).toUpperCase();
+  document.getElementById('saudacao-modulos').textContent = pessoaAtual.nome;
   carregarTudo();
+}
+
+function abrirModulo(tabId){
+  document.getElementById('view-modulos').classList.add('hidden');
+  document.getElementById('view-admin').classList.remove('hidden');
+  const tab = document.querySelector('.tab[data-tab="' + tabId + '"]');
+  if(!tab) return;
+  document.querySelectorAll('.nav-group').forEach(g => g.classList.add('collapsed'));
+  const grupo = tab.closest('.nav-group');
+  if(grupo) grupo.classList.remove('collapsed');
+  tab.click();
+}
+
+function voltarModulos(){
+  document.getElementById('view-admin').classList.add('hidden');
+  document.getElementById('view-modulos').classList.remove('hidden');
 }
 
 (async function initSession(){
@@ -1353,8 +1441,106 @@ function renderProdutos(lista){
       <td>${p.codigo}</td><td>${p.descricao}</td>
       <td><input class="small-input" type="text" value="${p.ean || ''}" placeholder="sem EAN" onchange="atualizarEanProduto(${p.id}, this.value)" style="width:130px;" /></td>
       <td><input class="small-input" type="number" step="0.01" value="${p.custo_unitario || 0}" onchange="atualizarCustoProduto(${p.id}, this.value)" style="width:90px;" /></td>
+      <td><input class="small-input" type="number" step="1" min="1" value="${p.fator_caixa || 1}" onchange="atualizarCampoProduto(${p.id}, 'fator_caixa', Number(this.value) || 1)" style="width:70px;" /></td>
+      <td><button class="toggle ${p.eh_vasilhame ? 'on' : ''}" onclick="atualizarCampoProduto(${p.id}, 'eh_vasilhame', ${!p.eh_vasilhame})"><span class="dot"></span></button></td>
       <td><button class="toggle ${p.ativo ? 'on' : ''}" onclick="toggleAtivo('produtos', ${p.id}, ${!p.ativo}, carregarProdutos)"><span class="dot"></span></button></td>
     </tr>`).join('');
+}
+
+async function atualizarCampoProduto(id, campo, valor){
+  const { error } = await sb.from('produtos').update({ [campo]: valor }).eq('id', id);
+  if(error){ alert('Erro: ' + error.message); return; }
+  await carregarProdutos();
+}
+
+async function importarPlanilhaMensal(input){
+  const file = input.files[0];
+  if(!file) return;
+  const msgEl = document.getElementById('msg-planilha-mensal');
+  msgEl.innerHTML = '<div class="muted">Lendo a planilha (pode levar alguns segundos, ela é grande)...</div>';
+
+  let livro;
+  try{
+    livro = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+  } catch(e){
+    msgEl.innerHTML = '<div class="error">Não consegui ler esse arquivo. Confira se é mesmo um .xlsx.</div>';
+    return;
+  }
+
+  const abaProdutos = livro.Sheets['01.11'];
+  const abaVasilhames = livro.Sheets['01.12'];
+  const abaCustos = livro.Sheets['02.05.02'];
+  if(!abaProdutos || !abaVasilhames || !abaCustos){
+    msgEl.innerHTML = '<div class="error">Essa planilha não tem as 3 abas esperadas: 01.11, 01.12 e 02.05.02. Confira se é o arquivo certo.</div>';
+    return;
+  }
+
+  // Custos: código (coluna D = índice 3) -> {y: custo normal, z: custo vasilhame}
+  const linhasCustos = XLSX.utils.sheet_to_json(abaCustos, { header: 1, range: 1 });
+  const custoPorCodigo = {};
+  linhasCustos.forEach(l => {
+    const codigo = l[3];
+    if(codigo == null || codigo === '') return;
+    custoPorCodigo[String(codigo).trim()] = { y: Number(l[24]) || 0, z: Number(l[25]) || 0 };
+  });
+
+  // Produtos normais (01.11): A=código(0) B=descrição(1) N=fator(13) T=ean(19)
+  const produtosNovos = [];
+  XLSX.utils.sheet_to_json(abaProdutos, { header: 1, range: 1 }).forEach(l => {
+    const codigo = l[0];
+    if(codigo == null || codigo === '') return;
+    const custo = custoPorCodigo[String(codigo).trim()];
+    if(!custo) return; // só entra quem tem custo conhecido — filtra pro que essa filial usa
+    produtosNovos.push({
+      codigo: String(codigo).trim(),
+      descricao: String(l[1] || '').trim(),
+      ean: l[19] ? String(l[19]).trim() : null,
+      fator_caixa: Number(l[13]) || 1,
+      custo_unitario: custo.y,
+      eh_vasilhame: false,
+    });
+  });
+
+  // Vasilhames (01.12): A=código(0) C=descrição(2)
+  XLSX.utils.sheet_to_json(abaVasilhames, { header: 1, range: 1 }).forEach(l => {
+    const codigo = l[0];
+    if(codigo == null || codigo === '') return;
+    const custo = custoPorCodigo[String(codigo).trim()];
+    if(!custo) return;
+    produtosNovos.push({
+      codigo: String(codigo).trim(),
+      descricao: String(l[2] || '').trim(),
+      ean: null,
+      fator_caixa: 1,
+      custo_unitario: custo.z,
+      eh_vasilhame: true,
+    });
+  });
+
+  if(produtosNovos.length === 0){
+    msgEl.innerHTML = '<div class="error">Nenhum produto com custo conhecido foi encontrado. Confira se subiu a planilha certa, sem editar as abas antes.</div>';
+    return;
+  }
+
+  const totalNormais = produtosNovos.filter(p => !p.eh_vasilhame).length;
+  const totalVasilhames = produtosNovos.filter(p => p.eh_vasilhame).length;
+
+  const TAMANHO_LOTE = 200;
+  let sucesso = 0;
+  for(let i = 0; i < produtosNovos.length; i += TAMANHO_LOTE){
+    const lote = produtosNovos.slice(i, i + TAMANHO_LOTE);
+    msgEl.innerHTML = '<div class="muted">Salvando... ' + sucesso + ' de ' + produtosNovos.length + '</div>';
+    const { error } = await sb.from('produtos').upsert(lote, { onConflict: 'codigo' });
+    if(error){
+      msgEl.innerHTML = '<div class="error">Erro ao salvar (parou em ' + sucesso + ' de ' + produtosNovos.length + '): ' + error.message + '</div>';
+      return;
+    }
+    sucesso += lote.length;
+  }
+
+  msgEl.innerHTML = '<div class="ok">' + sucesso + ' produtos atualizados — ' + totalNormais + ' produtos + ' + totalVasilhames + ' vasilhames.</div>';
+  input.value = '';
+  await carregarProdutos();
 }
 
 async function atualizarEanProduto(id, valor){
@@ -1540,6 +1726,8 @@ async function carregarQuebras(){
 
   const custoPorProduto = {};
   produtos.forEach(p => { custoPorProduto[p.id] = Number(p.custo_unitario) || 0; });
+  const fatorPorProduto = {};
+  produtos.forEach(p => { fatorPorProduto[p.id] = Number(p.fator_caixa) || 1; });
 
   quebrasCache = (data || []).map(row => ({
     id: row.id,
@@ -1557,10 +1745,19 @@ async function carregarQuebras(){
     motoristaId: row.motorista_id,
     quantidade: row.quantidade,
     unidadeMedida: row.unidade_medida,
-    custo: row.quantidade * (custoPorProduto[row.produto_id] || 0),
+    custo: row.quantidade * (row.unidade_medida === 'caixa' ? (fatorPorProduto[row.produto_id] || 1) : 1) * (custoPorProduto[row.produto_id] || 0),
     fotoPath: row.foto_path,
     status: row.status,
   }));
+}
+
+// Calcula o custo de uma quebra levando em conta o fator caixa→unidade —
+// usado sempre que produto, quantidade ou unidade mudam depois de carregado.
+function calcularCustoQuebra(quantidade, unidadeMedida, produtoId){
+  const produto = produtos.find(p => p.id === produtoId);
+  if(!produto) return 0;
+  const fator = unidadeMedida === 'caixa' ? (Number(produto.fator_caixa) || 1) : 1;
+  return quantidade * fator * (Number(produto.custo_unitario) || 0);
 }
 
 /* ---------------- ESCOPO GLOBAL (filial + só aprovadas) ---------------- */
@@ -1758,13 +1955,11 @@ async function corrigirCampoQuebra(id, campoDb, valor){
   if(q){
     if(campoDb === 'produto_id'){
       q.produtoId = valor;
-      const produto = produtos.find(p => p.id === valor);
-      q.custo = q.quantidade * (produto ? Number(produto.custo_unitario) || 0 : 0);
+      q.custo = calcularCustoQuebra(q.quantidade, q.unidadeMedida, valor);
     }
     if(campoDb === 'quantidade'){
       q.quantidade = valor;
-      const produto = produtos.find(p => p.id === q.produtoId);
-      q.custo = valor * (produto ? Number(produto.custo_unitario) || 0 : 0);
+      q.custo = calcularCustoQuebra(valor, q.unidadeMedida, q.produtoId);
     }
     if(campoDb === 'departamento_id'){
       q.departamentoId = valor;

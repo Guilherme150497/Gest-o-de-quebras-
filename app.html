@@ -433,8 +433,14 @@ function preencherSelect(id, rows, labelField, manterPrimeira){
 }
 
 async function carregarListas(){
+  // Responsável só mostra gente da mesma filial de quem está logado — exceto pra admin,
+  // que enxerga todo mundo (pode lançar em nome de qualquer pessoa, de qualquer base).
+  let queryPessoas = sb.from('pessoas').select('id,nome').eq('ativo', true);
+  if(!pessoaAtual.is_admin) queryPessoas = queryPessoas.eq('filial_id', pessoaAtual.filial_id);
+  queryPessoas = queryPessoas.order('nome');
+
   const [pessoas, motivos, turnos, areas, equipamentos, veiculos, motoristas, departamentos, campos, config, depositosResp, motivosTransfResp] = await Promise.all([
-    sb.from('pessoas').select('id,nome').eq('ativo', true).order('nome'),
+    queryPessoas,
     sb.from('motivos').select('id,nome').eq('ativo', true).order('nome'),
     sb.from('turnos').select('id,nome').eq('ativo', true).order('nome'),
     sb.from('areas').select('id,nome').eq('ativo', true).order('nome'),

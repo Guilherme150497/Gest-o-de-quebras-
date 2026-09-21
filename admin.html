@@ -830,7 +830,7 @@
    CONFIGURAÇÃO — mesmos dados usados em app.html
    ============================================================ */
 const SUPABASE_URL = "https://rnzeszxbizctbpuximzm.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_LPQFPQLcTD64kjOZc9rtdA_27LkTwBL";
+const SUPABASE_ANON_KEY = "sb_publishable_LPQFPQLcTD64kjOZc9rtdA_27LkTwB";
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // Cliente auxiliar, isolado, só pra criar logins novos (signUp) sem afetar
 // a sua própria sessão de admin logada no 'sb' acima.
@@ -1216,6 +1216,44 @@ async function atualizarPessoa(id, campos){
   await carregarPessoas();
 }
 
+// Cria um login novo pra uma pessoa (via signUp) e já vincula o auth_id na tabela
+// pessoas. Se o e-mail já existir no Auth (órfão de uma tentativa anterior),
+// recupera esse login via Edge Function (que acha, vincula e redefine a senha sozinha).
+async function criarLoginParaPessoa(pessoaId, email, senha){
+  const { data, error } = await sbAuxiliar.auth.signUp({ email, password: senha });
+
+  if(!error){
+    if(!data || !data.user) return { ok:false, mensagem: 'signUp não retornou usuário — confira se "Confirm email" está desligado no Supabase (Authentication → Sign In / Providers → Email).' };
+    const { error: erroPessoa } = await sb.from('pessoas').update({ auth_id: data.user.id, pode_logar: true }).eq('id', pessoaId);
+    if(erroPessoa) return { ok:false, mensagem: 'login criado (UID ' + data.user.id + '), mas falhou ao salvar na tabela pessoas: ' + erroPessoa.message };
+    return { ok:true };
+  }
+
+  const mensagem = (error.message || '').toLowerCase();
+  const jaExiste = mensagem.includes('already registered') || mensagem.includes('already been registered');
+  if(!jaExiste) return { ok:false, mensagem: error.message };
+
+  // E-mail já tinha um login órfão (de uma tentativa anterior que não vinculou
+  // direito) — pede pro servidor (com acesso de administrador) achar e recuperar.
+  const { data: sessao } = await sb.auth.getSession();
+  try{
+    const resp = await fetch(SUPABASE_URL + '/functions/v1/criar-login', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': 'Bearer ' + sessao.session.access_token,
+      },
+      body: JSON.stringify({ pessoa_id: pessoaId, email, senha }),
+    });
+    const resultado = await resp.json();
+    if(!resp.ok || resultado.error) return { ok:false, mensagem: 'e-mail já tinha login e não consegui recuperar: ' + (resultado.error || 'erro desconhecido') };
+    return { ok:true, recuperado:true };
+  } catch(e){
+    return { ok:false, mensagem: 'erro de conexão ao recuperar login: ' + e.message };
+  }
+}
+
 async function criarLoginPessoa(id){
   const pessoa = pessoas.find(p => p.id === id);
   if(!pessoa) return;
@@ -1232,27 +1270,12 @@ async function criarLoginPessoa(id){
   if(!senha) return;
   if(senha.length < 6){ alert('A senha precisa ter pelo menos 6 caracteres.'); return; }
 
-  const { data, error } = await sbAuxiliar.auth.signUp({ email: pessoa.email, password: senha });
+  const resultado = await criarLoginParaPessoa(id, pessoa.email, senha);
+  if(!resultado.ok){ alert('Erro ao criar login: ' + resultado.mensagem); return; }
 
-  if(error){
-    alert('Erro ao criar login: ' + error.message);
-    return;
-  }
-  if(!data || !data.user){
-    alert('Não veio erro, mas também não veio um usuário de volta. Isso pode acontecer se "Confirm email" ainda estiver ligado no Supabase — confira em Authentication → Sign In / Providers → Email.');
-    return;
-  }
-
-  const { error: erroPessoa } = await sb.from('pessoas')
-    .update({ auth_id: data.user.id, pode_logar: true })
-    .eq('id', id);
-
-  if(erroPessoa){
-    alert('O login foi criado (UID: ' + data.user.id + '), mas falhou ao salvar na tabela pessoas: ' + erroPessoa.message + '. Copie esse UID e cole manualmente na linha da pessoa, se precisar.');
-    return;
-  }
-
-  alert('Login criado com sucesso! Repasse a senha pra ' + pessoa.nome + '.');
+  alert((resultado.recuperado
+    ? 'Esse e-mail já tinha um login de uma tentativa anterior — recuperei ele e'
+    : 'Login criado com sucesso!') + ' já deixei com a senha nova. Repasse pra ' + pessoa.nome + '.');
   await carregarPessoas();
 }
 
@@ -1735,16 +1758,11 @@ async function importarPessoasExcel(input){
         falhas.push(registro.nome + ': cadastrada, mas senha tem menos de 6 caracteres — sem login');
         continue;
       }
-      const { data: authData, error: authError } = await sbAuxiliar.auth.signUp({ email: registro.email, password: senha });
-      if(authError){
-        falhas.push(registro.nome + ': cadastrada, mas login falhou (' + authError.message + ')');
+      const resultadoLogin = await criarLoginParaPessoa(inserido.id, registro.email, senha);
+      if(!resultadoLogin.ok){
+        falhas.push(registro.nome + ': cadastrada, mas login falhou (' + resultadoLogin.mensagem + ')');
         continue;
       }
-      if(!authData || !authData.user){
-        falhas.push(registro.nome + ': cadastrada, mas login não retornou usuário (confira se "Confirm email" está desligado no Supabase)');
-        continue;
-      }
-      await sb.from('pessoas').update({ auth_id: authData.user.id, pode_logar: true }).eq('id', inserido.id);
       sucessoComLogin++;
     }
   }

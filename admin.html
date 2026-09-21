@@ -207,6 +207,7 @@
         <div class="tab active" data-tab="visao-diaria">Visão Diária</div>
         <div class="tab" data-tab="aprovacoes">Aprovações</div>
         <div class="tab" data-tab="relatorio">Relatório de Baixa</div>
+        <div class="tab" data-tab="lancamentos">Todos os Lançamentos</div>
       </div>
       <div class="nav-group">
         <div class="nav-group-title">Análises das Quebras</div>
@@ -370,6 +371,43 @@
           <thead><tr><th>Data</th><th>Filial</th><th>Departamento</th><th>Produto</th><th>Qtd</th><th>Unid.</th><th>Motivo</th><th>Turno</th><th>Responsável</th><th>Status</th></tr></thead>
           <tbody id="tbl-relatorio"></tbody>
         </table>
+      </div>
+    </div>
+
+    <!-- TODOS OS LANÇAMENTOS -->
+    <div class="panel" id="panel-lancamentos">
+      <div class="card">
+        <h3>Todos os lançamentos</h3>
+        <p class="hint">Toda informação de cada lançamento, incluindo o custo — filtre por filial, departamento e período.</p>
+        <div class="filtro-grid">
+          <div><label class="fl">Filial</label><select id="lanc-filial" onchange="renderLancamentos()"><option value="">Todas</option></select></div>
+          <div><label class="fl">Departamento</label><select id="lanc-departamento" onchange="renderLancamentos()"><option value="">Todos</option></select></div>
+          <div><label class="fl">De</label><input type="date" id="lanc-data-de" onchange="renderLancamentos()" /></div>
+          <div><label class="fl">Até</label><input type="date" id="lanc-data-ate" onchange="renderLancamentos()" /></div>
+          <div><label class="fl">Status</label>
+            <select id="lanc-status" onchange="renderLancamentos()">
+              <option value="">Todos</option>
+              <option value="aprovada">Aprovada</option>
+              <option value="pendente">Pendente</option>
+              <option value="reprovada">Reprovada</option>
+            </select>
+          </div>
+        </div>
+        <div class="row-inline" style="margin-top:14px;">
+          <button class="btn btn-outline" onclick="limparFiltrosLancamentos()">Limpar filtros</button>
+          <button class="btn btn-outline" onclick="exportarCSVLancamentos()">Exportar CSV</button>
+        </div>
+        <p class="muted" id="lanc-resumo" style="margin-top:12px;"></p>
+        <div style="overflow-x:auto;">
+          <table>
+            <thead><tr>
+              <th>Data</th><th>Filial</th><th>Departamento</th><th>Produto</th><th>Qtd</th><th>Unid.</th>
+              <th>Motivo</th><th>Turno</th><th>Área</th><th>Equipamento</th><th>Placa</th><th>Motorista</th>
+              <th>Responsável</th><th>Lançado por</th><th>Custo</th><th>Status</th><th>Foto</th>
+            </tr></thead>
+            <tbody id="tbl-lancamentos"></tbody>
+          </table>
+        </div>
       </div>
     </div>
 
@@ -916,6 +954,7 @@ document.querySelectorAll('.tab').forEach(tab => {
     if(tab.dataset.tab === 'custo') renderCusto();
     if(tab.dataset.tab === 'metas') renderMetas();
     if(tab.dataset.tab === 'transferencias') renderTransferencias();
+    if(tab.dataset.tab === 'lancamentos') renderLancamentos();
   });
 });
 
@@ -937,6 +976,7 @@ async function carregarTudo(){
   montarFiltroFilialGlobal();
   montarFiltroDepartamentoAprovacoes();
   montarFiltrosRelatorio();
+  montarFiltrosLancamentos();
   montarFiltroAnalises();
   inicializarControlesPeriodo();
   montarFiltroProduto();
@@ -955,6 +995,7 @@ function renderTudo(){
   renderCusto();
   renderMetas();
   renderTransferencias();
+  renderLancamentos();
 }
 
 /* ---------------- HELPERS GENÉRICOS DE CRUD ---------------- */
@@ -2116,6 +2157,102 @@ function exportarCSV(){
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url; a.download = 'relatorio_baixa_quebras.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+/* ---------------- TODOS OS LANÇAMENTOS ---------------- */
+
+let lancamentosFiltrados = [];
+
+function montarFiltrosLancamentos(){
+  document.getElementById('lanc-filial').innerHTML = '<option value="">Todas</option>' +
+    filiais.map(f => `<option value="${f.id}">${f.nome}</option>`).join('');
+  document.getElementById('lanc-departamento').innerHTML = '<option value="">Todos</option>' +
+    departamentos.map(d => `<option value="${d.id}">${d.nome}</option>`).join('');
+}
+
+function limparFiltrosLancamentos(){
+  document.getElementById('lanc-filial').value = '';
+  document.getElementById('lanc-departamento').value = '';
+  document.getElementById('lanc-data-de').value = '';
+  document.getElementById('lanc-data-ate').value = '';
+  document.getElementById('lanc-status').value = '';
+  renderLancamentos();
+}
+
+function renderLancamentos(){
+  const filialF = document.getElementById('lanc-filial').value;
+  const depF = document.getElementById('lanc-departamento').value;
+  const deF = document.getElementById('lanc-data-de').value;
+  const ateF = document.getElementById('lanc-data-ate').value;
+  const statusF = document.getElementById('lanc-status').value;
+
+  lancamentosFiltrados = quebrasCache.filter(q =>
+    (!filialF || q.filialId == filialF) &&
+    (!depF || q.departamentoId == depF) &&
+    (!deF || q.dataISO >= deF) &&
+    (!ateF || q.dataISO <= ateF) &&
+    (!statusF || q.status === statusF)
+  ).sort((a,b) => b.dataISO.localeCompare(a.dataISO));
+
+  const totalCusto = lancamentosFiltrados.reduce((a,q) => a+q.custo, 0);
+  document.getElementById('lanc-resumo').textContent =
+    lancamentosFiltrados.length + ' lançamento(s) · custo total: ' + brl(totalCusto) +
+    (lancamentosFiltrados.length > 500 ? ' · mostrando os 500 mais recentes' : '');
+
+  document.getElementById('tbl-lancamentos').innerHTML = lancamentosFiltrados.slice(0, 500).map(q => `
+    <tr>
+      <td>${q.dataISO}</td>
+      <td>${nomePor(filiais, q.filialId)}</td>
+      <td>${nomePor(departamentos, q.departamentoId)}</td>
+      <td>${nomePor(produtos, q.produtoId)}</td>
+      <td>${q.quantidade}</td>
+      <td>${q.unidadeMedida === 'caixa' ? 'Caixa' : 'Unidade'}</td>
+      <td>${nomePor(motivos, q.motivoId)}</td>
+      <td>${nomePor(turnos, q.turnoId)}</td>
+      <td>${nomePor(areas, q.areaId)}</td>
+      <td>${nomePor(equipamentos, q.equipamentoId)}</td>
+      <td>${nomePor(veiculos, q.veiculoId)}</td>
+      <td>${nomePor(motoristas, q.motoristaId)}</td>
+      <td>${nomePor(pessoas, q.responsavelId)}</td>
+      <td>${nomePor(pessoas, q.lancadoPorId)}</td>
+      <td>${brl(q.custo)}</td>
+      <td><span class="status-pill status-${q.status}">${q.status}</span></td>
+      <td>${q.fotoPath ? '<button class="btn-sm btn-outline" onclick="abrirFotoModalPorId(' + q.id + ')">Ver</button>' : '—'}</td>
+    </tr>`).join('') || '<tr><td colspan="17" class="muted">Nenhum lançamento encontrado com esses filtros.</td></tr>';
+}
+
+function exportarCSVLancamentos(){
+  if(lancamentosFiltrados.length === 0){ alert('Nenhum lançamento pra exportar com os filtros atuais.'); return; }
+  const cabecalho = ['Data','Filial','Departamento','Codigo_Produto','Descricao_Produto','Quantidade','Unidade_Medida','Motivo','Turno','Area','Equipamento','Placa','Motorista','Responsavel','Lancado_Por','Custo','Status'];
+  const linhas = lancamentosFiltrados.map(q => {
+    const produto = produtos.find(p => p.id === q.produtoId);
+    return [
+      q.dataISO,
+      nomePor(filiais, q.filialId),
+      nomePor(departamentos, q.departamentoId),
+      produto ? produto.codigo : '',
+      produto ? produto.descricao : '',
+      q.quantidade,
+      q.unidadeMedida === 'caixa' ? 'Caixa' : 'Unidade',
+      nomePor(motivos, q.motivoId),
+      nomePor(turnos, q.turnoId),
+      nomePor(areas, q.areaId),
+      nomePor(equipamentos, q.equipamentoId),
+      nomePor(veiculos, q.veiculoId),
+      nomePor(motoristas, q.motoristaId),
+      nomePor(pessoas, q.responsavelId),
+      nomePor(pessoas, q.lancadoPorId),
+      q.custo,
+      q.status,
+    ].map(v => '"' + String(v).replace(/"/g,'""') + '"').join(';');
+  });
+  const csv = cabecalho.join(';') + '\n' + linhas.join('\n');
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'todos_lancamentos.csv';
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }

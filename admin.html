@@ -479,10 +479,10 @@
         <h3>Todos os reembalamentos</h3>
         <p class="hint">Só lançamentos já finalizados aparecem aqui — o que estiver "em andamento" ainda está com o cronômetro rodando no celular de alguém.</p>
         <div class="filtro-grid">
-          <div><label class="fl">Filial</label><select id="repack-p-filial"><option value="">Todas</option></select></div>
-          <div><label class="fl">Funcionário</label><select id="repack-p-funcionario"><option value="">Todos</option></select></div>
-          <div><label class="fl">De</label><input type="date" id="repack-p-data-de" /></div>
-          <div><label class="fl">Até</label><input type="date" id="repack-p-data-ate" /></div>
+          <div><label class="fl">Filial</label><select id="repack-p-filial" onchange="gerarPainelRepack()"><option value="">Todas</option></select></div>
+          <div><label class="fl">Funcionário</label><select id="repack-p-funcionario" onchange="gerarPainelRepack()"><option value="">Todos</option></select></div>
+          <div><label class="fl">De</label><input type="date" id="repack-p-data-de" onchange="gerarPainelRepack()" /></div>
+          <div><label class="fl">Até</label><input type="date" id="repack-p-data-ate" onchange="gerarPainelRepack()" /></div>
         </div>
         <div class="row-inline" style="margin-top:14px;">
           <button class="btn btn-primary" onclick="gerarPainelRepack()">Gerar</button>
@@ -516,7 +516,7 @@
         </div>
       </div>
       <div class="kpi-grid">
-        <div class="kpi-card"><div class="label">Minutos médio por embalagem</div><div class="value" id="repack-kpi-minutos">—</div></div>
+        <div class="kpi-card"><div class="label">Tempo médio por embalagem (mm:ss)</div><div class="value" id="repack-kpi-minutos">—</div></div>
         <div class="kpi-card"><div class="label">Embalagens (caixas) por hora</div><div class="value" id="repack-kpi-caixashora">—</div></div>
         <div class="kpi-card"><div class="label">Total de reembalamentos no período</div><div class="value" id="repack-kpi-total">—</div></div>
       </div>
@@ -555,10 +555,10 @@
         <h3>Todos os despejos</h3>
         <p class="hint">Só lançamentos já finalizados aparecem aqui.</p>
         <div class="filtro-grid">
-          <div><label class="fl">Filial</label><select id="despejo-p-filial"><option value="">Todas</option></select></div>
-          <div><label class="fl">Funcionário</label><select id="despejo-p-funcionario"><option value="">Todos</option></select></div>
-          <div><label class="fl">De</label><input type="date" id="despejo-p-data-de" /></div>
-          <div><label class="fl">Até</label><input type="date" id="despejo-p-data-ate" /></div>
+          <div><label class="fl">Filial</label><select id="despejo-p-filial" onchange="gerarPainelDespejo()"><option value="">Todas</option></select></div>
+          <div><label class="fl">Funcionário</label><select id="despejo-p-funcionario" onchange="gerarPainelDespejo()"><option value="">Todos</option></select></div>
+          <div><label class="fl">De</label><input type="date" id="despejo-p-data-de" onchange="gerarPainelDespejo()" /></div>
+          <div><label class="fl">Até</label><input type="date" id="despejo-p-data-ate" onchange="gerarPainelDespejo()" /></div>
         </div>
         <div class="row-inline" style="margin-top:14px;">
           <button class="btn btn-primary" onclick="gerarPainelDespejo()">Gerar</button>
@@ -1843,6 +1843,8 @@ async function importarPlanilhaMensal(input){
 
   // Produtos normais (01.11): A=código(0) B=descrição(1) G=embalagem(6) N=fator(13) T=ean(19)
   const produtosNovos = [];
+  const litrosExistentePorCodigo = {};
+  produtos.forEach(p => { litrosExistentePorCodigo[p.codigo] = Number(p.litros_por_unidade) || 1; });
   let usandoCustoPorEan = 0;
   XLSX.utils.sheet_to_json(abaProdutos, { header: 1, range: 1 }).forEach(l => {
     const codigo = l[0];
@@ -1857,6 +1859,7 @@ async function importarPlanilhaMensal(input){
       ean,
       embalagem: String(l[6] || '').trim() || null,
       fator_caixa: Number(l[13]) || 1,
+      litros_por_unidade: parseLitrosDaDescricao(l[1]) || litrosExistentePorCodigo[String(codigo).trim()] || 1,
       custo_unitario: custo.y,
       eh_vasilhame: false,
     });
@@ -2678,7 +2681,8 @@ function filtrarPorTipoPeriodo(lista, tipo){
 }
 
 // Histograma simples: agrupa valores numéricos em faixas e conta quantos caem em cada uma.
-function renderHistograma(canvasId, valores, numBuckets, cor){
+function renderHistograma(canvasId, valores, numBuckets, cor, formatarRotulo){
+  formatarRotulo = formatarRotulo || (v => v.toFixed(1));
   valores = valores.filter(v => isFinite(v));
   if(valores.length === 0){
     if(chartInstances[canvasId]) chartInstances[canvasId].destroy();
@@ -2693,8 +2697,16 @@ function renderHistograma(canvasId, valores, numBuckets, cor){
     if(idx < 0) idx = 0;
     contagens[idx]++;
   });
-  const labels = contagens.map((_, i) => (min + i*largura).toFixed(1) + '–' + (min + (i+1)*largura).toFixed(1));
+  const labels = contagens.map((_, i) => formatarRotulo(min + i*largura) + '–' + formatarRotulo(min + (i+1)*largura));
   renderBarChart(canvasId, labels, contagens, cor, { label: 'Lançamentos' });
+}
+
+// Converte minutos decimais (ex: 1.8) pro formato de relógio "MM:SS" (ex: "01:48").
+function formatarMinutosComoRelogio(minutosTotais){
+  const totalSeg = Math.round(minutosTotais * 60);
+  const m = Math.floor(totalSeg / 60);
+  const s = totalSeg % 60;
+  return String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
 }
 
 /* ============================================================
@@ -2825,7 +2837,7 @@ function renderProdutividadeRepack(){
   const baseNoRange = chavesValidas ? base.filter(r => chavesValidas.has(chavePeriodo(r.dataISO, tipo))) : base;
 
   const geral = calcularIndicadoresRepack(baseNoRange);
-  document.getElementById('repack-kpi-minutos').textContent = geral.minutosMedioPorEmbalagem.toFixed(2) + ' min';
+  document.getElementById('repack-kpi-minutos').textContent = formatarMinutosComoRelogio(geral.minutosMedioPorEmbalagem);
   document.getElementById('repack-kpi-caixashora').textContent = geral.caixasPorHora.toFixed(1);
   document.getElementById('repack-kpi-total').textContent = geral.totalLancamentos;
 
@@ -2866,7 +2878,7 @@ function renderProdutividadeRepack(){
   renderParetoChart('chart-repack-embalagem', embEntradas.map(x=>x.nome), embEntradas.map(x=>x.valor), 'Caixas');
 
   // Histograma de minutos por caixa
-  renderHistograma('chart-repack-histograma', baseNoRange.map(r=>r.minPorCaixa), 8, '#C97A1A');
+  renderHistograma('chart-repack-histograma', baseNoRange.map(r=>r.minPorCaixa), 8, '#C97A1A', formatarMinutosComoRelogio);
 }
 
 function calcularIndicadoresRepack(lista){
@@ -2916,7 +2928,7 @@ function renderMetasRepack(){
     <tr>
       <td>Minutos médio por embalagem (menor é melhor)</td>
       <td><input class="meta-input" type="number" step="0.1" value="${metaMin}" onchange="metasRepackAtuais.meta_minutos_por_embalagem = Number(this.value); renderMetasRepack();" /></td>
-      <td>${indicadores.minutosMedioPorEmbalagem.toFixed(2)} min</td>
+      <td>${formatarMinutosComoRelogio(indicadores.minutosMedioPorEmbalagem)}</td>
       <td><span class="status-pill ${pctMin > 100 ? 'status-reprovada' : 'status-aprovada'}">${pctMin}%</span></td>
     </tr>
     <tr>

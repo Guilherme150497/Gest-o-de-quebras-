@@ -177,6 +177,16 @@
         <div class="titulo-modulo">Transferências</div>
         <div class="desc-modulo">Movimentação de produtos entre depósitos</div>
       </div>
+      <div class="card-modulo" style="--cor-modulo:#0891B2;--cor-modulo-fundo:#E0F4F8;" onclick="abrirModulo('repack-painel')">
+        <div class="icone-modulo">♻️</div>
+        <div class="titulo-modulo">Repack</div>
+        <div class="desc-modulo">Produtividade e painel de reembalagens</div>
+      </div>
+      <div class="card-modulo" style="--cor-modulo:#0D9488;--cor-modulo-fundo:#DDF4F1;" onclick="abrirModulo('despejo-painel')">
+        <div class="icone-modulo">🚰</div>
+        <div class="titulo-modulo">Despejo</div>
+        <div class="desc-modulo">Produtividade e painel de despejos</div>
+      </div>
       <div class="card-modulo" style="--cor-modulo:#475569;--cor-modulo-fundo:#E7EAEE;" onclick="abrirModulo('filiais')">
         <div class="icone-modulo">🗂️</div>
         <div class="titulo-modulo">Cadastros</div>
@@ -223,6 +233,18 @@
       <div class="nav-group">
         <div class="nav-group-title">Transferências</div>
         <div class="tab" data-tab="transferencias">Transferências</div>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Repack</div>
+        <div class="tab" data-tab="repack-painel">Painel</div>
+        <div class="tab" data-tab="repack-produtividade">Produtividade</div>
+        <div class="tab" data-tab="repack-metas">Metas</div>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Despejo</div>
+        <div class="tab" data-tab="despejo-painel">Painel</div>
+        <div class="tab" data-tab="despejo-produtividade">Produtividade</div>
+        <div class="tab" data-tab="despejo-metas">Metas</div>
       </div>
       <div class="nav-group">
         <div class="nav-group-title">Cadastros</div>
@@ -432,6 +454,157 @@
           <thead><tr><th>Data</th><th>Filial</th><th>Produto</th><th>Origem</th><th>Destino</th><th>Qtd</th><th>Unid.</th><th>Motivo</th><th>Lançado por</th><th></th></tr></thead>
           <tbody id="tbl-transferencias"></tbody>
         </table>
+      </div>
+    </div>
+
+    <!-- REPACK: PAINEL -->
+    <div class="panel" id="panel-repack-painel">
+      <div class="card">
+        <h3>Todos os reembalamentos</h3>
+        <p class="hint">Só lançamentos já finalizados aparecem aqui — o que estiver "em andamento" ainda está com o cronômetro rodando no celular de alguém.</p>
+        <div class="filtro-grid">
+          <div><label class="fl">Filial</label><select id="repack-p-filial"><option value="">Todas</option></select></div>
+          <div><label class="fl">Funcionário</label><select id="repack-p-funcionario"><option value="">Todos</option></select></div>
+          <div><label class="fl">De</label><input type="date" id="repack-p-data-de" /></div>
+          <div><label class="fl">Até</label><input type="date" id="repack-p-data-ate" /></div>
+        </div>
+        <div class="row-inline" style="margin-top:14px;">
+          <button class="btn btn-primary" onclick="gerarPainelRepack()">Gerar</button>
+          <button class="btn btn-outline" onclick="limparFiltrosPainelRepack()">Limpar filtros</button>
+          <button class="btn btn-outline" onclick="exportarCSVRepack()">Exportar CSV</button>
+        </div>
+        <p class="muted" id="repack-p-resumo" style="margin-top:12px;"></p>
+        <div style="overflow-x:auto;">
+          <table>
+            <thead><tr><th>Data</th><th>Filial</th><th>Funcionário</th><th>Produto</th><th>Embalagem</th><th>Início</th><th>Fim</th><th>Duração</th><th>Caixas</th><th>Min/caixa</th></tr></thead>
+            <tbody id="tbl-repack-painel"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- REPACK: PRODUTIVIDADE -->
+    <div class="panel" id="panel-repack-produtividade">
+      <div class="card">
+        <h3>Produtividade — Repack</h3>
+        <div class="filtro-grid" style="grid-template-columns:repeat(2,1fr);max-width:480px;">
+          <div><label class="fl">Filial</label><select id="repack-prod-filial" onchange="renderProdutividadeRepack()"><option value="">Todas</option></select></div>
+          <div><label class="fl">Visão</label>
+            <select id="repack-prod-periodo" onchange="renderProdutividadeRepack()">
+              <option value="dia">Diária (últimos 30 dias)</option>
+              <option value="semana">Semanal (últimas 12 semanas)</option>
+              <option value="mes">Mensal</option>
+              <option value="ano">Acumulado no ano</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="kpi-grid">
+        <div class="kpi-card"><div class="label">Minutos médio por embalagem</div><div class="value" id="repack-kpi-minutos">—</div></div>
+        <div class="kpi-card"><div class="label">Embalagens (caixas) por hora</div><div class="value" id="repack-kpi-caixashora">—</div></div>
+        <div class="kpi-card"><div class="label">Total de reembalamentos no período</div><div class="value" id="repack-kpi-total">—</div></div>
+      </div>
+      <div class="analise-grid">
+        <div class="card"><h3>Minutos médio por embalagem — tendência</h3><div class="chart-wrap"><canvas id="chart-repack-tendencia-minutos"></canvas></div></div>
+        <div class="card"><h3>Caixas por hora — tendência</h3><div class="chart-wrap"><canvas id="chart-repack-tendencia-caixashora"></canvas></div></div>
+        <div class="card"><h3>Por funcionário (minutos médio/embalagem)</h3><div class="chart-wrap"><canvas id="chart-repack-funcionario"></canvas></div></div>
+        <div class="card"><h3>Por embalagem — Pareto (quantidade de caixas)</h3><div class="chart-wrap"><canvas id="chart-repack-embalagem"></canvas></div></div>
+        <div class="card"><h3>Distribuição de minutos por caixa (histograma)</h3><div class="chart-wrap"><canvas id="chart-repack-histograma"></canvas></div></div>
+      </div>
+    </div>
+
+    <!-- REPACK: METAS -->
+    <div class="panel" id="panel-repack-metas">
+      <div class="card">
+        <h3>Filtrar meta</h3>
+        <div class="filtro-grid" style="grid-template-columns:repeat(2,1fr);max-width:480px;">
+          <div><label class="fl">Filial</label><select id="repack-metas-filial" onchange="carregarMetasRepack()"></select></div>
+          <div><label class="fl">Mês</label><input type="month" id="repack-metas-mes" onchange="carregarMetasRepack()" /></div>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Metas de produtividade</h3>
+        <table>
+          <thead><tr><th>Indicador</th><th>Meta</th><th>Realizado no mês</th><th>% da meta</th></tr></thead>
+          <tbody id="tbl-repack-metas"></tbody>
+        </table>
+        <button class="btn btn-primary" style="width:auto;padding:12px 22px;margin-top:14px;" onclick="salvarMetasRepack()">Salvar metas</button>
+        <div id="repack-metas-msg"></div>
+      </div>
+    </div>
+
+    <!-- DESPEJO: PAINEL -->
+    <div class="panel" id="panel-despejo-painel">
+      <div class="card">
+        <h3>Todos os despejos</h3>
+        <p class="hint">Só lançamentos já finalizados aparecem aqui.</p>
+        <div class="filtro-grid">
+          <div><label class="fl">Filial</label><select id="despejo-p-filial"><option value="">Todas</option></select></div>
+          <div><label class="fl">Funcionário</label><select id="despejo-p-funcionario"><option value="">Todos</option></select></div>
+          <div><label class="fl">De</label><input type="date" id="despejo-p-data-de" /></div>
+          <div><label class="fl">Até</label><input type="date" id="despejo-p-data-ate" /></div>
+        </div>
+        <div class="row-inline" style="margin-top:14px;">
+          <button class="btn btn-primary" onclick="gerarPainelDespejo()">Gerar</button>
+          <button class="btn btn-outline" onclick="limparFiltrosPainelDespejo()">Limpar filtros</button>
+          <button class="btn btn-outline" onclick="exportarCSVDespejo()">Exportar CSV</button>
+        </div>
+        <p class="muted" id="despejo-p-resumo" style="margin-top:12px;"></p>
+        <div style="overflow-x:auto;">
+          <table>
+            <thead><tr><th>Data</th><th>Filial</th><th>Funcionário</th><th>Produto</th><th>Embalagem</th><th>Início</th><th>Fim</th><th>Duração</th><th>Litros</th><th>Litros/min</th></tr></thead>
+            <tbody id="tbl-despejo-painel"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- DESPEJO: PRODUTIVIDADE -->
+    <div class="panel" id="panel-despejo-produtividade">
+      <div class="card">
+        <h3>Produtividade — Despejo</h3>
+        <div class="filtro-grid" style="grid-template-columns:repeat(2,1fr);max-width:480px;">
+          <div><label class="fl">Filial</label><select id="despejo-prod-filial" onchange="renderProdutividadeDespejo()"><option value="">Todas</option></select></div>
+          <div><label class="fl">Visão</label>
+            <select id="despejo-prod-periodo" onchange="renderProdutividadeDespejo()">
+              <option value="dia">Diária (últimos 30 dias)</option>
+              <option value="semana">Semanal (últimas 12 semanas)</option>
+              <option value="mes">Mensal</option>
+              <option value="ano">Acumulado no ano</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="kpi-grid">
+        <div class="kpi-card"><div class="label">Litros por minuto (média)</div><div class="value" id="despejo-kpi-litrosmin">—</div></div>
+        <div class="kpi-card"><div class="label">Total de litros no período</div><div class="value" id="despejo-kpi-totallitros">—</div></div>
+        <div class="kpi-card"><div class="label">Total de despejos no período</div><div class="value" id="despejo-kpi-total">—</div></div>
+      </div>
+      <div class="analise-grid">
+        <div class="card"><h3>Litros por minuto — tendência</h3><div class="chart-wrap"><canvas id="chart-despejo-tendencia"></canvas></div></div>
+        <div class="card"><h3>Por funcionário (litros por minuto)</h3><div class="chart-wrap"><canvas id="chart-despejo-funcionario"></canvas></div></div>
+        <div class="card"><h3>Por embalagem — Pareto (litros)</h3><div class="chart-wrap"><canvas id="chart-despejo-embalagem"></canvas></div></div>
+        <div class="card"><h3>Distribuição de litros por minuto (histograma)</h3><div class="chart-wrap"><canvas id="chart-despejo-histograma"></canvas></div></div>
+      </div>
+    </div>
+
+    <!-- DESPEJO: METAS -->
+    <div class="panel" id="panel-despejo-metas">
+      <div class="card">
+        <h3>Filtrar meta</h3>
+        <div class="filtro-grid" style="grid-template-columns:repeat(2,1fr);max-width:480px;">
+          <div><label class="fl">Filial</label><select id="despejo-metas-filial" onchange="carregarMetasDespejo()"></select></div>
+          <div><label class="fl">Mês</label><input type="month" id="despejo-metas-mes" onchange="carregarMetasDespejo()" /></div>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Meta de produtividade</h3>
+        <table>
+          <thead><tr><th>Indicador</th><th>Meta</th><th>Realizado no mês</th><th>% da meta</th></tr></thead>
+          <tbody id="tbl-despejo-metas"></tbody>
+        </table>
+        <button class="btn btn-primary" style="width:auto;padding:12px 22px;margin-top:14px;" onclick="salvarMetasDespejo()">Salvar meta</button>
+        <div id="despejo-metas-msg"></div>
       </div>
     </div>
 
@@ -954,6 +1127,12 @@ document.querySelectorAll('.tab').forEach(tab => {
     if(tab.dataset.tab === 'custo') renderCusto();
     if(tab.dataset.tab === 'metas') renderMetas();
     if(tab.dataset.tab === 'transferencias') renderTransferencias();
+    if(tab.dataset.tab === 'repack-painel') gerarPainelRepack();
+    if(tab.dataset.tab === 'repack-produtividade') renderProdutividadeRepack();
+    if(tab.dataset.tab === 'repack-metas') carregarMetasRepack();
+    if(tab.dataset.tab === 'despejo-painel') gerarPainelDespejo();
+    if(tab.dataset.tab === 'despejo-produtividade') renderProdutividadeDespejo();
+    if(tab.dataset.tab === 'despejo-metas') carregarMetasDespejo();
     if(tab.dataset.tab === 'lancamentos') renderLancamentos();
   });
 });
@@ -972,6 +1151,8 @@ async function carregarTudo(){
   await carregarConfiguracoes();
   await carregarQuebras();
   await carregarTransferencias();
+  await carregarRepack();
+  await carregarDespejo();
 
   montarFiltroFilialGlobal();
   montarFiltroDepartamentoAprovacoes();
@@ -983,6 +1164,8 @@ async function carregarTudo(){
   inicializarControlesPeriodoProduto();
   montarFiltroCusto();
   montarFiltrosTransferencias();
+  montarFiltrosPainelRepack();
+  montarFiltrosPainelDespejo();
 
   renderTudo();
 }
@@ -996,6 +1179,10 @@ function renderTudo(){
   renderMetas();
   renderTransferencias();
   renderLancamentos();
+  gerarPainelRepack();
+  renderProdutividadeRepack();
+  gerarPainelDespejo();
+  renderProdutividadeDespejo();
 }
 
 /* ---------------- HELPERS GENÉRICOS DE CRUD ---------------- */
@@ -2364,6 +2551,515 @@ async function excluirTransferencia(id){
   transferenciasCache = transferenciasCache.filter(t => t.id !== id);
   relatorioTransferenciaFiltrado = relatorioTransferenciaFiltrado.filter(t => t.id !== id);
   renderTabelaTransferencias();
+}
+
+/* ============================================================
+   HELPERS COMPARTILHADOS — Repack e Despejo
+   ============================================================ */
+
+function chavePeriodo(dataISO, tipo){
+  if(tipo === 'dia') return dataISO;
+  if(tipo === 'mes') return dataISO.slice(0,7);
+  if(tipo === 'ano') return dataISO.slice(5,7);
+  if(tipo === 'semana'){
+    const d = new Date(dataISO + 'T00:00:00');
+    const diaSemana = (d.getDay() + 6) % 7; // 0 = segunda
+    d.setDate(d.getDate() - diaSemana);
+    return d.toISOString().slice(0,10);
+  }
+}
+
+function bucketsPeriodo(tipo){
+  const hoje = new Date();
+  const buckets = [];
+  if(tipo === 'dia'){
+    for(let i=29;i>=0;i--){ const d=new Date(hoje); d.setDate(d.getDate()-i); buckets.push(d.toISOString().slice(0,10)); }
+  } else if(tipo === 'semana'){
+    for(let i=11;i>=0;i--){
+      const d=new Date(hoje); d.setDate(d.getDate() - i*7);
+      const diaSemana = (d.getDay()+6)%7;
+      d.setDate(d.getDate()-diaSemana);
+      buckets.push(d.toISOString().slice(0,10));
+    }
+  } else if(tipo === 'ano'){
+    for(let m=1;m<=12;m++) buckets.push(String(m).padStart(2,'0'));
+  }
+  return buckets; // 'mes' não tem range fixo — usa só os meses com dado
+}
+
+function rotuloBucket(chave, tipo){
+  if(tipo === 'dia') return chave.slice(8,10)+'/'+chave.slice(5,7);
+  if(tipo === 'semana') return chave.slice(8,10)+'/'+chave.slice(5,7);
+  if(tipo === 'mes') return chave.slice(5,7)+'/'+chave.slice(0,4);
+  if(tipo === 'ano') return chave + '/' + new Date().getFullYear();
+}
+
+function filtrarPorTipoPeriodo(lista, tipo){
+  if(tipo === 'ano') return lista.filter(r => r.dataISO.startsWith(String(new Date().getFullYear())));
+  return lista; // dia/semana/mes já limitam pelo range de buckets exibido
+}
+
+// Histograma simples: agrupa valores numéricos em faixas e conta quantos caem em cada uma.
+function renderHistograma(canvasId, valores, numBuckets, cor){
+  valores = valores.filter(v => isFinite(v));
+  if(valores.length === 0){
+    if(chartInstances[canvasId]) chartInstances[canvasId].destroy();
+    return;
+  }
+  const min = Math.min(...valores), max = Math.max(...valores);
+  const largura = (max - min) / numBuckets || 1;
+  const contagens = new Array(numBuckets).fill(0);
+  valores.forEach(v => {
+    let idx = Math.floor((v - min) / largura);
+    if(idx >= numBuckets) idx = numBuckets - 1;
+    if(idx < 0) idx = 0;
+    contagens[idx]++;
+  });
+  const labels = contagens.map((_, i) => (min + i*largura).toFixed(1) + '–' + (min + (i+1)*largura).toFixed(1));
+  renderBarChart(canvasId, labels, contagens, cor, { label: 'Lançamentos' });
+}
+
+/* ============================================================
+   REPACK — carregamento e painel
+   ============================================================ */
+
+let repackCache = [];
+let repackPainelFiltrado = [];
+
+async function carregarRepack(){
+  const { data, error } = await sb
+    .from('repack_lancamentos')
+    .select('*')
+    .eq('status', 'concluido')
+    .order('created_at', { ascending: false })
+    .limit(5000);
+
+  if(error){ console.error(error); repackCache = []; return; }
+
+  repackCache = (data || []).map(row => ({
+    id: row.id,
+    dataISO: row.created_at.slice(0,10),
+    filialId: row.filial_id,
+    produtoId: row.produto_id,
+    lancadoPorId: row.lancado_por_id,
+    inicio: row.inicio,
+    fim: row.fim,
+    duracaoMinutos: Number(row.duracao_minutos) || 0,
+    quantidadeCaixas: row.quantidade_caixas || 0,
+    minPorCaixa: row.quantidade_caixas ? (Number(row.duracao_minutos)||0) / row.quantidade_caixas : 0,
+  }));
+}
+
+function montarFiltrosPainelRepack(){
+  document.getElementById('repack-p-filial').innerHTML = '<option value="">Todas</option>' + filiais.map(f=>`<option value="${f.id}">${f.nome}</option>`).join('');
+  document.getElementById('repack-p-funcionario').innerHTML = '<option value="">Todos</option>' + pessoas.map(p=>`<option value="${p.id}">${p.nome}</option>`).join('');
+}
+
+function limparFiltrosPainelRepack(){
+  document.getElementById('repack-p-filial').value = '';
+  document.getElementById('repack-p-funcionario').value = '';
+  document.getElementById('repack-p-data-de').value = '';
+  document.getElementById('repack-p-data-ate').value = '';
+  gerarPainelRepack();
+}
+
+function gerarPainelRepack(){
+  const filialF = document.getElementById('repack-p-filial').value;
+  const funcF = document.getElementById('repack-p-funcionario').value;
+  const deF = document.getElementById('repack-p-data-de').value;
+  const ateF = document.getElementById('repack-p-data-ate').value;
+
+  repackPainelFiltrado = repackCache.filter(r =>
+    (!filialF || r.filialId == filialF) &&
+    (!funcF || r.lancadoPorId == funcF) &&
+    (!deF || r.dataISO >= deF) &&
+    (!ateF || r.dataISO <= ateF)
+  );
+
+  document.getElementById('repack-p-resumo').textContent = repackPainelFiltrado.length + ' reembalamento(s) encontrado(s).';
+
+  document.getElementById('tbl-repack-painel').innerHTML = repackPainelFiltrado.slice(0,500).map(r => {
+    const produto = produtos.find(p=>p.id===r.produtoId);
+    return `<tr>
+      <td>${r.dataISO}</td>
+      <td>${nomePor(filiais, r.filialId)}</td>
+      <td>${nomePor(pessoas, r.lancadoPorId)}</td>
+      <td>${produto ? produto.descricao : '—'}</td>
+      <td>${produto && produto.embalagem ? produto.embalagem : '—'}</td>
+      <td>${new Date(r.inicio).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</td>
+      <td>${r.fim ? new Date(r.fim).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}) : '—'}</td>
+      <td>${formatarDuracaoAdmin(r.duracaoMinutos)}</td>
+      <td>${r.quantidadeCaixas}</td>
+      <td>${r.minPorCaixa.toFixed(2)}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="10" class="muted">Nenhum reembalamento encontrado com esses filtros.</td></tr>';
+}
+
+function formatarDuracaoAdmin(minutosTotais){
+  const totalSeg = Math.round(minutosTotais*60);
+  const h = Math.floor(totalSeg/3600), m = Math.floor((totalSeg%3600)/60), s = totalSeg%60;
+  return h>0 ? (h+'h'+String(m).padStart(2,'0')+'m') : (m+'m'+String(s).padStart(2,'0')+'s');
+}
+
+function exportarCSVRepack(){
+  if(repackPainelFiltrado.length === 0){ alert('Gere o painel antes de exportar.'); return; }
+  const cabecalho = ['Data','Filial','Funcionario','Produto','Embalagem','Inicio','Fim','Duracao_Minutos','Caixas','Min_Por_Caixa'];
+  const linhas = repackPainelFiltrado.map(r => {
+    const produto = produtos.find(p=>p.id===r.produtoId);
+    return [r.dataISO, nomePor(filiais,r.filialId), nomePor(pessoas,r.lancadoPorId), produto?produto.descricao:'', produto?produto.embalagem||'':'', r.inicio, r.fim||'', r.duracaoMinutos.toFixed(2), r.quantidadeCaixas, r.minPorCaixa.toFixed(2)]
+      .map(v => '"' + String(v).replace(/"/g,'""') + '"').join(';');
+  });
+  const csv = cabecalho.join(';') + '\n' + linhas.join('\n');
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'repack.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+/* ---------------- REPACK: PRODUTIVIDADE ---------------- */
+
+function montarFiltroProdutividadeRepack(){
+  const sel = document.getElementById('repack-prod-filial');
+  if(sel.options.length <= 1) sel.innerHTML = '<option value="">Todas</option>' + filiais.map(f=>`<option value="${f.id}">${f.nome}</option>`).join('');
+}
+
+function renderProdutividadeRepack(){
+  montarFiltroProdutividadeRepack();
+  const filialF = document.getElementById('repack-prod-filial').value;
+  const tipo = document.getElementById('repack-prod-periodo').value;
+
+  let base = filialF ? repackCache.filter(r => r.filialId == filialF) : repackCache;
+  base = filtrarPorTipoPeriodo(base, tipo);
+
+  const buckets = bucketsPeriodo(tipo);
+  const chavesValidas = buckets.length ? new Set(buckets) : null;
+  const baseNoRange = chavesValidas ? base.filter(r => chavesValidas.has(chavePeriodo(r.dataISO, tipo))) : base;
+
+  const geral = calcularIndicadoresRepack(baseNoRange);
+  document.getElementById('repack-kpi-minutos').textContent = geral.minutosMedioPorEmbalagem.toFixed(2) + ' min';
+  document.getElementById('repack-kpi-caixashora').textContent = geral.caixasPorHora.toFixed(1);
+  document.getElementById('repack-kpi-total').textContent = geral.totalLancamentos;
+
+  // Tendência: um valor por bucket (dia/semana/ano fixos; mês usa só os que têm dado)
+  let chavesTendencia = buckets;
+  if(tipo === 'mes'){
+    chavesTendencia = [...new Set(base.map(r => chavePeriodo(r.dataISO,'mes')))].sort();
+  }
+  const porBucket = {};
+  chavesTendencia.forEach(c => porBucket[c] = []);
+  base.forEach(r => {
+    const c = chavePeriodo(r.dataISO, tipo);
+    if(porBucket[c]) porBucket[c].push(r);
+  });
+  const labelsTendencia = chavesTendencia.map(c => rotuloBucket(c, tipo));
+  const minutosTendencia = chavesTendencia.map(c => +calcularIndicadoresRepack(porBucket[c]).minutosMedioPorEmbalagem.toFixed(2));
+  const caixasHoraTendencia = chavesTendencia.map(c => +calcularIndicadoresRepack(porBucket[c]).caixasPorHora.toFixed(1));
+
+  renderBarChart('chart-repack-tendencia-minutos', labelsTendencia, minutosTendencia, '#0891B2', { label: 'Minutos/embalagem' });
+  renderBarChart('chart-repack-tendencia-caixashora', labelsTendencia, caixasHoraTendencia, '#0D9488', { label: 'Caixas/hora' });
+
+  // Por funcionário
+  const porFunc = {};
+  baseNoRange.forEach(r => { (porFunc[r.lancadoPorId] = porFunc[r.lancadoPorId] || []).push(r); });
+  const funcEntradas = Object.entries(porFunc)
+    .map(([id, lista]) => ({ nome: nomePor(pessoas, Number(id)), valor: +calcularIndicadoresRepack(lista).minutosMedioPorEmbalagem.toFixed(2) }))
+    .sort((a,b) => a.valor - b.valor).slice(0, 10);
+  renderBarChart('chart-repack-funcionario', funcEntradas.map(x=>x.nome), funcEntradas.map(x=>x.valor), '#0E8E7D', { label: 'Minutos/embalagem' });
+
+  // Por embalagem — Pareto de quantidade de caixas
+  const porEmbalagem = {};
+  baseNoRange.forEach(r => {
+    const produto = produtos.find(p=>p.id===r.produtoId);
+    const chave = produto && produto.embalagem ? produto.embalagem : 'Sem embalagem informada';
+    porEmbalagem[chave] = (porEmbalagem[chave]||0) + r.quantidadeCaixas;
+  });
+  const embEntradas = topNTexto(porEmbalagem, 8);
+  renderParetoChart('chart-repack-embalagem', embEntradas.map(x=>x.nome), embEntradas.map(x=>x.valor), 'Caixas');
+
+  // Histograma de minutos por caixa
+  renderHistograma('chart-repack-histograma', baseNoRange.map(r=>r.minPorCaixa), 8, '#C97A1A');
+}
+
+function calcularIndicadoresRepack(lista){
+  const totalCaixas = lista.reduce((a,r)=>a+r.quantidadeCaixas,0);
+  const totalMinutos = lista.reduce((a,r)=>a+r.duracaoMinutos,0);
+  return {
+    minutosMedioPorEmbalagem: totalCaixas ? totalMinutos/totalCaixas : 0,
+    caixasPorHora: totalMinutos ? totalCaixas/(totalMinutos/60) : 0,
+    totalLancamentos: lista.length,
+  };
+}
+
+/* ---------------- REPACK: METAS ---------------- */
+
+let metasRepackAtuais = { meta_minutos_por_embalagem: 0, meta_caixas_por_hora: 0 };
+
+function montarFiltroMetasRepack(){
+  const sel = document.getElementById('repack-metas-filial');
+  if(sel.options.length === 0) sel.innerHTML = filiais.map(f=>`<option value="${f.id}">${f.nome}</option>`).join('');
+  const mesInput = document.getElementById('repack-metas-mes');
+  if(!mesInput.value) mesInput.value = new Date().toISOString().slice(0,7);
+}
+
+async function carregarMetasRepack(){
+  montarFiltroMetasRepack();
+  const filialId = document.getElementById('repack-metas-filial').value;
+  const [ano, mes] = document.getElementById('repack-metas-mes').value.split('-').map(Number);
+  if(!filialId) return;
+
+  const { data } = await sb.from('repack_metas').select('*').eq('filial_id', filialId).eq('ano', ano).eq('mes', mes).maybeSingle();
+  metasRepackAtuais = data || { meta_minutos_por_embalagem: 0, meta_caixas_por_hora: 0 };
+  renderMetasRepack();
+}
+
+function renderMetasRepack(){
+  const filialId = document.getElementById('repack-metas-filial').value;
+  const anoMes = document.getElementById('repack-metas-mes').value;
+  const doMes = repackCache.filter(r => r.filialId == filialId && r.dataISO.slice(0,7) === anoMes);
+  const indicadores = calcularIndicadoresRepack(doMes);
+
+  const metaMin = Number(metasRepackAtuais.meta_minutos_por_embalagem) || 0;
+  const metaCaixasHora = Number(metasRepackAtuais.meta_caixas_por_hora) || 0;
+  const pctMin = metaMin ? Math.round((indicadores.minutosMedioPorEmbalagem/metaMin)*100) : 0;
+  const pctCaixasHora = metaCaixasHora ? Math.round((indicadores.caixasPorHora/metaCaixasHora)*100) : 0;
+
+  document.getElementById('tbl-repack-metas').innerHTML = `
+    <tr>
+      <td>Minutos médio por embalagem (menor é melhor)</td>
+      <td><input class="meta-input" type="number" step="0.1" value="${metaMin}" onchange="metasRepackAtuais.meta_minutos_por_embalagem = Number(this.value); renderMetasRepack();" /></td>
+      <td>${indicadores.minutosMedioPorEmbalagem.toFixed(2)} min</td>
+      <td><span class="status-pill ${pctMin > 100 ? 'status-reprovada' : 'status-aprovada'}">${pctMin}%</span></td>
+    </tr>
+    <tr>
+      <td>Caixas por hora (maior é melhor)</td>
+      <td><input class="meta-input" type="number" step="0.1" value="${metaCaixasHora}" onchange="metasRepackAtuais.meta_caixas_por_hora = Number(this.value); renderMetasRepack();" /></td>
+      <td>${indicadores.caixasPorHora.toFixed(1)}</td>
+      <td><span class="status-pill ${pctCaixasHora < 100 ? 'status-reprovada' : 'status-aprovada'}">${pctCaixasHora}%</span></td>
+    </tr>`;
+}
+
+async function salvarMetasRepack(){
+  const filialId = Number(document.getElementById('repack-metas-filial').value);
+  const [ano, mes] = document.getElementById('repack-metas-mes').value.split('-').map(Number);
+  const { error } = await sb.from('repack_metas').upsert({
+    filial_id: filialId, ano, mes,
+    meta_minutos_por_embalagem: metasRepackAtuais.meta_minutos_por_embalagem,
+    meta_caixas_por_hora: metasRepackAtuais.meta_caixas_por_hora,
+  }, { onConflict: 'filial_id,ano,mes' });
+  document.getElementById('repack-metas-msg').innerHTML = error
+    ? '<div class="error">Erro ao salvar: ' + error.message + '</div>'
+    : '<div class="ok">Meta salva.</div>';
+}
+
+/* ============================================================
+   DESPEJO — carregamento, painel, produtividade, metas
+   (mesmo formato do Repack, medido em litros/minuto)
+   ============================================================ */
+
+let despejoCache = [];
+let despejoPainelFiltrado = [];
+
+async function carregarDespejo(){
+  const { data, error } = await sb
+    .from('despejo_lancamentos')
+    .select('*')
+    .eq('status', 'concluido')
+    .order('created_at', { ascending: false })
+    .limit(5000);
+
+  if(error){ console.error(error); despejoCache = []; return; }
+
+  despejoCache = (data || []).map(row => ({
+    id: row.id,
+    dataISO: row.created_at.slice(0,10),
+    filialId: row.filial_id,
+    produtoId: row.produto_id,
+    lancadoPorId: row.lancado_por_id,
+    inicio: row.inicio,
+    fim: row.fim,
+    duracaoMinutos: Number(row.duracao_minutos) || 0,
+    quantidadeLitros: Number(row.quantidade_litros) || 0,
+    litrosPorMinuto: row.duracao_minutos ? (Number(row.quantidade_litros)||0) / Number(row.duracao_minutos) : 0,
+  }));
+}
+
+function montarFiltrosPainelDespejo(){
+  document.getElementById('despejo-p-filial').innerHTML = '<option value="">Todas</option>' + filiais.map(f=>`<option value="${f.id}">${f.nome}</option>`).join('');
+  document.getElementById('despejo-p-funcionario').innerHTML = '<option value="">Todos</option>' + pessoas.map(p=>`<option value="${p.id}">${p.nome}</option>`).join('');
+}
+
+function limparFiltrosPainelDespejo(){
+  document.getElementById('despejo-p-filial').value = '';
+  document.getElementById('despejo-p-funcionario').value = '';
+  document.getElementById('despejo-p-data-de').value = '';
+  document.getElementById('despejo-p-data-ate').value = '';
+  gerarPainelDespejo();
+}
+
+function gerarPainelDespejo(){
+  const filialF = document.getElementById('despejo-p-filial').value;
+  const funcF = document.getElementById('despejo-p-funcionario').value;
+  const deF = document.getElementById('despejo-p-data-de').value;
+  const ateF = document.getElementById('despejo-p-data-ate').value;
+
+  despejoPainelFiltrado = despejoCache.filter(r =>
+    (!filialF || r.filialId == filialF) &&
+    (!funcF || r.lancadoPorId == funcF) &&
+    (!deF || r.dataISO >= deF) &&
+    (!ateF || r.dataISO <= ateF)
+  );
+
+  document.getElementById('despejo-p-resumo').textContent = despejoPainelFiltrado.length + ' despejo(s) encontrado(s).';
+
+  document.getElementById('tbl-despejo-painel').innerHTML = despejoPainelFiltrado.slice(0,500).map(r => {
+    const produto = produtos.find(p=>p.id===r.produtoId);
+    return `<tr>
+      <td>${r.dataISO}</td>
+      <td>${nomePor(filiais, r.filialId)}</td>
+      <td>${nomePor(pessoas, r.lancadoPorId)}</td>
+      <td>${produto ? produto.descricao : '—'}</td>
+      <td>${produto && produto.embalagem ? produto.embalagem : '—'}</td>
+      <td>${new Date(r.inicio).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</td>
+      <td>${r.fim ? new Date(r.fim).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}) : '—'}</td>
+      <td>${formatarDuracaoAdmin(r.duracaoMinutos)}</td>
+      <td>${r.quantidadeLitros}</td>
+      <td>${r.litrosPorMinuto.toFixed(2)}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="10" class="muted">Nenhum despejo encontrado com esses filtros.</td></tr>';
+}
+
+function exportarCSVDespejo(){
+  if(despejoPainelFiltrado.length === 0){ alert('Gere o painel antes de exportar.'); return; }
+  const cabecalho = ['Data','Filial','Funcionario','Produto','Embalagem','Inicio','Fim','Duracao_Minutos','Litros','Litros_Por_Minuto'];
+  const linhas = despejoPainelFiltrado.map(r => {
+    const produto = produtos.find(p=>p.id===r.produtoId);
+    return [r.dataISO, nomePor(filiais,r.filialId), nomePor(pessoas,r.lancadoPorId), produto?produto.descricao:'', produto?produto.embalagem||'':'', r.inicio, r.fim||'', r.duracaoMinutos.toFixed(2), r.quantidadeLitros, r.litrosPorMinuto.toFixed(2)]
+      .map(v => '"' + String(v).replace(/"/g,'""') + '"').join(';');
+  });
+  const csv = cabecalho.join(';') + '\n' + linhas.join('\n');
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'despejo.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function montarFiltroProdutividadeDespejo(){
+  const sel = document.getElementById('despejo-prod-filial');
+  if(sel.options.length <= 1) sel.innerHTML = '<option value="">Todas</option>' + filiais.map(f=>`<option value="${f.id}">${f.nome}</option>`).join('');
+}
+
+function calcularIndicadoresDespejo(lista){
+  const totalLitros = lista.reduce((a,r)=>a+r.quantidadeLitros,0);
+  const totalMinutos = lista.reduce((a,r)=>a+r.duracaoMinutos,0);
+  return {
+    litrosPorMinuto: totalMinutos ? totalLitros/totalMinutos : 0,
+    totalLitros,
+    totalLancamentos: lista.length,
+  };
+}
+
+function renderProdutividadeDespejo(){
+  montarFiltroProdutividadeDespejo();
+  const filialF = document.getElementById('despejo-prod-filial').value;
+  const tipo = document.getElementById('despejo-prod-periodo').value;
+
+  let base = filialF ? despejoCache.filter(r => r.filialId == filialF) : despejoCache;
+  base = filtrarPorTipoPeriodo(base, tipo);
+
+  const buckets = bucketsPeriodo(tipo);
+  const chavesValidas = buckets.length ? new Set(buckets) : null;
+  const baseNoRange = chavesValidas ? base.filter(r => chavesValidas.has(chavePeriodo(r.dataISO, tipo))) : base;
+
+  const geral = calcularIndicadoresDespejo(baseNoRange);
+  document.getElementById('despejo-kpi-litrosmin').textContent = geral.litrosPorMinuto.toFixed(2);
+  document.getElementById('despejo-kpi-totallitros').textContent = geral.totalLitros.toFixed(0) + ' L';
+  document.getElementById('despejo-kpi-total').textContent = geral.totalLancamentos;
+
+  let chavesTendencia = buckets;
+  if(tipo === 'mes'){
+    chavesTendencia = [...new Set(base.map(r => chavePeriodo(r.dataISO,'mes')))].sort();
+  }
+  const porBucket = {};
+  chavesTendencia.forEach(c => porBucket[c] = []);
+  base.forEach(r => {
+    const c = chavePeriodo(r.dataISO, tipo);
+    if(porBucket[c]) porBucket[c].push(r);
+  });
+  const labelsTendencia = chavesTendencia.map(c => rotuloBucket(c, tipo));
+  const litrosMinTendencia = chavesTendencia.map(c => +calcularIndicadoresDespejo(porBucket[c]).litrosPorMinuto.toFixed(2));
+  renderBarChart('chart-despejo-tendencia', labelsTendencia, litrosMinTendencia, '#0D9488', { label: 'Litros/minuto' });
+
+  const porFunc = {};
+  baseNoRange.forEach(r => { (porFunc[r.lancadoPorId] = porFunc[r.lancadoPorId] || []).push(r); });
+  const funcEntradas = Object.entries(porFunc)
+    .map(([id, lista]) => ({ nome: nomePor(pessoas, Number(id)), valor: +calcularIndicadoresDespejo(lista).litrosPorMinuto.toFixed(2) }))
+    .sort((a,b) => b.valor - a.valor).slice(0, 10);
+  renderBarChart('chart-despejo-funcionario', funcEntradas.map(x=>x.nome), funcEntradas.map(x=>x.valor), '#0E8E7D', { label: 'Litros/minuto' });
+
+  const porEmbalagem = {};
+  baseNoRange.forEach(r => {
+    const produto = produtos.find(p=>p.id===r.produtoId);
+    const chave = produto && produto.embalagem ? produto.embalagem : 'Sem embalagem informada';
+    porEmbalagem[chave] = (porEmbalagem[chave]||0) + r.quantidadeLitros;
+  });
+  const embEntradas = topNTexto(porEmbalagem, 8);
+  renderParetoChart('chart-despejo-embalagem', embEntradas.map(x=>x.nome), embEntradas.map(x=>x.valor), 'Litros');
+
+  renderHistograma('chart-despejo-histograma', baseNoRange.map(r=>r.litrosPorMinuto), 8, '#C97A1A');
+}
+
+let metasDespejoAtuais = { meta_litros_por_minuto: 0 };
+
+function montarFiltroMetasDespejo(){
+  const sel = document.getElementById('despejo-metas-filial');
+  if(sel.options.length === 0) sel.innerHTML = filiais.map(f=>`<option value="${f.id}">${f.nome}</option>`).join('');
+  const mesInput = document.getElementById('despejo-metas-mes');
+  if(!mesInput.value) mesInput.value = new Date().toISOString().slice(0,7);
+}
+
+async function carregarMetasDespejo(){
+  montarFiltroMetasDespejo();
+  const filialId = document.getElementById('despejo-metas-filial').value;
+  const [ano, mes] = document.getElementById('despejo-metas-mes').value.split('-').map(Number);
+  if(!filialId) return;
+
+  const { data } = await sb.from('despejo_metas').select('*').eq('filial_id', filialId).eq('ano', ano).eq('mes', mes).maybeSingle();
+  metasDespejoAtuais = data || { meta_litros_por_minuto: 0 };
+  renderMetasDespejo();
+}
+
+function renderMetasDespejo(){
+  const filialId = document.getElementById('despejo-metas-filial').value;
+  const anoMes = document.getElementById('despejo-metas-mes').value;
+  const doMes = despejoCache.filter(r => r.filialId == filialId && r.dataISO.slice(0,7) === anoMes);
+  const indicadores = calcularIndicadoresDespejo(doMes);
+
+  const meta = Number(metasDespejoAtuais.meta_litros_por_minuto) || 0;
+  const pct = meta ? Math.round((indicadores.litrosPorMinuto/meta)*100) : 0;
+
+  document.getElementById('tbl-despejo-metas').innerHTML = `
+    <tr>
+      <td>Litros por minuto (maior é melhor)</td>
+      <td><input class="meta-input" type="number" step="0.1" value="${meta}" onchange="metasDespejoAtuais.meta_litros_por_minuto = Number(this.value); renderMetasDespejo();" /></td>
+      <td>${indicadores.litrosPorMinuto.toFixed(2)}</td>
+      <td><span class="status-pill ${pct < 100 ? 'status-reprovada' : 'status-aprovada'}">${pct}%</span></td>
+    </tr>`;
+}
+
+async function salvarMetasDespejo(){
+  const filialId = Number(document.getElementById('despejo-metas-filial').value);
+  const [ano, mes] = document.getElementById('despejo-metas-mes').value.split('-').map(Number);
+  const { error } = await sb.from('despejo_metas').upsert({
+    filial_id: filialId, ano, mes,
+    meta_litros_por_minuto: metasDespejoAtuais.meta_litros_por_minuto,
+  }, { onConflict: 'filial_id,ano,mes' });
+  document.getElementById('despejo-metas-msg').innerHTML = error
+    ? '<div class="error">Erro ao salvar: ' + error.message + '</div>'
+    : '<div class="ok">Meta salva.</div>';
 }
 
 function exportarCSVTransferencias(){

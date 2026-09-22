@@ -98,7 +98,7 @@
   .admin-link{font-size:12px; color:#9BB0BF; margin-top:6px;}
   .admin-link a{color:#9BB0BF;}
   .segmented{display:flex; background:var(--card); border-radius:9px; padding:3px; gap:2px; margin:14px 16px 0;}
-  .seg-btn{flex:1; border:none; background:transparent; padding:12px; font-size:14px; font-weight:700; color:var(--sub); border-radius:7px; cursor:pointer;}
+  .seg-btn{flex:1 1 45%; border:none; background:transparent; padding:12px; font-size:14px; font-weight:700; color:var(--sub); border-radius:7px; cursor:pointer;}
   .seg-btn.active{background:#fff; color:var(--teal); box-shadow:0 1px 3px rgba(0,0,0,.1);}
 </style>
 </head>
@@ -128,9 +128,11 @@
     <button onclick="sair()">Sair</button>
   </header>
 
-  <div class="segmented" id="modo-subtabs">
+  <div class="segmented" id="modo-subtabs" style="flex-wrap:wrap;">
     <button class="seg-btn active" data-modo="quebra" onclick="mudarModo('quebra')">📦 Quebra</button>
     <button class="seg-btn" data-modo="transferencia" onclick="mudarModo('transferencia')">🔄 Transferência</button>
+    <button class="seg-btn" data-modo="repack" onclick="mudarModo('repack')">♻️ Repack</button>
+    <button class="seg-btn" data-modo="despejo" onclick="mudarModo('despejo')">🚰 Despejo</button>
   </div>
 
   <main>
@@ -321,6 +323,102 @@
       </div>
     </div>
 
+    <div id="modo-repack" class="hidden">
+      <div class="section">
+        <div class="section-title">1. Produto a reembalar</div>
+        <div class="card">
+          <div class="scan-row" style="position:relative;">
+            <input type="text" id="codigo-repack" placeholder="Código interno, EAN ou descrição" autocomplete="off" oninput="onDigitarBuscaRepack()" />
+            <button class="btn" style="width:auto;margin:0;background:var(--amber);color:#fff;padding:0 16px;" onclick="buscarManualRepack()">Buscar</button>
+            <div id="autocomplete-list-repack" class="hidden" style="position:absolute; top:48px; left:0; right:0; background:#fff; border:1px solid var(--line); border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,.08); z-index:15; max-height:240px; overflow-y:auto;"></div>
+          </div>
+
+          <div id="produto-found-repack" class="produto-found hidden">
+            <div class="info">
+              <b id="produto-desc-repack"></b>
+              <span id="produto-codigos-repack"></span>
+            </div>
+            <button class="clear" onclick="limparProdutoRepack()">Trocar</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="section" id="painel-timer-repack" hidden>
+        <div class="section-title">2. Cronômetro</div>
+        <div class="card" style="text-align:center;">
+          <div id="repack-timer-display" style="font-size:44px;font-weight:800;color:var(--teal);font-variant-numeric:tabular-nums;">00:00</div>
+          <p style="font-size:13px;color:var(--sub);margin:4px 0 18px;" id="repack-timer-status">Pronto pra começar</p>
+
+          <button class="btn btn-primary" id="btn-iniciar-repack" onclick="iniciarRepack()" style="font-size:16px;padding:16px;">▶ Iniciar reembalagem</button>
+
+          <div id="repack-em-andamento" class="hidden">
+            <button class="btn" style="background:var(--red);color:#fff;font-size:16px;padding:16px;" onclick="finalizarRepack()">⏹ Finalizar reembalagem</button>
+            <button class="btn btn-outline" style="margin-top:10px;" onclick="cancelarRepack()">Cancelar (comecei por engano)</button>
+          </div>
+
+          <div id="repack-form-quantidade" class="hidden" style="margin-top:14px;text-align:left;">
+            <label>Quantas caixas foram reembaladas?</label>
+            <input type="number" id="repack-quantidade-caixas" min="1" value="1" style="font-size:20px;text-align:center;" />
+            <button class="btn btn-primary" style="margin-top:10px;" onclick="confirmarFinalizacaoRepack()">Confirmar e registrar</button>
+          </div>
+          <div id="repack-msg"></div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">Últimos reembalamentos</div>
+        <div class="card" id="feed-repack"><p style="color:var(--sub);font-size:13px;">Carregando...</p></div>
+      </div>
+    </div>
+
+    <div id="modo-despejo" class="hidden">
+      <div class="section">
+        <div class="section-title">1. Produto a despejar</div>
+        <div class="card">
+          <div class="scan-row" style="position:relative;">
+            <input type="text" id="codigo-despejo" placeholder="Código interno, EAN ou descrição" autocomplete="off" oninput="onDigitarBuscaDespejo()" />
+            <button class="btn" style="width:auto;margin:0;background:var(--amber);color:#fff;padding:0 16px;" onclick="buscarManualDespejo()">Buscar</button>
+            <div id="autocomplete-list-despejo" class="hidden" style="position:absolute; top:48px; left:0; right:0; background:#fff; border:1px solid var(--line); border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,.08); z-index:15; max-height:240px; overflow-y:auto;"></div>
+          </div>
+
+          <div id="produto-found-despejo" class="produto-found hidden">
+            <div class="info">
+              <b id="produto-desc-despejo"></b>
+              <span id="produto-codigos-despejo"></span>
+            </div>
+            <button class="clear" onclick="limparProdutoDespejo()">Trocar</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="section" id="painel-timer-despejo" hidden>
+        <div class="section-title">2. Cronômetro</div>
+        <div class="card" style="text-align:center;">
+          <div id="despejo-timer-display" style="font-size:44px;font-weight:800;color:var(--teal);font-variant-numeric:tabular-nums;">00:00</div>
+          <p style="font-size:13px;color:var(--sub);margin:4px 0 18px;" id="despejo-timer-status">Pronto pra começar</p>
+
+          <button class="btn btn-primary" id="btn-iniciar-despejo" onclick="iniciarDespejo()" style="font-size:16px;padding:16px;">▶ Iniciar despejo</button>
+
+          <div id="despejo-em-andamento" class="hidden">
+            <button class="btn" style="background:var(--red);color:#fff;font-size:16px;padding:16px;" onclick="finalizarDespejo()">⏹ Finalizar despejo</button>
+            <button class="btn btn-outline" style="margin-top:10px;" onclick="cancelarDespejo()">Cancelar (comecei por engano)</button>
+          </div>
+
+          <div id="despejo-form-quantidade" class="hidden" style="margin-top:14px;text-align:left;">
+            <label>Quantos litros foram despejados?</label>
+            <input type="number" id="despejo-quantidade-litros" min="0.1" step="0.1" value="1" style="font-size:20px;text-align:center;" />
+            <button class="btn btn-primary" style="margin-top:10px;" onclick="confirmarFinalizacaoDespejo()">Confirmar e registrar</button>
+          </div>
+          <div id="despejo-msg"></div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">Últimos despejos</div>
+        <div class="card" id="feed-despejo"><p style="color:var(--sub);font-size:13px;">Carregando...</p></div>
+      </div>
+    </div>
+
     <div class="admin-link hidden" id="admin-link"><a href="admin.html">Abrir painel gerencial →</a></div>
   </main>
 </div>
@@ -405,6 +503,8 @@ async function entrarNoApp(){
   await carregarListas();
   await carregarFeed();
   await carregarFeedTransferencia();
+  await carregarFeedRepack();
+  await carregarFeedDespejo();
   atualizarContadorSessao();
 }
 
@@ -492,6 +592,8 @@ function mudarModo(modo){
   document.querySelectorAll('#modo-subtabs .seg-btn').forEach(b => b.classList.toggle('active', b.dataset.modo === modo));
   document.getElementById('modo-quebra').classList.toggle('hidden', modo !== 'quebra');
   document.getElementById('modo-transferencia').classList.toggle('hidden', modo !== 'transferencia');
+  document.getElementById('modo-repack').classList.toggle('hidden', modo !== 'repack');
+  document.getElementById('modo-despejo').classList.toggle('hidden', modo !== 'despejo');
 }
 
 function mudarDepartamento(){
@@ -770,6 +872,440 @@ async function carregarFeedTransferencia(){
         <div class="meta">${t.motivos_transferencia?.nome || ''}</div>
       </div>
       <div class="meta">${new Date(t.created_at).toLocaleString('pt-BR', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</div>
+    </div>
+  `).join('');
+}
+
+/* ============================================================
+   MÓDULO REPACK — cronômetro iniciar/finalizar, sem digitar horário
+   ============================================================ */
+
+let produtoAtualRepack = null;
+let repackAtual = null; // { id, inicio: Date, fim: Date|null }
+let repackTimerInterval = null;
+let temporizadorBuscaRepack = null;
+
+function formatarDuracao(segundosTotais){
+  const s = Math.max(0, Math.floor(segundosTotais));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sRestante = s % 60;
+  const mm = String(m).padStart(2,'0');
+  const ss = String(sRestante).padStart(2,'0');
+  return h > 0 ? (h + ':' + mm + ':' + ss) : (mm + ':' + ss);
+}
+
+function onDigitarBuscaRepack(){
+  clearTimeout(temporizadorBuscaRepack);
+  const termo = document.getElementById('codigo-repack').value.trim();
+  if(termo.length < 2){ esconderSugestoesRepack(); return; }
+  temporizadorBuscaRepack = setTimeout(() => buscarSugestoesRepack(termo), 300);
+}
+
+async function buscarSugestoesRepack(termo){
+  const { data } = await sb.from('produtos').select('*').eq('ativo', true).eq('eh_vasilhame', false)
+    .or(`descricao.ilike.%${termo}%,codigo.ilike.%${termo}%,ean.ilike.%${termo}%`)
+    .limit(8);
+  renderSugestoesRepack(data || []);
+}
+
+function renderSugestoesRepack(lista){
+  const el = document.getElementById('autocomplete-list-repack');
+  if(lista.length === 0){ esconderSugestoesRepack(); return; }
+  el.innerHTML = lista.map(p => `
+    <div class="autocomplete-item" onclick='selecionarSugestaoRepack(${p.id})'>
+      <div>${p.descricao}</div>
+      <div class="codigo">Código: ${p.codigo}${p.ean ? ' · EAN: ' + p.ean : ''}</div>
+    </div>`).join('');
+  el.classList.remove('hidden');
+  window._sugestoesAtuaisRepack = lista;
+}
+
+function selecionarSugestaoRepack(id){
+  const produto = (window._sugestoesAtuaisRepack || []).find(p => p.id === id);
+  if(produto) selecionarProdutoRepack(produto);
+}
+
+function esconderSugestoesRepack(){
+  const el = document.getElementById('autocomplete-list-repack');
+  el.classList.add('hidden');
+  el.innerHTML = '';
+}
+
+async function buscarManualRepack(){
+  const termo = document.getElementById('codigo-repack').value.trim();
+  if(!termo) return;
+  let produto = await buscarProdutoPorCodigo(termo, false);
+  if(!produto){
+    const { data } = await sb.from('produtos').select('*').eq('ativo', true).eq('eh_vasilhame', false).ilike('descricao', `%${termo}%`).limit(1);
+    produto = (data && data[0]) || null;
+  }
+  if(produto){ selecionarProdutoRepack(produto); } else { alert('Produto não encontrado para "' + termo + '".'); }
+}
+
+async function selecionarProdutoRepack(produto){
+  produtoAtualRepack = produto;
+  document.getElementById('produto-desc-repack').textContent = produto.descricao;
+  document.getElementById('produto-codigos-repack').textContent =
+    'Código: ' + produto.codigo + (produto.ean ? ' · EAN: ' + produto.ean : ' · sem código de barras');
+  document.getElementById('produto-found-repack').classList.remove('hidden');
+  document.getElementById('codigo-repack').value = '';
+  esconderSugestoesRepack();
+  document.getElementById('painel-timer-repack').hidden = false;
+  await verificarRepackEmAndamento();
+}
+
+function limparProdutoRepack(){
+  produtoAtualRepack = null;
+  document.getElementById('produto-found-repack').classList.add('hidden');
+  document.getElementById('painel-timer-repack').hidden = true;
+  pararTimerRepack();
+}
+
+// Se a pessoa já tinha um reembalamento em andamento (por exemplo, fechou o
+// navegador no meio), retoma o cronômetro do ponto certo em vez de perder o registro.
+async function verificarRepackEmAndamento(){
+  const { data } = await sb.from('repack_lancamentos').select('*')
+    .eq('lancado_por_id', pessoaAtual.id).eq('status', 'em_andamento')
+    .order('created_at', { ascending: false }).limit(1).maybeSingle();
+
+  if(data){
+    repackAtual = { id: data.id, inicio: new Date(data.inicio), fim: null };
+    iniciarTimerVisualRepack();
+    document.getElementById('btn-iniciar-repack').classList.add('hidden');
+    document.getElementById('repack-em-andamento').classList.remove('hidden');
+    document.getElementById('repack-form-quantidade').classList.add('hidden');
+    document.getElementById('repack-timer-status').textContent = 'Retomando reembalagem já em andamento...';
+  } else {
+    repackAtual = null;
+    document.getElementById('btn-iniciar-repack').classList.remove('hidden');
+    document.getElementById('repack-em-andamento').classList.add('hidden');
+    document.getElementById('repack-form-quantidade').classList.add('hidden');
+    document.getElementById('repack-timer-display').textContent = '00:00';
+    document.getElementById('repack-timer-status').textContent = 'Pronto pra começar';
+  }
+}
+
+function iniciarTimerVisualRepack(){
+  pararTimerRepack();
+  const atualizar = () => {
+    const agora = repackAtual.fim || new Date();
+    const segundos = (agora - repackAtual.inicio) / 1000;
+    document.getElementById('repack-timer-display').textContent = formatarDuracao(segundos);
+  };
+  atualizar();
+  repackTimerInterval = setInterval(atualizar, 1000);
+}
+
+function pararTimerRepack(){
+  if(repackTimerInterval){ clearInterval(repackTimerInterval); repackTimerInterval = null; }
+}
+
+async function iniciarRepack(){
+  if(!produtoAtualRepack) return;
+  document.getElementById('repack-msg').innerHTML = '';
+  const { data, error } = await sb.from('repack_lancamentos').insert({
+    lancado_por_id: pessoaAtual.id,
+    filial_id: pessoaAtual.filial_id,
+    produto_id: produtoAtualRepack.id,
+  }).select().single();
+
+  if(error){
+    document.getElementById('repack-msg').innerHTML = '<div class="error">Erro ao iniciar: ' + error.message + '</div>';
+    return;
+  }
+
+  repackAtual = { id: data.id, inicio: new Date(data.inicio), fim: null };
+  iniciarTimerVisualRepack();
+  document.getElementById('btn-iniciar-repack').classList.add('hidden');
+  document.getElementById('repack-em-andamento').classList.remove('hidden');
+  document.getElementById('repack-timer-status').textContent = 'Reembalando...';
+}
+
+function finalizarRepack(){
+  if(!repackAtual) return;
+  repackAtual.fim = new Date(); // congela o horário de fim na hora do clique — não muda enquanto a pessoa digita a quantidade
+  pararTimerRepack();
+  document.getElementById('repack-timer-display').textContent = formatarDuracao((repackAtual.fim - repackAtual.inicio) / 1000);
+  document.getElementById('repack-timer-status').textContent = 'Finalizado — falta só a quantidade';
+  document.getElementById('repack-em-andamento').classList.add('hidden');
+  document.getElementById('repack-form-quantidade').classList.remove('hidden');
+  document.getElementById('repack-quantidade-caixas').value = 1;
+  document.getElementById('repack-quantidade-caixas').focus();
+}
+
+async function confirmarFinalizacaoRepack(){
+  if(!repackAtual || !repackAtual.fim) return;
+  const quantidade = parseInt(document.getElementById('repack-quantidade-caixas').value || '0', 10);
+  const msg = document.getElementById('repack-msg');
+  if(!quantidade || quantidade <= 0){
+    msg.innerHTML = '<div class="error">Digite quantas caixas foram reembaladas.</div>';
+    return;
+  }
+  const duracaoMinutos = (repackAtual.fim - repackAtual.inicio) / 60000;
+
+  const { error } = await sb.from('repack_lancamentos').update({
+    fim: repackAtual.fim.toISOString(),
+    duracao_minutos: +duracaoMinutos.toFixed(2),
+    quantidade_caixas: quantidade,
+    status: 'concluido',
+  }).eq('id', repackAtual.id);
+
+  if(error){
+    msg.innerHTML = '<div class="error">Erro ao registrar: ' + error.message + '</div>';
+    return;
+  }
+
+  msg.innerHTML = '<div class="ok">Reembalagem registrada — ' + formatarDuracao(duracaoMinutos*60) + ' pra ' + quantidade + ' caixa(s).</div>';
+  repackAtual = null;
+  limparProdutoRepack();
+  document.getElementById('painel-timer-repack').hidden = true;
+  document.getElementById('repack-form-quantidade').classList.add('hidden');
+  await carregarFeedRepack();
+}
+
+async function cancelarRepack(){
+  if(!repackAtual) return;
+  if(!confirm('Cancelar esse reembalamento? O cronômetro será descartado.')) return;
+  await sb.from('repack_lancamentos').delete().eq('id', repackAtual.id);
+  repackAtual = null;
+  pararTimerRepack();
+  limparProdutoRepack();
+  document.getElementById('painel-timer-repack').hidden = true;
+}
+
+async function carregarFeedRepack(){
+  const feed = document.getElementById('feed-repack');
+  const { data, error } = await sb
+    .from('repack_lancamentos')
+    .select('id, created_at, duracao_minutos, quantidade_caixas, produtos(descricao)')
+    .eq('status', 'concluido')
+    .order('created_at', { ascending: false })
+    .limit(8);
+
+  if(error || !data || data.length === 0){
+    feed.innerHTML = '<p style="color:var(--sub);font-size:13px;">Nenhum reembalamento ainda.</p>';
+    return;
+  }
+
+  feed.innerHTML = data.map(r => `
+    <div class="feed-item">
+      <div>
+        <div class="desc">${r.produtos?.descricao || '—'} (${r.quantidade_caixas} cx)</div>
+        <div class="meta">${formatarDuracao((r.duracao_minutos||0)*60)} de reembalagem</div>
+      </div>
+      <div class="meta">${new Date(r.created_at).toLocaleString('pt-BR', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</div>
+    </div>
+  `).join('');
+}
+
+/* ============================================================
+   MÓDULO DESPEJO — mesmo formato do Repack, medido em litros
+   ============================================================ */
+
+let produtoAtualDespejo = null;
+let despejoAtual = null;
+let despejoTimerInterval = null;
+let temporizadorBuscaDespejo = null;
+
+function onDigitarBuscaDespejo(){
+  clearTimeout(temporizadorBuscaDespejo);
+  const termo = document.getElementById('codigo-despejo').value.trim();
+  if(termo.length < 2){ esconderSugestoesDespejo(); return; }
+  temporizadorBuscaDespejo = setTimeout(() => buscarSugestoesDespejo(termo), 300);
+}
+
+async function buscarSugestoesDespejo(termo){
+  const { data } = await sb.from('produtos').select('*').eq('ativo', true).eq('eh_vasilhame', false)
+    .or(`descricao.ilike.%${termo}%,codigo.ilike.%${termo}%,ean.ilike.%${termo}%`)
+    .limit(8);
+  renderSugestoesDespejo(data || []);
+}
+
+function renderSugestoesDespejo(lista){
+  const el = document.getElementById('autocomplete-list-despejo');
+  if(lista.length === 0){ esconderSugestoesDespejo(); return; }
+  el.innerHTML = lista.map(p => `
+    <div class="autocomplete-item" onclick='selecionarSugestaoDespejo(${p.id})'>
+      <div>${p.descricao}</div>
+      <div class="codigo">Código: ${p.codigo}${p.ean ? ' · EAN: ' + p.ean : ''}</div>
+    </div>`).join('');
+  el.classList.remove('hidden');
+  window._sugestoesAtuaisDespejo = lista;
+}
+
+function selecionarSugestaoDespejo(id){
+  const produto = (window._sugestoesAtuaisDespejo || []).find(p => p.id === id);
+  if(produto) selecionarProdutoDespejo(produto);
+}
+
+function esconderSugestoesDespejo(){
+  const el = document.getElementById('autocomplete-list-despejo');
+  el.classList.add('hidden');
+  el.innerHTML = '';
+}
+
+async function buscarManualDespejo(){
+  const termo = document.getElementById('codigo-despejo').value.trim();
+  if(!termo) return;
+  let produto = await buscarProdutoPorCodigo(termo, false);
+  if(!produto){
+    const { data } = await sb.from('produtos').select('*').eq('ativo', true).eq('eh_vasilhame', false).ilike('descricao', `%${termo}%`).limit(1);
+    produto = (data && data[0]) || null;
+  }
+  if(produto){ selecionarProdutoDespejo(produto); } else { alert('Produto não encontrado para "' + termo + '".'); }
+}
+
+async function selecionarProdutoDespejo(produto){
+  produtoAtualDespejo = produto;
+  document.getElementById('produto-desc-despejo').textContent = produto.descricao;
+  document.getElementById('produto-codigos-despejo').textContent =
+    'Código: ' + produto.codigo + (produto.ean ? ' · EAN: ' + produto.ean : ' · sem código de barras');
+  document.getElementById('produto-found-despejo').classList.remove('hidden');
+  document.getElementById('codigo-despejo').value = '';
+  esconderSugestoesDespejo();
+  document.getElementById('painel-timer-despejo').hidden = false;
+  await verificarDespejoEmAndamento();
+}
+
+function limparProdutoDespejo(){
+  produtoAtualDespejo = null;
+  document.getElementById('produto-found-despejo').classList.add('hidden');
+  document.getElementById('painel-timer-despejo').hidden = true;
+  pararTimerDespejo();
+}
+
+async function verificarDespejoEmAndamento(){
+  const { data } = await sb.from('despejo_lancamentos').select('*')
+    .eq('lancado_por_id', pessoaAtual.id).eq('status', 'em_andamento')
+    .order('created_at', { ascending: false }).limit(1).maybeSingle();
+
+  if(data){
+    despejoAtual = { id: data.id, inicio: new Date(data.inicio), fim: null };
+    iniciarTimerVisualDespejo();
+    document.getElementById('btn-iniciar-despejo').classList.add('hidden');
+    document.getElementById('despejo-em-andamento').classList.remove('hidden');
+    document.getElementById('despejo-form-quantidade').classList.add('hidden');
+    document.getElementById('despejo-timer-status').textContent = 'Retomando despejo já em andamento...';
+  } else {
+    despejoAtual = null;
+    document.getElementById('btn-iniciar-despejo').classList.remove('hidden');
+    document.getElementById('despejo-em-andamento').classList.add('hidden');
+    document.getElementById('despejo-form-quantidade').classList.add('hidden');
+    document.getElementById('despejo-timer-display').textContent = '00:00';
+    document.getElementById('despejo-timer-status').textContent = 'Pronto pra começar';
+  }
+}
+
+function iniciarTimerVisualDespejo(){
+  pararTimerDespejo();
+  const atualizar = () => {
+    const agora = despejoAtual.fim || new Date();
+    const segundos = (agora - despejoAtual.inicio) / 1000;
+    document.getElementById('despejo-timer-display').textContent = formatarDuracao(segundos);
+  };
+  atualizar();
+  despejoTimerInterval = setInterval(atualizar, 1000);
+}
+
+function pararTimerDespejo(){
+  if(despejoTimerInterval){ clearInterval(despejoTimerInterval); despejoTimerInterval = null; }
+}
+
+async function iniciarDespejo(){
+  if(!produtoAtualDespejo) return;
+  document.getElementById('despejo-msg').innerHTML = '';
+  const { data, error } = await sb.from('despejo_lancamentos').insert({
+    lancado_por_id: pessoaAtual.id,
+    filial_id: pessoaAtual.filial_id,
+    produto_id: produtoAtualDespejo.id,
+  }).select().single();
+
+  if(error){
+    document.getElementById('despejo-msg').innerHTML = '<div class="error">Erro ao iniciar: ' + error.message + '</div>';
+    return;
+  }
+
+  despejoAtual = { id: data.id, inicio: new Date(data.inicio), fim: null };
+  iniciarTimerVisualDespejo();
+  document.getElementById('btn-iniciar-despejo').classList.add('hidden');
+  document.getElementById('despejo-em-andamento').classList.remove('hidden');
+  document.getElementById('despejo-timer-status').textContent = 'Despejando...';
+}
+
+function finalizarDespejo(){
+  if(!despejoAtual) return;
+  despejoAtual.fim = new Date();
+  pararTimerDespejo();
+  document.getElementById('despejo-timer-display').textContent = formatarDuracao((despejoAtual.fim - despejoAtual.inicio) / 1000);
+  document.getElementById('despejo-timer-status').textContent = 'Finalizado — falta só a quantidade';
+  document.getElementById('despejo-em-andamento').classList.add('hidden');
+  document.getElementById('despejo-form-quantidade').classList.remove('hidden');
+  document.getElementById('despejo-quantidade-litros').value = 1;
+  document.getElementById('despejo-quantidade-litros').focus();
+}
+
+async function confirmarFinalizacaoDespejo(){
+  if(!despejoAtual || !despejoAtual.fim) return;
+  const quantidade = parseFloat(document.getElementById('despejo-quantidade-litros').value || '0');
+  const msg = document.getElementById('despejo-msg');
+  if(!quantidade || quantidade <= 0){
+    msg.innerHTML = '<div class="error">Digite quantos litros foram despejados.</div>';
+    return;
+  }
+  const duracaoMinutos = (despejoAtual.fim - despejoAtual.inicio) / 60000;
+
+  const { error } = await sb.from('despejo_lancamentos').update({
+    fim: despejoAtual.fim.toISOString(),
+    duracao_minutos: +duracaoMinutos.toFixed(2),
+    quantidade_litros: quantidade,
+    status: 'concluido',
+  }).eq('id', despejoAtual.id);
+
+  if(error){
+    msg.innerHTML = '<div class="error">Erro ao registrar: ' + error.message + '</div>';
+    return;
+  }
+
+  msg.innerHTML = '<div class="ok">Despejo registrado — ' + formatarDuracao(duracaoMinutos*60) + ' pra ' + quantidade + ' litro(s).</div>';
+  despejoAtual = null;
+  limparProdutoDespejo();
+  document.getElementById('painel-timer-despejo').hidden = true;
+  document.getElementById('despejo-form-quantidade').classList.add('hidden');
+  await carregarFeedDespejo();
+}
+
+async function cancelarDespejo(){
+  if(!despejoAtual) return;
+  if(!confirm('Cancelar esse despejo? O cronômetro será descartado.')) return;
+  await sb.from('despejo_lancamentos').delete().eq('id', despejoAtual.id);
+  despejoAtual = null;
+  pararTimerDespejo();
+  limparProdutoDespejo();
+  document.getElementById('painel-timer-despejo').hidden = true;
+}
+
+async function carregarFeedDespejo(){
+  const feed = document.getElementById('feed-despejo');
+  const { data, error } = await sb
+    .from('despejo_lancamentos')
+    .select('id, created_at, duracao_minutos, quantidade_litros, produtos(descricao)')
+    .eq('status', 'concluido')
+    .order('created_at', { ascending: false })
+    .limit(8);
+
+  if(error || !data || data.length === 0){
+    feed.innerHTML = '<p style="color:var(--sub);font-size:13px;">Nenhum despejo ainda.</p>';
+    return;
+  }
+
+  feed.innerHTML = data.map(r => `
+    <div class="feed-item">
+      <div>
+        <div class="desc">${r.produtos?.descricao || '—'} (${r.quantidade_litros} L)</div>
+        <div class="meta">${formatarDuracao((r.duracao_minutos||0)*60)} de despejo</div>
+      </div>
+      <div class="meta">${new Date(r.created_at).toLocaleString('pt-BR', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</div>
     </div>
   `).join('');
 }

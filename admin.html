@@ -524,7 +524,7 @@
         <div class="card"><h3>Minutos médio por embalagem — tendência</h3><div class="chart-wrap"><canvas id="chart-repack-tendencia-minutos"></canvas></div></div>
         <div class="card"><h3>Caixas por hora — tendência</h3><div class="chart-wrap"><canvas id="chart-repack-tendencia-caixashora"></canvas></div></div>
         <div class="card"><h3>Por funcionário (minutos médio/embalagem)</h3><div class="chart-wrap"><canvas id="chart-repack-funcionario"></canvas></div></div>
-        <div class="card"><h3>Por embalagem — Pareto (quantidade de caixas)</h3><div class="chart-wrap"><canvas id="chart-repack-embalagem"></canvas></div></div>
+        <div class="card"><h3 id="titulo-chart-repack-embalagem">Por embalagem (tempo médio/embalagem)</h3><div class="chart-wrap"><canvas id="chart-repack-embalagem"></canvas></div></div>
         <div class="card"><h3>Distribuição de minutos por caixa (histograma)</h3><div class="chart-wrap"><canvas id="chart-repack-histograma"></canvas></div></div>
       </div>
     </div>
@@ -599,7 +599,7 @@
       <div class="analise-grid">
         <div class="card"><h3>Litros por minuto — tendência</h3><div class="chart-wrap"><canvas id="chart-despejo-tendencia"></canvas></div></div>
         <div class="card"><h3>Por funcionário (litros por minuto)</h3><div class="chart-wrap"><canvas id="chart-despejo-funcionario"></canvas></div></div>
-        <div class="card"><h3>Por embalagem — Pareto (litros)</h3><div class="chart-wrap"><canvas id="chart-despejo-embalagem"></canvas></div></div>
+        <div class="card"><h3>Por embalagem (litros por minuto)</h3><div class="chart-wrap"><canvas id="chart-despejo-embalagem"></canvas></div></div>
         <div class="card"><h3>Distribuição de litros por minuto (histograma)</h3><div class="chart-wrap"><canvas id="chart-despejo-histograma"></canvas></div></div>
       </div>
     </div>
@@ -2157,14 +2157,20 @@ function renderBarChart(canvasId, labels, data, cor, opts){
   const ctx = document.getElementById(canvasId);
   if(!ctx) return;
   const horizontal = opts && opts.horizontal;
+  const formatarValor = opts && opts.formatarValor;
+  const eixoValor = { beginAtZero: true };
+  if(formatarValor) eixoValor.ticks = { callback: v => formatarValor(v) };
   chartInstances[canvasId] = new Chart(ctx, {
     type: 'bar',
     data: { labels, datasets: [{ label: (opts && opts.label) || '', data, backgroundColor: cor, borderRadius: 4 }] },
     options: {
       indexAxis: horizontal ? 'y' : 'x',
       responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
-      scales: horizontal ? { x: { beginAtZero: true } } : { y: { beginAtZero: true } },
+      plugins: {
+        legend: { display: false },
+        ...(formatarValor ? { tooltip: { callbacks: { label: c => (c.dataset.label ? c.dataset.label + ': ' : '') + formatarValor(c.parsed[horizontal ? 'x' : 'y']) } } } : {}),
+      },
+      scales: horizontal ? { x: eixoValor } : { y: eixoValor },
     },
   });
 }
@@ -2706,7 +2712,7 @@ function formatarMinutosComoRelogio(minutosTotais){
   const totalSeg = Math.round(minutosTotais * 60);
   const m = Math.floor(totalSeg / 60);
   const s = totalSeg % 60;
-  return String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+  return m + 'm' + String(s).padStart(2,'0') + 's';
 }
 
 /* ============================================================
@@ -2726,10 +2732,16 @@ async function carregarRepack(){
 
   if(error){ console.error(error); repackCache = []; return; }
 
+  // Usa a filial ATUAL de quem lançou (não o valor que ficou congelado no
+  // registro) — assim, se a pessoa foi transferida de filial depois, o filtro
+  // continua batendo certo com quem ela é hoje.
+  const filialPorPessoa = {};
+  pessoas.forEach(p => { filialPorPessoa[p.id] = p.filial_id; });
+
   repackCache = (data || []).map(row => ({
     id: row.id,
     dataISO: row.created_at.slice(0,10),
-    filialId: row.filial_id,
+    filialId: filialPorPessoa[row.lancado_por_id] ?? row.filial_id,
     produtoId: row.produto_id,
     lancadoPorId: row.lancado_por_id,
     inicio: row.inicio,
@@ -2856,7 +2868,7 @@ function renderProdutividadeRepack(){
   const minutosTendencia = chavesTendencia.map(c => +calcularIndicadoresRepack(porBucket[c]).minutosMedioPorEmbalagem.toFixed(2));
   const caixasHoraTendencia = chavesTendencia.map(c => +calcularIndicadoresRepack(porBucket[c]).caixasPorHora.toFixed(1));
 
-  renderBarChart('chart-repack-tendencia-minutos', labelsTendencia, minutosTendencia, '#0891B2', { label: 'Minutos/embalagem' });
+  renderBarChart('chart-repack-tendencia-minutos', labelsTendencia, minutosTendencia, '#0891B2', { label: 'Tempo/embalagem', formatarValor: formatarMinutosComoRelogio });
   renderBarChart('chart-repack-tendencia-caixashora', labelsTendencia, caixasHoraTendencia, '#0D9488', { label: 'Caixas/hora' });
 
   // Por funcionário
@@ -2865,17 +2877,19 @@ function renderProdutividadeRepack(){
   const funcEntradas = Object.entries(porFunc)
     .map(([id, lista]) => ({ nome: nomePor(pessoas, Number(id)), valor: +calcularIndicadoresRepack(lista).minutosMedioPorEmbalagem.toFixed(2) }))
     .sort((a,b) => a.valor - b.valor).slice(0, 10);
-  renderBarChart('chart-repack-funcionario', funcEntradas.map(x=>x.nome), funcEntradas.map(x=>x.valor), '#0E8E7D', { label: 'Minutos/embalagem' });
+  renderBarChart('chart-repack-funcionario', funcEntradas.map(x=>x.nome), funcEntradas.map(x=>x.valor), '#0E8E7D', { label: 'Tempo/embalagem', formatarValor: formatarMinutosComoRelogio });
 
-  // Por embalagem — Pareto de quantidade de caixas
-  const porEmbalagem = {};
+  // Por embalagem — tempo médio por embalagem (taxa), não volume total
+  const porEmbalagemGrupos = {};
   baseNoRange.forEach(r => {
     const produto = produtos.find(p=>p.id===r.produtoId);
     const chave = produto && produto.embalagem ? produto.embalagem : 'Sem embalagem informada';
-    porEmbalagem[chave] = (porEmbalagem[chave]||0) + r.quantidadeCaixas;
+    (porEmbalagemGrupos[chave] = porEmbalagemGrupos[chave] || []).push(r);
   });
-  const embEntradas = topNTexto(porEmbalagem, 8);
-  renderParetoChart('chart-repack-embalagem', embEntradas.map(x=>x.nome), embEntradas.map(x=>x.valor), 'Caixas');
+  const embEntradas = Object.entries(porEmbalagemGrupos)
+    .map(([nome, lista]) => ({ nome, valor: +calcularIndicadoresRepack(lista).minutosMedioPorEmbalagem.toFixed(2) }))
+    .sort((a,b) => a.valor - b.valor).slice(0, 10);
+  renderBarChart('chart-repack-embalagem', embEntradas.map(x=>x.nome), embEntradas.map(x=>x.valor), '#7C3AED', { label: 'Tempo/embalagem', formatarValor: formatarMinutosComoRelogio });
 
   // Histograma de minutos por caixa
   renderHistograma('chart-repack-histograma', baseNoRange.map(r=>r.minPorCaixa), 8, '#C97A1A', formatarMinutosComoRelogio);
@@ -2970,10 +2984,13 @@ async function carregarDespejo(){
 
   if(error){ console.error(error); despejoCache = []; return; }
 
+  const filialPorPessoa = {};
+  pessoas.forEach(p => { filialPorPessoa[p.id] = p.filial_id; });
+
   despejoCache = (data || []).map(row => ({
     id: row.id,
     dataISO: row.created_at.slice(0,10),
-    filialId: row.filial_id,
+    filialId: filialPorPessoa[row.lancado_por_id] ?? row.filial_id,
     produtoId: row.produto_id,
     lancadoPorId: row.lancado_por_id,
     inicio: row.inicio,
@@ -3108,14 +3125,16 @@ function renderProdutividadeDespejo(){
     .sort((a,b) => b.valor - a.valor).slice(0, 10);
   renderBarChart('chart-despejo-funcionario', funcEntradas.map(x=>x.nome), funcEntradas.map(x=>x.valor), '#0E8E7D', { label: 'Litros/minuto' });
 
-  const porEmbalagem = {};
+  const porEmbalagemGrupos = {};
   baseNoRange.forEach(r => {
     const produto = produtos.find(p=>p.id===r.produtoId);
     const chave = produto && produto.embalagem ? produto.embalagem : 'Sem embalagem informada';
-    porEmbalagem[chave] = (porEmbalagem[chave]||0) + r.quantidadeLitros;
+    (porEmbalagemGrupos[chave] = porEmbalagemGrupos[chave] || []).push(r);
   });
-  const embEntradas = topNTexto(porEmbalagem, 8);
-  renderParetoChart('chart-despejo-embalagem', embEntradas.map(x=>x.nome), embEntradas.map(x=>x.valor), 'Litros');
+  const embEntradas = Object.entries(porEmbalagemGrupos)
+    .map(([nome, lista]) => ({ nome, valor: +calcularIndicadoresDespejo(lista).litrosPorMinuto.toFixed(2) }))
+    .sort((a,b) => b.valor - a.valor).slice(0, 10);
+  renderBarChart('chart-despejo-embalagem', embEntradas.map(x=>x.nome), embEntradas.map(x=>x.valor), '#7C3AED', { label: 'Litros/minuto' });
 
   renderHistograma('chart-despejo-histograma', baseNoRange.map(r=>r.litrosPorMinuto), 8, '#C97A1A');
 }

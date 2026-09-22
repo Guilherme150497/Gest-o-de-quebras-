@@ -1001,6 +1001,25 @@ function pararTimerRepack(){
   if(repackTimerInterval){ clearInterval(repackTimerInterval); repackTimerInterval = null; }
 }
 
+// Celular costuma "congelar" o setInterval quando o navegador vai pra segundo
+// plano (troca de app, tela bloqueia). Ao voltar, corrige o mostrador na hora,
+// sem esperar o próximo tick — o valor real vem sempre do horário de início,
+// nunca de contagem acumulada, então nunca desalinha.
+document.addEventListener('visibilitychange', () => {
+  if(document.visibilityState === 'visible'){
+    if(repackAtual && !repackAtual.fim){
+      const segundos = (new Date() - repackAtual.inicio) / 1000;
+      const el = document.getElementById('repack-timer-display');
+      if(el) el.textContent = formatarDuracao(segundos);
+    }
+    if(despejoAtual && !despejoAtual.fim){
+      const segundos = (new Date() - despejoAtual.inicio) / 1000;
+      const el = document.getElementById('despejo-timer-display');
+      if(el) el.textContent = formatarDuracao(segundos);
+    }
+  }
+});
+
 async function iniciarRepack(){
   if(!produtoAtualRepack) return;
   document.getElementById('repack-msg').innerHTML = '';
@@ -1035,27 +1054,27 @@ function finalizarRepack(){
 }
 
 async function confirmarFinalizacaoRepack(){
-  if(!repackAtual || !repackAtual.fim) return;
+  if(!repackAtual) return;
   const quantidade = parseInt(document.getElementById('repack-quantidade-caixas').value || '0', 10);
   const msg = document.getElementById('repack-msg');
   if(!quantidade || quantidade <= 0){
     msg.innerHTML = '<div class="error">Digite quantas caixas foram reembaladas.</div>';
     return;
   }
-  const duracaoMinutos = (repackAtual.fim - repackAtual.inicio) / 60000;
 
-  const { error } = await sb.from('repack_lancamentos').update({
-    fim: repackAtual.fim.toISOString(),
-    duracao_minutos: +duracaoMinutos.toFixed(2),
+  // "fim" e a duração são calculados pelo SERVIDOR (não pelo relógio do aparelho)
+  // — evita duração errada se o celular estiver com hora ou fuso desacertado.
+  const { data, error } = await sb.from('repack_lancamentos').update({
     quantidade_caixas: quantidade,
     status: 'concluido',
-  }).eq('id', repackAtual.id);
+  }).eq('id', repackAtual.id).select().single();
 
   if(error){
     msg.innerHTML = '<div class="error">Erro ao registrar: ' + error.message + '</div>';
     return;
   }
 
+  const duracaoMinutos = Number(data.duracao_minutos) || 0;
   msg.innerHTML = '<div class="ok">Reembalagem registrada — ' + formatarDuracao(duracaoMinutos*60) + ' pra ' + quantidade + ' caixa(s).</div>';
   repackAtual = null;
   limparProdutoRepack();
@@ -1246,27 +1265,25 @@ function finalizarDespejo(){
 }
 
 async function confirmarFinalizacaoDespejo(){
-  if(!despejoAtual || !despejoAtual.fim) return;
+  if(!despejoAtual) return;
   const quantidade = parseFloat(document.getElementById('despejo-quantidade-litros').value || '0');
   const msg = document.getElementById('despejo-msg');
   if(!quantidade || quantidade <= 0){
     msg.innerHTML = '<div class="error">Digite quantos litros foram despejados.</div>';
     return;
   }
-  const duracaoMinutos = (despejoAtual.fim - despejoAtual.inicio) / 60000;
 
-  const { error } = await sb.from('despejo_lancamentos').update({
-    fim: despejoAtual.fim.toISOString(),
-    duracao_minutos: +duracaoMinutos.toFixed(2),
+  const { data, error } = await sb.from('despejo_lancamentos').update({
     quantidade_litros: quantidade,
     status: 'concluido',
-  }).eq('id', despejoAtual.id);
+  }).eq('id', despejoAtual.id).select().single();
 
   if(error){
     msg.innerHTML = '<div class="error">Erro ao registrar: ' + error.message + '</div>';
     return;
   }
 
+  const duracaoMinutos = Number(data.duracao_minutos) || 0;
   msg.innerHTML = '<div class="ok">Despejo registrado — ' + formatarDuracao(duracaoMinutos*60) + ' pra ' + quantidade + ' litro(s).</div>';
   despejoAtual = null;
   limparProdutoDespejo();

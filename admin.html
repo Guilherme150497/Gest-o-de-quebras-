@@ -477,9 +477,8 @@
     <div class="panel" id="panel-repack-painel">
       <div class="card">
         <h3>Todos os reembalamentos</h3>
-        <p class="hint">Só lançamentos já finalizados aparecem aqui — o que estiver "em andamento" ainda está com o cronômetro rodando no celular de alguém.</p>
+        <p class="hint">Só lançamentos já finalizados aparecem aqui — o que estiver "em andamento" ainda está com o cronômetro rodando no celular de alguém. Pra filtrar por filial, use o seletor no topo da página.</p>
         <div class="filtro-grid">
-          <div><label class="fl">Filial</label><select id="repack-p-filial" onchange="gerarPainelRepack()"><option value="">Todas</option></select></div>
           <div><label class="fl">Funcionário</label><select id="repack-p-funcionario" onchange="gerarPainelRepack()"><option value="">Todos</option></select></div>
           <div><label class="fl">De</label><input type="date" id="repack-p-data-de" onchange="gerarPainelRepack()" /></div>
           <div><label class="fl">Até</label><input type="date" id="repack-p-data-ate" onchange="gerarPainelRepack()" /></div>
@@ -503,8 +502,8 @@
     <div class="panel" id="panel-repack-produtividade">
       <div class="card">
         <h3>Produtividade — Repack</h3>
+        <p class="hint">Pra filtrar por filial, use o seletor no topo da página.</p>
         <div class="filtro-grid" style="grid-template-columns:repeat(2,1fr);max-width:480px;">
-          <div><label class="fl">Filial</label><select id="repack-prod-filial" onchange="renderProdutividadeRepack()"><option value="">Todas</option></select></div>
           <div><label class="fl">Visão</label>
             <select id="repack-prod-periodo" onchange="renderProdutividadeRepack()">
               <option value="dia">Diária (últimos 30 dias)</option>
@@ -553,9 +552,8 @@
     <div class="panel" id="panel-despejo-painel">
       <div class="card">
         <h3>Todos os despejos</h3>
-        <p class="hint">Só lançamentos já finalizados aparecem aqui.</p>
+        <p class="hint">Só lançamentos já finalizados aparecem aqui. Pra filtrar por filial, use o seletor no topo da página.</p>
         <div class="filtro-grid">
-          <div><label class="fl">Filial</label><select id="despejo-p-filial" onchange="gerarPainelDespejo()"><option value="">Todas</option></select></div>
           <div><label class="fl">Funcionário</label><select id="despejo-p-funcionario" onchange="gerarPainelDespejo()"><option value="">Todos</option></select></div>
           <div><label class="fl">De</label><input type="date" id="despejo-p-data-de" onchange="gerarPainelDespejo()" /></div>
           <div><label class="fl">Até</label><input type="date" id="despejo-p-data-ate" onchange="gerarPainelDespejo()" /></div>
@@ -579,8 +577,8 @@
     <div class="panel" id="panel-despejo-produtividade">
       <div class="card">
         <h3>Produtividade — Despejo</h3>
+        <p class="hint">Pra filtrar por filial, use o seletor no topo da página.</p>
         <div class="filtro-grid" style="grid-template-columns:repeat(2,1fr);max-width:480px;">
-          <div><label class="fl">Filial</label><select id="despejo-prod-filial" onchange="renderProdutividadeDespejo()"><option value="">Todas</option></select></div>
           <div><label class="fl">Visão</label>
             <select id="despejo-prod-periodo" onchange="renderProdutividadeDespejo()">
               <option value="dia">Diária (últimos 30 dias)</option>
@@ -2753,12 +2751,10 @@ async function carregarRepack(){
 }
 
 function montarFiltrosPainelRepack(){
-  document.getElementById('repack-p-filial').innerHTML = '<option value="">Todas</option>' + filiais.map(f=>`<option value="${f.id}">${f.nome}</option>`).join('');
   document.getElementById('repack-p-funcionario').innerHTML = '<option value="">Todos</option>' + pessoas.map(p=>`<option value="${p.id}">${p.nome}</option>`).join('');
 }
 
 function limparFiltrosPainelRepack(){
-  document.getElementById('repack-p-filial').value = '';
   document.getElementById('repack-p-funcionario').value = '';
   document.getElementById('repack-p-data-de').value = '';
   document.getElementById('repack-p-data-ate').value = '';
@@ -2766,13 +2762,14 @@ function limparFiltrosPainelRepack(){
 }
 
 function gerarPainelRepack(){
-  const filialF = document.getElementById('repack-p-filial').value;
   const funcF = document.getElementById('repack-p-funcionario').value;
   const deF = document.getElementById('repack-p-data-de').value;
   const ateF = document.getElementById('repack-p-data-ate').value;
 
+  // A filial usa o seletor do TOPO da página (o mesmo que filtra Quebras) —
+  // não existe mais um seletor de filial separado aqui dentro, pra não confundir.
   repackPainelFiltrado = repackCache.filter(r =>
-    (!filialF || r.filialId == filialF) &&
+    (!filialGlobalId || r.filialId == filialGlobalId) &&
     (!funcF || r.lancadoPorId == funcF) &&
     (!deF || r.dataISO >= deF) &&
     (!ateF || r.dataISO <= ateF)
@@ -2831,17 +2828,11 @@ function exportarCSVRepack(){
 
 /* ---------------- REPACK: PRODUTIVIDADE ---------------- */
 
-function montarFiltroProdutividadeRepack(){
-  const sel = document.getElementById('repack-prod-filial');
-  if(sel.options.length <= 1) sel.innerHTML = '<option value="">Todas</option>' + filiais.map(f=>`<option value="${f.id}">${f.nome}</option>`).join('');
-}
-
 function renderProdutividadeRepack(){
-  montarFiltroProdutividadeRepack();
-  const filialF = document.getElementById('repack-prod-filial').value;
   const tipo = document.getElementById('repack-prod-periodo').value;
 
-  let base = filialF ? repackCache.filter(r => r.filialId == filialF) : repackCache;
+  // A filial usa o seletor do TOPO da página, igual no Painel.
+  let base = filialGlobalId ? repackCache.filter(r => r.filialId == filialGlobalId) : repackCache;
   base = filtrarPorTipoPeriodo(base, tipo);
 
   const buckets = bucketsPeriodo(tipo);
@@ -3002,12 +2993,10 @@ async function carregarDespejo(){
 }
 
 function montarFiltrosPainelDespejo(){
-  document.getElementById('despejo-p-filial').innerHTML = '<option value="">Todas</option>' + filiais.map(f=>`<option value="${f.id}">${f.nome}</option>`).join('');
   document.getElementById('despejo-p-funcionario').innerHTML = '<option value="">Todos</option>' + pessoas.map(p=>`<option value="${p.id}">${p.nome}</option>`).join('');
 }
 
 function limparFiltrosPainelDespejo(){
-  document.getElementById('despejo-p-filial').value = '';
   document.getElementById('despejo-p-funcionario').value = '';
   document.getElementById('despejo-p-data-de').value = '';
   document.getElementById('despejo-p-data-ate').value = '';
@@ -3015,13 +3004,12 @@ function limparFiltrosPainelDespejo(){
 }
 
 function gerarPainelDespejo(){
-  const filialF = document.getElementById('despejo-p-filial').value;
   const funcF = document.getElementById('despejo-p-funcionario').value;
   const deF = document.getElementById('despejo-p-data-de').value;
   const ateF = document.getElementById('despejo-p-data-ate').value;
 
   despejoPainelFiltrado = despejoCache.filter(r =>
-    (!filialF || r.filialId == filialF) &&
+    (!filialGlobalId || r.filialId == filialGlobalId) &&
     (!funcF || r.lancadoPorId == funcF) &&
     (!deF || r.dataISO >= deF) &&
     (!ateF || r.dataISO <= ateF)
@@ -3072,11 +3060,6 @@ function exportarCSVDespejo(){
   URL.revokeObjectURL(url);
 }
 
-function montarFiltroProdutividadeDespejo(){
-  const sel = document.getElementById('despejo-prod-filial');
-  if(sel.options.length <= 1) sel.innerHTML = '<option value="">Todas</option>' + filiais.map(f=>`<option value="${f.id}">${f.nome}</option>`).join('');
-}
-
 function calcularIndicadoresDespejo(lista){
   const totalLitros = lista.reduce((a,r)=>a+r.quantidadeLitros,0);
   const totalMinutos = lista.reduce((a,r)=>a+r.duracaoMinutos,0);
@@ -3088,11 +3071,9 @@ function calcularIndicadoresDespejo(lista){
 }
 
 function renderProdutividadeDespejo(){
-  montarFiltroProdutividadeDespejo();
-  const filialF = document.getElementById('despejo-prod-filial').value;
   const tipo = document.getElementById('despejo-prod-periodo').value;
 
-  let base = filialF ? despejoCache.filter(r => r.filialId == filialF) : despejoCache;
+  let base = filialGlobalId ? despejoCache.filter(r => r.filialId == filialGlobalId) : despejoCache;
   base = filtrarPorTipoPeriodo(base, tipo);
 
   const buckets = bucketsPeriodo(tipo);

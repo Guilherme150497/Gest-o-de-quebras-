@@ -217,7 +217,7 @@
           <div>
             <label>Responsável pela quebra</label>
             <select id="sel-responsavel">
-              <option value="">Sem responsável específico (achado no picking)</option>
+              <option value="">Selecione o responsável</option>
             </select>
           </div>
           <div>
@@ -1589,13 +1589,14 @@ async function registrarQuebra(){
   const motivoId = document.getElementById('sel-motivo').value;
   const departamentoId = document.getElementById('sel-departamento').value;
   const unidadeMedida = document.getElementById('sel-unidade-medida').value;
+  const responsavelId = document.getElementById('sel-responsavel').value;
   const turnoVisivel = !document.getElementById('field-turno').classList.contains('hidden');
   const areaVisivel = !document.getElementById('field-area').classList.contains('hidden');
   const turnoId = turnoVisivel ? document.getElementById('sel-turno').value : null;
   const areaId = areaVisivel ? document.getElementById('sel-area').value : null;
 
-  if(!motivoId || !departamentoId || !unidadeMedida || (turnoVisivel && !turnoId) || (areaVisivel && !areaId)){
-    msg.innerHTML = '<div class="error">Preencha os campos obrigatórios em destaque.</div>';
+  if(!motivoId || !departamentoId || !unidadeMedida || !responsavelId || (turnoVisivel && !turnoId) || (areaVisivel && !areaId)){
+    msg.innerHTML = '<div class="error">Preencha os campos obrigatórios em destaque, incluindo o responsável pela quebra.</div>';
     return;
   }
 
@@ -1622,7 +1623,7 @@ async function registrarQuebra(){
 
   const payload = {
     lancado_por_id: pessoaAtual.id,
-    responsavel_id: document.getElementById('sel-responsavel').value || null,
+    responsavel_id: responsavelId,
     produto_id: produtoAtual.id,
     quantidade: quantidadeLancada,
     unidade_medida: unidadeMedida,

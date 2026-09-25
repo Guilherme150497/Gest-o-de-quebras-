@@ -223,6 +223,10 @@
           <div class="tab" data-tab="lancamentos">Todos os Lançamentos</div>
         </div>
         <div class="nav-group">
+          <div class="nav-group-title">Conferência</div>
+          <div class="tab" data-tab="check-promax">Check Lançamento x Promax</div>
+        </div>
+        <div class="nav-group">
           <div class="nav-group-title">Análises das Quebras</div>
           <div class="tab" data-tab="analises">Análises</div>
           <div class="tab" data-tab="produto-analise">Análise por Produto</div>
@@ -448,6 +452,31 @@
           </table>
         </div>
       </div>
+    </div>
+
+    <!-- CHECK LANÇAMENTO x PROMAX -->
+    <div class="panel" id="panel-check-promax">
+      <div class="card">
+        <h3>Importar planilha do Promax (03.02.37)</h3>
+        <p class="hint">
+          Envie o arquivo com as abas <b>"03.02.37 - LP"</b>, <b>"03.02.37 - AB"</b> e <b>"03.02.37 - PM"</b>.
+          Cada importação <b>substitui</b> os dados do Promax já guardados daquela filial pelos da planilha nova.
+          Só entram linhas com status <b>E</b> ou <b>A</b>, e só os motivos de quebra mapeados (os outros códigos
+          de baixa — bonificação, amostra, vencimento etc. — são ignorados automaticamente).
+        </p>
+        <input type="file" id="file-promax" accept=".xlsx,.xls" onchange="importarPlanilhaPromax(this)" />
+        <div id="msg-promax-import" style="margin-top:10px;"></div>
+      </div>
+
+      <div class="card">
+        <h3>Período</h3>
+        <p class="hint">A filial é a que estiver selecionada no seletor do topo da página ("Todas as filiais" soma tudo).</p>
+        <div class="filtro-grid" style="grid-template-columns:repeat(1,1fr);max-width:220px;">
+          <div><label class="fl">Mês</label><input type="month" id="check-promax-mes" onchange="renderCheckPromax()" /></div>
+        </div>
+      </div>
+
+      <div id="check-promax-cards"></div>
     </div>
 
     <!-- TRANSFERÊNCIAS ENTRE DEPÓSITOS -->
@@ -1112,6 +1141,7 @@ function entrarNoAdmin(){
 
 const MODULO_DE_TAB = {
   'visao-diaria':'quebras', 'aprovacoes':'quebras', 'relatorio':'quebras', 'lancamentos':'quebras',
+  'check-promax':'quebras',
   'analises':'quebras', 'produto-analise':'quebras', 'custo':'quebras',
   'metas':'quebras', 'configuracoes':'quebras',
   'transferencias':'transferencias',
@@ -1194,6 +1224,7 @@ document.querySelectorAll('.tab').forEach(tab => {
     if(tab.dataset.tab === 'despejo-produtividade') renderProdutividadeDespejo();
     if(tab.dataset.tab === 'despejo-metas') carregarMetasDespejo();
     if(tab.dataset.tab === 'lancamentos') renderLancamentos();
+    if(tab.dataset.tab === 'check-promax') renderCheckPromax();
   });
 });
 
@@ -1211,6 +1242,7 @@ async function carregarTudo(){
   await carregarConfiguracoes();
   await carregarQuebras();
   await carregarTransferencias();
+  await carregarPromaxBaixas();
   await carregarRepack();
   await carregarDespejo();
 
@@ -1239,6 +1271,7 @@ function renderTudo(){
   renderMetas();
   renderTransferencias();
   renderLancamentos();
+  renderCheckPromax();
   gerarPainelRepack();
   renderProdutividadeRepack();
   gerarPainelDespejo();
@@ -2665,6 +2698,332 @@ function exportarCSVLancamentos(){
   a.href = url; a.download = 'todos_lancamentos.csv';
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   URL.revokeObjectURL(url);
+}
+
+/* ============================================================
+   CHECK LANÇAMENTO x PROMAX
+   Compara o custo de quebra lançado no app com o valor já baixado
+   no Promax (planilha "03.02.37"), agrupado por departamento.
+   ============================================================ */
+
+// Mapa dos códigos de "motorista" do Promax que representam quebra, com o
+// departamento correspondente no nosso sistema — combinado com o usuário.
+const PROMAX_MOTIVO_INFO = {
+  7002: { departamento: 'Armazém', descricao: 'Avaria' },
+  7004: { departamento: 'Armazém', descricao: 'Acidente' },
+  6999: { departamento: 'Armazém', descricao: 'Amassado' },
+  7001: { departamento: 'Puxada', descricao: 'Quebra Puxada' },
+  7006: { departamento: 'Puxada', descricao: 'Acidente' },
+  7019: { departamento: 'Puxada', descricao: 'Refugo' },
+  7000: { departamento: 'Entrega', descricao: 'Avaria' },
+  7008: { departamento: 'Entrega', descricao: 'Acidente' },
+  7015: { departamento: 'Entrega', descricao: 'Refugo' },
+  7013: { departamento: 'Entrega', descricao: 'Assalto/BO' },
+  6996: { departamento: 'Entrega', descricao: 'Amassado' },
+};
+
+// Cada aba da planilha do Promax corresponde a uma filial — casamos pelo nome
+// (sem acento/maiúscula) em vez do id, porque o id pode variar de banco pra banco.
+const PROMAX_ABAS = [
+  { aba: '03.02.37 - LP', trechoFilial: 'lagoa' },
+  { aba: '03.02.37 - AB', trechoFilial: 'abaet' },
+  { aba: '03.02.37 - PM', trechoFilial: 'para de minas' },
+];
+
+let promaxBaixasCache = [];
+
+function normalizarTexto(s){
+  return String(s == null ? '' : s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+}
+
+function slugify(s){
+  return normalizarTexto(s).replace(/[^a-z0-9]+/g, '-');
+}
+
+function encontrarFilialPorTrecho(trecho){
+  return filiais.find(f => normalizarTexto(f.nome).includes(trecho));
+}
+
+function encontrarDepartamentoPorNome(nome){
+  const alvo = normalizarTexto(nome);
+  return departamentos.find(d => normalizarTexto(d.nome) === alvo) || departamentos.find(d => normalizarTexto(d.nome).includes(alvo));
+}
+
+function motivosPorDepartamentoTexto(nomeDep){
+  return Object.entries(PROMAX_MOTIVO_INFO)
+    .filter(([, info]) => normalizarTexto(info.departamento) === normalizarTexto(nomeDep))
+    .map(([codigo, info]) => codigo + ' – ' + info.descricao)
+    .join(' · ');
+}
+
+async function carregarPromaxBaixas(){
+  const { data, error } = await sb.from('promax_baixas').select('*').order('data_operacao', { ascending: false }).limit(20000);
+  if(error){ console.error(error); promaxBaixasCache = []; return; }
+  promaxBaixasCache = (data || []).map(row => ({
+    id: row.id,
+    filialId: row.filial_id,
+    departamentoId: row.departamento_id,
+    motivoCodigo: row.motivo_codigo,
+    dataISO: row.data_operacao,
+    codigoProduto: row.codigo_produto,
+    descricaoProduto: row.descricao_produto,
+    quantidade: Number(row.quantidade) || 0,
+    valor: Number(row.valor) || 0,
+    status: row.status,
+  }));
+}
+
+// Acha, pelo texto do cabeçalho (não pela letra da coluna — a aba de Pará de
+// Minas vem sem a primeira coluna das outras duas, então as letras não batem
+// entre abas), os índices das colunas que interessam.
+function localizarColunasPromax(linhaCabecalho){
+  const idx = {};
+  (linhaCabecalho || []).forEach((h, i) => {
+    const t = normalizarTexto(h);
+    if(idx.motorista === undefined && t.startsWith('motorista')) idx.motorista = i;
+    if(idx.emissao === undefined && t.startsWith('emissao')) idx.emissao = i;
+    if(idx.status === undefined && t === 'status') idx.status = i;
+    if(idx.produto === undefined && t.startsWith('produto')) idx.produto = i;
+    if(idx.descricao === undefined && t.startsWith('descri')) idx.descricao = i;
+    if(idx.qtde === undefined && (t.startsWith('qtde') || t.startsWith('quantidade'))) idx.qtde = i;
+    if(idx.valor === undefined && t.startsWith('valor')) idx.valor = i;
+  });
+  return idx;
+}
+
+function paraDataISOPromax(valor){
+  const ehData = valor instanceof Date || Object.prototype.toString.call(valor) === '[object Date]';
+  if(ehData && !isNaN(valor)) return valor.toISOString().slice(0, 10);
+  if(typeof valor === 'number' && window.XLSX && XLSX.SSF && XLSX.SSF.parse_date_code){
+    const d = XLSX.SSF.parse_date_code(valor);
+    if(d) return d.y + '-' + String(d.m).padStart(2, '0') + '-' + String(d.d).padStart(2, '0');
+  }
+  if(typeof valor === 'string' && /^\d{4}-\d{2}-\d{2}/.test(valor)) return valor.slice(0, 10);
+  return null;
+}
+
+async function importarPlanilhaPromax(input){
+  const file = input.files[0];
+  if(!file) return;
+  const msgEl = document.getElementById('msg-promax-import');
+  msgEl.innerHTML = '<div class="muted">Lendo a planilha do Promax...</div>';
+
+  let livro;
+  try{
+    livro = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: true });
+  } catch(e){
+    msgEl.innerHTML = '<div class="error">Não consegui ler esse arquivo. Confira se é mesmo um .xlsx.</div>';
+    return;
+  }
+
+  const relatorioPorFilial = [];
+  const linhasParaInserir = [];
+  const avisos = [];
+
+  for(const { aba, trechoFilial } of PROMAX_ABAS){
+    const sheet = livro.Sheets[aba];
+    if(!sheet){ avisos.push('Aba "' + aba + '" não encontrada nessa planilha — ignorada.'); continue; }
+    const filial = encontrarFilialPorTrecho(trechoFilial);
+    if(!filial){ avisos.push('Não encontrei, no seu cadastro de filiais, uma correspondente à aba "' + aba + '".'); continue; }
+
+    const linhas = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+    const idx = localizarColunasPromax(linhas[0]);
+    const faltando = ['motorista', 'emissao', 'status', 'produto', 'descricao', 'qtde', 'valor'].filter(k => idx[k] === undefined);
+    if(faltando.length){
+      avisos.push('Aba "' + aba + '": não achei a(s) coluna(s) ' + faltando.join(', ') + ' pelo cabeçalho — aba ignorada.');
+      continue;
+    }
+
+    let linhasValidas = 0;
+    for(let r = 1; r < linhas.length; r++){
+      const linha = linhas[r];
+      if(!linha || linha.length === 0) continue;
+      const status = String(linha[idx.status] == null ? '' : linha[idx.status]).trim().toUpperCase();
+      if(status !== 'E' && status !== 'A') continue;
+      const motivoCodigo = Number(linha[idx.motorista]);
+      const info = PROMAX_MOTIVO_INFO[motivoCodigo];
+      if(!info) continue; // não é um dos códigos de quebra mapeados — ignora (bonificação, amostra, etc.)
+      const departamento = encontrarDepartamentoPorNome(info.departamento);
+      if(!departamento){ avisos.push('Departamento "' + info.departamento + '" não encontrado no seu cadastro — confira o nome.'); continue; }
+      const dataISO = paraDataISOPromax(linha[idx.emissao]);
+      if(!dataISO) continue;
+
+      linhasParaInserir.push({
+        filial_id: filial.id,
+        departamento_id: departamento.id,
+        motivo_codigo: motivoCodigo,
+        data_operacao: dataISO,
+        codigo_produto: linha[idx.produto] != null ? String(linha[idx.produto]).trim() : null,
+        descricao_produto: linha[idx.descricao] != null ? String(linha[idx.descricao]).trim() : null,
+        quantidade: Number(linha[idx.qtde]) || 0,
+        valor: Number(linha[idx.valor]) || 0,
+        status,
+      });
+      linhasValidas++;
+    }
+    relatorioPorFilial.push({ filial: filial.nome, linhas: linhasValidas });
+  }
+
+  if(linhasParaInserir.length === 0){
+    msgEl.innerHTML = '<div class="error">Nenhuma linha de quebra reconhecida nessa planilha.' +
+      (avisos.length ? '<br>' + avisos.join('<br>') : '') + '</div>';
+    return;
+  }
+
+  msgEl.innerHTML = '<div class="muted">Substituindo dados anteriores e gravando ' + linhasParaInserir.length + ' lançamento(s)...</div>';
+
+  // Substitui tudo da(s) filial(is) presentes na planilha, antes de gravar os novos
+  const filiaisAfetadas = [...new Set(linhasParaInserir.map(l => l.filial_id))];
+  for(const filialId of filiaisAfetadas){
+    const { error } = await sb.from('promax_baixas').delete().eq('filial_id', filialId);
+    if(error){ msgEl.innerHTML = '<div class="error">Erro ao limpar dados anteriores dessa filial: ' + error.message + '</div>'; return; }
+  }
+
+  const TAMANHO_LOTE = 500;
+  for(let i = 0; i < linhasParaInserir.length; i += TAMANHO_LOTE){
+    const lote = linhasParaInserir.slice(i, i + TAMANHO_LOTE);
+    const { error } = await sb.from('promax_baixas').insert(lote);
+    if(error){ msgEl.innerHTML = '<div class="error">Erro ao gravar: ' + error.message + '</div>'; return; }
+  }
+
+  msgEl.innerHTML = '<div class="ok">Importado: ' + relatorioPorFilial.map(r => r.filial + ' (' + r.linhas + ' lançamento(s))').join(' · ') + '.</div>' +
+    (avisos.length ? '<div class="warn" style="margin-top:8px;">' + avisos.join('<br>') + '</div>' : '');
+
+  await carregarPromaxBaixas();
+  renderCheckPromax();
+  input.value = '';
+}
+
+function popularFiltroCheckPromax(){
+  const sel = document.getElementById('check-promax-mes');
+  if(sel && !sel.value) sel.value = new Date().toISOString().slice(0, 7);
+}
+
+function nomesDepartamentosPromax(){
+  return [...new Set(Object.values(PROMAX_MOTIVO_INFO).map(i => i.departamento))];
+}
+
+function renderCheckPromax(){
+  popularFiltroCheckPromax();
+  const mesValor = document.getElementById('check-promax-mes').value;
+  const container = document.getElementById('check-promax-cards');
+  if(!mesValor || !container) return;
+
+  const nossosDoMes = (filialGlobalId ? quebrasCache.filter(q => q.filialId == filialGlobalId) : quebrasCache)
+    .filter(q => q.status === 'aprovada' && q.dataISO.slice(0, 7) === mesValor);
+  const promaxDoMes = (filialGlobalId ? promaxBaixasCache.filter(p => p.filialId == filialGlobalId) : promaxBaixasCache)
+    .filter(p => p.dataISO.slice(0, 7) === mesValor);
+
+  container.innerHTML = nomesDepartamentosPromax().map(nomeDep => {
+    const dep = encontrarDepartamentoPorNome(nomeDep);
+    const nossosDoDepto = dep ? nossosDoMes.filter(q => q.departamentoId === dep.id) : [];
+    const promaxDoDepto = dep ? promaxDoMes.filter(p => p.departamentoId === dep.id) : [];
+
+    const porDiaNosso = {};
+    nossosDoDepto.forEach(q => { porDiaNosso[q.dataISO] = (porDiaNosso[q.dataISO] || 0) + q.custo; });
+    const porDiaPromax = {};
+    promaxDoDepto.forEach(p => { porDiaPromax[p.dataISO] = (porDiaPromax[p.dataISO] || 0) + p.valor; });
+
+    const todasDatas = [...new Set([...Object.keys(porDiaNosso), ...Object.keys(porDiaPromax)])].sort();
+
+    const linhasHtml = todasDatas.map(d => {
+      const nosso = porDiaNosso[d] || 0;
+      const promax = porDiaPromax[d] || 0;
+      const diff = promax - nosso;
+      const bateu = Math.abs(diff) < 0.01;
+      return '<tr>' +
+        '<td>' + d.split('-').reverse().join('/') + '</td>' +
+        '<td>' + brl(promax) + '</td>' +
+        '<td>' + brl(nosso) + '</td>' +
+        '<td style="' + (bateu ? '' : 'color:var(--red);font-weight:600;') + '">' + brl(diff) + '</td>' +
+        '</tr>';
+    }).join('') || '<tr><td colspan="4" class="muted">Sem lançamentos nesse mês, nem no app nem no Promax.</td></tr>';
+
+    const totalPromax = Object.values(porDiaPromax).reduce((a, b) => a + b, 0);
+    const totalNosso = Object.values(porDiaNosso).reduce((a, b) => a + b, 0);
+    const totalDiff = totalPromax - totalNosso;
+    const totalBateu = Math.abs(totalDiff) < 0.01;
+
+    return `
+      <div class="card">
+        <h3>${nomeDep}${!dep ? ' <span style="color:var(--red);font-size:12px;">(departamento não encontrado no cadastro)</span>' : ''}</h3>
+        <p class="hint">Motivos considerados: ${motivosPorDepartamentoTexto(nomeDep)}</p>
+        <div style="overflow-x:auto;">
+          <table>
+            <thead><tr><th>Data</th><th>Promax (R$)</th><th>Nosso sistema (R$)</th><th>Diferença (R$)</th></tr></thead>
+            <tbody>${linhasHtml}</tbody>
+            <tfoot><tr style="font-weight:700;border-top:2px solid var(--line);">
+              <td>Total do mês</td><td>${brl(totalPromax)}</td><td>${brl(totalNosso)}</td>
+              <td style="${totalBateu ? 'color:var(--teal);' : 'color:var(--red);'}">${brl(totalDiff)}</td>
+            </tr></tfoot>
+          </table>
+        </div>
+        <button class="btn btn-outline" style="margin-top:12px;width:auto;padding:10px 18px;" onclick="verificarDivergenciasPromax('${nomeDep.replace(/'/g,"\\'")}')">Verificar divergências</button>
+        <div id="divergencias-${slugify(nomeDep)}" style="margin-top:12px;"></div>
+      </div>`;
+  }).join('');
+}
+
+// Casa lançamento a lançamento (mesmo produto + mesma quantidade + data próxima)
+// pra achar o que está só de um lado. Não precisa bater o motivo exato — só o
+// departamento já filtra isso — porque a mesma quebra pode ser lançada com um
+// motivo no app e cair em outro código no Promax.
+function verificarDivergenciasPromax(nomeDep){
+  const TOLERANCIA_DIAS = 10;
+  const mesValor = document.getElementById('check-promax-mes').value;
+  const dep = encontrarDepartamentoPorNome(nomeDep);
+  const alvo = document.getElementById('divergencias-' + slugify(nomeDep));
+  if(!alvo) return;
+  if(!dep){ alvo.innerHTML = '<div class="error">Departamento não encontrado no cadastro.</div>'; return; }
+
+  const nossos = (filialGlobalId ? quebrasCache.filter(q => q.filialId == filialGlobalId) : quebrasCache)
+    .filter(q => q.status === 'aprovada' && q.dataISO.slice(0, 7) === mesValor && q.departamentoId === dep.id)
+    .map(q => {
+      const produto = produtos.find(p => p.id === q.produtoId);
+      return { dataISO: q.dataISO, codigoProduto: produto ? String(produto.codigo).trim() : '', descricao: produto ? produto.descricao : '—', quantidade: Number(q.quantidade), valor: q.custo, usado: false };
+    });
+
+  const promax = (filialGlobalId ? promaxBaixasCache.filter(p => p.filialId == filialGlobalId) : promaxBaixasCache)
+    .filter(p => p.dataISO.slice(0, 7) === mesValor && p.departamentoId === dep.id)
+    .map(p => ({ dataISO: p.dataISO, codigoProduto: String(p.codigoProduto || '').trim(), descricao: p.descricaoProduto || '—', quantidade: Number(p.quantidade), valor: p.valor, usado: false }));
+
+  // Monta todos os pares possíveis (mesmo produto + mesma quantidade, dentro da
+  // tolerância de dias) e casa primeiro os mais próximos em data — sobra só o
+  // que realmente não tem correspondente do outro lado.
+  const candidatos = [];
+  nossos.forEach((n, i) => {
+    promax.forEach((p, j) => {
+      if(n.codigoProduto !== p.codigoProduto || n.codigoProduto === '') return;
+      if(n.quantidade !== p.quantidade) return;
+      const diffDias = Math.abs((new Date(n.dataISO) - new Date(p.dataISO)) / 86400000);
+      if(diffDias > TOLERANCIA_DIAS) return;
+      candidatos.push({ i, j, diffDias });
+    });
+  });
+  candidatos.sort((a, b) => a.diffDias - b.diffDias);
+  candidatos.forEach(par => {
+    if(nossos[par.i].usado || promax[par.j].usado) return;
+    nossos[par.i].usado = true;
+    promax[par.j].usado = true;
+  });
+
+  const soApp = nossos.filter(n => !n.usado);
+  const soPromax = promax.filter(p => !p.usado);
+
+  if(soApp.length === 0 && soPromax.length === 0){
+    alvo.innerHTML = '<div class="ok">Nenhuma divergência encontrada — todo mundo tem um par (mesmo produto, mesma quantidade, data próxima).</div>';
+    return;
+  }
+
+  const linha = x => '<tr><td>' + x.dataISO.split('-').reverse().join('/') + '</td><td>' + (x.codigoProduto || '—') + '</td><td>' + x.descricao + '</td><td>' + x.quantidade + '</td><td>' + brl(x.valor) + '</td></tr>';
+
+  alvo.innerHTML =
+    '<div class="warn" style="margin-bottom:10px;">' + soApp.length + ' lançamento(s) só no nosso sistema e ' + soPromax.length +
+    ' só no Promax (tolerância de ' + TOLERANCIA_DIAS + ' dias entre as datas, mesmo produto e quantidade — o que sobrar aqui não tem par do outro lado).</div>' +
+    (soApp.length ? '<b>Só no nosso sistema (app) — pode ainda não ter sido baixado no Promax</b>' +
+      '<table><thead><tr><th>Data</th><th>Código</th><th>Produto</th><th>Qtd</th><th>Custo</th></tr></thead><tbody>' + soApp.map(linha).join('') + '</tbody></table>' : '') +
+    (soPromax.length ? '<b style="display:block;margin-top:10px;">Só no Promax — sem lançamento correspondente no app</b>' +
+      '<table><thead><tr><th>Data</th><th>Código</th><th>Produto</th><th>Qtd</th><th>Valor</th></tr></thead><tbody>' + soPromax.map(linha).join('') + '</tbody></table>' : '');
 }
 
 /* ---------------- TRANSFERÊNCIAS ENTRE DEPÓSITOS ---------------- */

@@ -412,7 +412,7 @@
         </div>
         <p class="muted" id="rel-resumo" style="margin-top:12px;"></p>
         <table>
-          <thead><tr><th>Data</th><th>Filial</th><th>Departamento</th><th>Produto</th><th>Qtd</th><th>Unid.</th><th>Motivo</th><th>Turno</th><th>Responsável</th><th>Status</th></tr></thead>
+          <thead><tr><th>Data/Hora</th><th>Filial</th><th>Departamento</th><th>Produto</th><th>Qtd</th><th>Unid.</th><th>Motivo</th><th>Turno</th><th>Responsável</th><th>Status</th></tr></thead>
           <tbody id="tbl-relatorio"></tbody>
         </table>
       </div>
@@ -471,9 +471,10 @@
 
       <div class="card">
         <h3>Período</h3>
-        <p class="hint">A filial é a que estiver selecionada no seletor do topo da página ("Todas as filiais" soma tudo).</p>
-        <div class="filtro-grid" style="grid-template-columns:repeat(1,1fr);max-width:220px;">
-          <div><label class="fl">Mês</label><input type="month" id="check-promax-mes" onchange="renderCheckPromax()" /></div>
+        <p class="hint">A filial é a que estiver selecionada no seletor do topo da página ("Todas as filiais" soma tudo). Use "Até qual dia" pra ver a conferência só até uma data específica dentro do mês (ex.: até 24/09).</p>
+        <div class="filtro-grid" style="grid-template-columns:repeat(2,1fr);max-width:420px;">
+          <div><label class="fl">Mês</label><input type="month" id="check-promax-mes" onchange="mudarMesCheckPromax()" /></div>
+          <div><label class="fl">Até qual dia</label><input type="date" id="check-promax-ate" onchange="renderCheckPromax()" /></div>
         </div>
       </div>
 
@@ -2163,6 +2164,16 @@ function importarCSV(input, tipo){
 function nomePor(lista, id){ const item = lista.find(x => x.id === id); return item ? (item.nome || item.placa || item.descricao) : '—'; }
 function brl(v){ return 'R$ ' + v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
 
+// Data + hora no formato local (dd/mm/aaaa hh:mm) a partir de um timestamp ISO
+// gravado no banco (created_at). Se não tiver o timestamp completo, cai pra
+// mostrar só a data (formato antigo, sem hora).
+function dataHora(criadoEm, dataISO){
+  if(!criadoEm) return dataISO ? dataISO.split('-').reverse().join('/') : '—';
+  const d = new Date(criadoEm);
+  if(isNaN(d.getTime())) return dataISO ? dataISO.split('-').reverse().join('/') : '—';
+  return d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
 /* ---------------- CARREGAMENTO DAS QUEBRAS ---------------- */
 
 // Busca os lançamentos reais do Supabase e converte pro formato que as funções
@@ -2185,6 +2196,7 @@ async function carregarQuebras(){
     id: row.id,
     numeroSequencial: row.numero_sequencial,
     dataISO: row.created_at.slice(0, 10),
+    criadoEm: row.created_at,
     filialId: row.filial_id,
     departamentoId: row.departamento_id,
     produtoId: row.produto_id,
@@ -2576,7 +2588,7 @@ function gerarRelatorio(){
 
   document.getElementById('tbl-relatorio').innerHTML = relatorioFiltrado.slice(0, 200).map(q => `
     <tr>
-      <td>${q.dataISO}</td>
+      <td>${dataHora(q.criadoEm, q.dataISO)}</td>
       <td>${nomePor(filiais, q.filialId)}</td>
       <td>${nomePor(departamentos, q.departamentoId)}</td>
       <td>${nomePor(produtos, q.produtoId)}</td>
@@ -2594,11 +2606,15 @@ function gerarRelatorio(){
 
 function exportarCSV(){
   if(relatorioFiltrado.length === 0){ alert('Gere o relatório antes de exportar.'); return; }
-  const cabecalho = ['Data','Filial','Departamento','Codigo_Produto','Descricao_Produto','Quantidade','Unidade_Medida','Motivo','Turno','Responsavel','Status'];
+  const cabecalho = ['Data','Hora','Filial','Departamento','Codigo_Produto','Descricao_Produto','Quantidade','Unidade_Medida','Motivo','Turno','Responsavel','Status'];
   const linhas = relatorioFiltrado.map(q => {
     const produto = produtos.find(p => p.id === q.produtoId);
+    const hora = q.criadoEm && !isNaN(new Date(q.criadoEm).getTime())
+      ? new Date(q.criadoEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+      : '';
     return [
       q.dataISO,
+      hora,
       nomePor(filiais, q.filialId),
       nomePor(departamentos, q.departamentoId),
       produto ? produto.codigo : '',
@@ -2916,6 +2932,28 @@ async function importarPlanilhaPromax(input){
 function popularFiltroCheckPromax(){
   const sel = document.getElementById('check-promax-mes');
   if(sel && !sel.value) sel.value = new Date().toISOString().slice(0, 7);
+  const ate = document.getElementById('check-promax-ate');
+  if(ate && !ate.value){
+    const hojeISO = new Date().toISOString().slice(0, 10);
+    // Se o mês selecionado for o mês atual, o padrão é "até hoje". Se for um mês
+    // fechado (passado), o padrão é o último dia daquele mês.
+    if(sel && sel.value === hojeISO.slice(0, 7)){
+      ate.value = hojeISO;
+    } else if(sel && sel.value){
+      const [ano, mes] = sel.value.split('-').map(Number);
+      const ultimoDia = new Date(ano, mes, 0).getDate();
+      ate.value = sel.value + '-' + String(ultimoDia).padStart(2, '0');
+    }
+  }
+}
+
+// Quando o mês muda, o "até qual dia" precisa ser recalculado pro mês novo
+// (senão fica com uma data de outro mês, que não faz sentido ali).
+function mudarMesCheckPromax(){
+  const ate = document.getElementById('check-promax-ate');
+  if(ate) ate.value = '';
+  popularFiltroCheckPromax();
+  renderCheckPromax();
 }
 
 function nomesDepartamentosPromax(){
@@ -2925,13 +2963,14 @@ function nomesDepartamentosPromax(){
 function renderCheckPromax(){
   popularFiltroCheckPromax();
   const mesValor = document.getElementById('check-promax-mes').value;
+  const ateValor = document.getElementById('check-promax-ate').value;
   const container = document.getElementById('check-promax-cards');
   if(!mesValor || !container) return;
 
   const nossosDoMes = (filialGlobalId ? quebrasCache.filter(q => q.filialId == filialGlobalId) : quebrasCache)
-    .filter(q => q.status === 'aprovada' && q.dataISO.slice(0, 7) === mesValor);
+    .filter(q => q.status === 'aprovada' && q.dataISO.slice(0, 7) === mesValor && (!ateValor || q.dataISO <= ateValor));
   const promaxDoMes = (filialGlobalId ? promaxBaixasCache.filter(p => p.filialId == filialGlobalId) : promaxBaixasCache)
-    .filter(p => p.dataISO.slice(0, 7) === mesValor);
+    .filter(p => p.dataISO.slice(0, 7) === mesValor && (!ateValor || p.dataISO <= ateValor));
 
   container.innerHTML = nomesDepartamentosPromax().map(nomeDep => {
     const dep = encontrarDepartamentoPorNome(nomeDep);
@@ -2972,15 +3011,13 @@ function renderCheckPromax(){
             <thead><tr><th>Data</th><th>Promax (R$)</th><th>Nosso sistema (R$)</th><th>Diferença (R$)</th></tr></thead>
             <tbody>${linhasHtml}</tbody>
             <tfoot><tr style="font-weight:700;border-top:2px solid var(--line);">
-              <td>Total do mês</td><td>${brl(totalPromax)}</td><td>${brl(totalNosso)}</td>
+              <td>Total ${ateValor ? 'até ' + ateValor.split('-').reverse().join('/') : 'do mês'}</td><td>${brl(totalPromax)}</td><td>${brl(totalNosso)}</td>
               <td style="${totalBateu ? 'color:var(--teal);' : 'color:var(--red);'}">${brl(totalDiff)}</td>
             </tr></tfoot>
           </table>
         </div>
         <div class="row-inline" style="margin-top:12px;align-items:center;gap:10px;">
           <button class="btn btn-outline" id="btn-divergencias-${slugify(nomeDep)}" style="width:auto;padding:10px 18px;" onclick="verificarDivergenciasPromax('${nomeDep.replace(/'/g,"\\'")}')">Verificar divergências</button>
-          <label class="fl" style="margin:0;">Tolerância (dias)</label>
-          <input type="number" min="0" id="tol-dias-${slugify(nomeDep)}" value="10" style="width:70px;" />
         </div>
         <div id="divergencias-${slugify(nomeDep)}" style="margin-top:12px;"></div>
       </div>`;
@@ -3005,21 +3042,21 @@ function verificarDivergenciasPromax(nomeDep){
     return;
   }
 
-  const tolInput = document.getElementById('tol-dias-' + slug);
-  const TOLERANCIA_DIAS = tolInput ? (Number(tolInput.value) || 0) : 10;
+  const TOLERANCIA_DIAS = 10; // margem interna só pra casar datas próximas (lançamento e baixa no Promax raramente caem no mesmo dia)
   const mesValor = document.getElementById('check-promax-mes').value;
+  const ateValor = document.getElementById('check-promax-ate').value;
   const dep = encontrarDepartamentoPorNome(nomeDep);
   if(!dep){ alvo.innerHTML = '<div class="error">Departamento não encontrado no cadastro.</div>'; alvo.dataset.aberto = 'true'; if(botao) botao.textContent = 'Ocultar divergências'; return; }
 
   const nossos = (filialGlobalId ? quebrasCache.filter(q => q.filialId == filialGlobalId) : quebrasCache)
-    .filter(q => q.status === 'aprovada' && q.dataISO.slice(0, 7) === mesValor && q.departamentoId === dep.id)
+    .filter(q => q.status === 'aprovada' && q.dataISO.slice(0, 7) === mesValor && (!ateValor || q.dataISO <= ateValor) && q.departamentoId === dep.id)
     .map(q => {
       const produto = produtos.find(p => p.id === q.produtoId);
       return { dataISO: q.dataISO, codigoProduto: produto ? String(produto.codigo).trim() : '', descricao: produto ? produto.descricao : '—', quantidade: Number(q.quantidade), valor: q.custo, usado: false };
     });
 
   const promax = (filialGlobalId ? promaxBaixasCache.filter(p => p.filialId == filialGlobalId) : promaxBaixasCache)
-    .filter(p => p.dataISO.slice(0, 7) === mesValor && p.departamentoId === dep.id)
+    .filter(p => p.dataISO.slice(0, 7) === mesValor && (!ateValor || p.dataISO <= ateValor) && p.departamentoId === dep.id)
     .map(p => ({ dataISO: p.dataISO, codigoProduto: String(p.codigoProduto || '').trim(), descricao: p.descricaoProduto || '—', quantidade: Number(p.quantidade), valor: p.valor, usado: false }));
 
   // Monta todos os pares possíveis (mesmo produto + mesma quantidade, dentro da
@@ -3057,7 +3094,8 @@ function verificarDivergenciasPromax(nomeDep){
 
   alvo.innerHTML =
     '<div class="warn" style="margin-bottom:10px;">' + soApp.length + ' lançamento(s) só no nosso sistema e ' + soPromax.length +
-    ' só no Promax (tolerância de ' + TOLERANCIA_DIAS + ' dias entre as datas, mesmo produto e quantidade — o que sobrar aqui não tem par do outro lado).</div>' +
+    ' só no Promax' + (ateValor ? ' (até ' + ateValor.split('-').reverse().join('/') + ')' : '') +
+    ' — casamento por mesmo produto, mesma quantidade e data próxima (margem de ' + TOLERANCIA_DIAS + ' dias); o que sobrar aqui não tem par do outro lado.</div>' +
     (soApp.length ? '<b>Só no nosso sistema (app) — pode ainda não ter sido baixado no Promax</b>' +
       '<table><thead><tr><th>Data</th><th>Código</th><th>Produto</th><th>Qtd</th><th>Custo</th></tr></thead><tbody>' + soApp.map(linha).join('') + '</tbody></table>' : '') +
     (soPromax.length ? '<b style="display:block;margin-top:10px;">Só no Promax — sem lançamento correspondente no app</b>' +

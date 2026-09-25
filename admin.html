@@ -1058,9 +1058,27 @@
         <div id="msg-produtos"></div>
       </div>
       <div class="card">
+        <h3>🧪 Conferência de Litros/unidade (leitura automática da descrição)</h3>
+        <p class="hint">
+          "Litros/unid." é quantos litros tem 1 unidade do produto (usado no módulo Despejo pra
+          converter as unidades digitadas em litros). Com catálogo grande fica inviável checar
+          produto por produto — essa lista já lê a descrição de todos e mostra só quem está
+          <b>diferente</b> do cadastrado, pra você decidir rapidinho: aplicar a sugestão ou manter
+          o valor atual (se ele estiver certo por outro motivo que a descrição sozinha não mostra).
+        </p>
+        <p class="muted" id="conf-litros-resumo" style="margin-bottom:10px;"></p>
+        <button class="btn btn-primary hidden" id="btn-conf-litros-aplicar-todas" style="margin-bottom:10px;" onclick="aplicarTodasSugestoesLitros()">Aplicar todas as sugestões desta lista</button>
+        <div style="overflow-x:auto;">
+          <table>
+            <thead><tr><th>Código</th><th>Descrição</th><th>Cadastrado</th><th>Sugestão da IA</th><th>Ação</th></tr></thead>
+            <tbody id="tbl-conf-litros"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
         <h3>Produtos cadastrados</h3>
-        <p class="hint">O <b>custo unitário</b> aqui alimenta todos os gráficos e KPIs de custo do gerencial — edite direto na tabela. "Fator" é quantas unidades vêm numa caixa fechada (usado pra calcular o custo certo quando a quebra é lançada em caixa). "Litros/unid." é quantos litros tem 1 unidade desse produto (usado no módulo Despejo, pra converter a quantidade digitada em unidades pra litros) — a importação mensal tenta preencher isso sozinha lendo a descrição (ex: "300ML" → 0,3), mas confira e ajuste se precisar.</p>
-        <button class="btn btn-outline" style="margin-bottom:10px;" onclick="preencherLitrosAutomaticamente()">🧪 Preencher "Litros/unid." automaticamente pela descrição</button>
+        <p class="hint">O <b>custo unitário</b> aqui alimenta todos os gráficos e KPIs de custo do gerencial — edite direto na tabela. "Fator" é quantas unidades vêm numa caixa fechada (usado pra calcular o custo certo quando a quebra é lançada em caixa). "Litros/unid." é quantos litros tem 1 unidade desse produto — pode editar direto aqui também, além da conferência automática acima.</p>
         <input type="text" id="busca-produto" placeholder="Buscar por código, EAN ou descrição..." onkeyup="filtrarProdutos()" style="margin-bottom:10px;" />
         <table><thead><tr><th>Código</th><th>Descrição</th><th>EAN</th><th>Custo unitário</th><th>Fator caixa</th><th>Litros/unid.</th><th>Vasilhame</th><th>Ativo</th></tr></thead><tbody id="tbl-produtos"></tbody></table>
       </div>
@@ -1076,6 +1094,22 @@
         <a id="foto-modal-link" href="#" target="_blank" style="word-break:break-all;color:var(--red);">abrir foto em nova aba</a>
       </div>
       <button class="btn btn-outline" style="width:100%;margin-top:12px;" onclick="fecharFotoModal()">Fechar</button>
+    </div>
+  </div>
+
+  <div id="modal-drilldown" class="hidden" style="position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:60;display:flex;align-items:center;justify-content:center;padding:20px;">
+    <div style="background:#fff;border-radius:12px;padding:20px;max-width:960px;width:100%;max-height:85vh;overflow:auto;">
+      <div class="row-inline" style="justify-content:space-between;align-items:flex-start;gap:12px;">
+        <h3 id="drilldown-titulo" style="margin:0;">Detalhe</h3>
+        <button class="btn-sm btn-outline" onclick="fecharDrilldown()" style="flex-shrink:0;">Fechar ✕</button>
+      </div>
+      <p class="muted" id="drilldown-resumo" style="margin-top:6px;"></p>
+      <div style="overflow-x:auto;margin-top:10px;">
+        <table>
+          <thead><tr><th>Data/Hora</th><th>Filial</th><th>Departamento</th><th>Produto</th><th>Motivo</th><th>Turno</th><th>Responsável</th><th>Qtd</th><th>Custo</th></tr></thead>
+          <tbody id="tbl-drilldown"></tbody>
+        </table>
+      </div>
     </div>
   </div>
 </div>
@@ -1824,6 +1858,7 @@ async function carregarProdutos(){
   produtos = data || [];
   todosProdutos = produtos;
   renderProdutos(produtos);
+  renderConferenciaLitros();
 }
 
 function renderProdutos(lista){
@@ -1845,9 +1880,15 @@ async function atualizarCampoProduto(id, campo, valor){
   await carregarProdutos();
 }
 
-// Lê "300ML", "2L", "600 LT" etc. na descrição do produto e converte pra litros.
+// Lê "300ML", "2L", "1,5L", "600 LT" etc. na descrição do produto e converte
+// pra litros (sempre o volume de 1 unidade/garrafa/lata — ignora quantidade
+// de embalagens tipo "C/6", "CX 8" etc., porque é isso que o despejo usa:
+// unidades despejadas x litros de 1 unidade). O "(?![A-Za-z])" no lugar de um
+// \b comum evita perder o volume quando vem colado num texto extra (tipo
+// "300MLX6", sem espaço antes do X) — antes disso simplesmente não achava
+// nada e a conversão ficava default em 1.
 function parseLitrosDaDescricao(descricao){
-  const match = String(descricao || '').match(/(\d+(?:[.,]\d+)?)\s*(ML|LT|L)\b/i);
+  const match = String(descricao || '').match(/(\d+(?:[.,]\d+)?)\s*(ML|LT|L)(?![A-WYZa-wyz])/i);
   if(!match) return null;
   const valor = parseFloat(match[1].replace(',', '.'));
   if(!valor) return null;
@@ -1855,27 +1896,76 @@ function parseLitrosDaDescricao(descricao){
   return unidade === 'ML' ? +(valor/1000).toFixed(3) : +valor.toFixed(3);
 }
 
-async function preencherLitrosAutomaticamente(){
-  const candidatos = produtos.filter(p => !p.eh_vasilhame && (!p.litros_por_unidade || Number(p.litros_por_unidade) === 1));
-  const atualizacoes = [];
-  candidatos.forEach(p => {
-    const litros = parseLitrosDaDescricao(p.descricao);
-    if(litros && litros > 0) atualizacoes.push({ id: p.id, litros });
-  });
+// IDs que o usuário já revisou e decidiu manter o valor cadastrado mesmo
+// divergindo do que a IA leu na descrição — só dura a sessão (não é um dado
+// que precise ficar salvo), pra não ficar reaparecendo na lista toda hora.
+let litrosDivergenciasIgnoradas = new Set();
 
-  if(atualizacoes.length === 0){
-    alert('Não encontrei nenhum produto pra atualizar automaticamente (ou já estão todos preenchidos — só mexe em quem ainda está no padrão "1").');
-    return;
-  }
-  if(!confirm('Vou atualizar "Litros/unid." de ' + atualizacoes.length + ' produto(s) com base no volume escrito na descrição. Confirma?')) return;
+// Monta a lista de produtos onde o "Litros/unid." cadastrado é diferente do
+// que a leitura automática da descrição sugere — é essa lista que aparece na
+// Conferência (só quem diverge, não o catálogo inteiro, senão vira faina
+// manual produto por produto).
+function calcularConferenciaLitros(){
+  return produtos
+    .filter(p => !p.eh_vasilhame && p.ativo !== false && !litrosDivergenciasIgnoradas.has(p.id))
+    .map(p => {
+      const cadastrado = Number(p.litros_por_unidade) || 1;
+      const sugerido = parseLitrosDaDescricao(p.descricao);
+      return { produto: p, cadastrado, sugerido };
+    })
+    .filter(x => x.sugerido != null && Math.abs(x.sugerido - x.cadastrado) > 0.01)
+    .sort((a,b) => Math.abs(b.sugerido - b.cadastrado) - Math.abs(a.sugerido - a.cadastrado));
+}
+
+function renderConferenciaLitros(){
+  const resumoEl = document.getElementById('conf-litros-resumo');
+  const tblEl = document.getElementById('tbl-conf-litros');
+  const btnAplicarTodas = document.getElementById('btn-conf-litros-aplicar-todas');
+  if(!resumoEl || !tblEl) return;
+
+  const linhas = calcularConferenciaLitros();
+
+  resumoEl.innerHTML = linhas.length
+    ? '<span style="color:var(--red);font-weight:600;">' + linhas.length + ' produto(s)</span> com "Litros/unid." cadastrado diferente do que a leitura automática da descrição encontrou. Confira cada um e aplique a sugestão (ou mantenha o cadastrado, se ele estiver certo por outro motivo).'
+    : 'Nenhuma divergência encontrada — o que está cadastrado bate com o volume lido na descrição de todos os produtos.';
+  if(btnAplicarTodas) btnAplicarTodas.classList.toggle('hidden', linhas.length === 0);
+
+  tblEl.innerHTML = linhas.map(x => `
+    <tr>
+      <td>${x.produto.codigo}</td>
+      <td>${x.produto.descricao}</td>
+      <td style="color:var(--red);font-weight:600;">${x.cadastrado.toFixed(3).replace('.',',')}</td>
+      <td style="color:var(--teal);font-weight:600;">${x.sugerido.toFixed(3).replace('.',',')}</td>
+      <td style="white-space:nowrap;">
+        <button class="btn-sm btn-primary" onclick="aplicarSugestaoLitros(${x.produto.id}, ${x.sugerido})">Aplicar sugestão</button>
+        <button class="btn-sm btn-outline" onclick="ignorarSugestaoLitros(${x.produto.id})">Manter cadastrado</button>
+      </td>
+    </tr>`).join('') || '<tr><td colspan="5" class="muted">Nenhuma divergência.</td></tr>';
+}
+
+async function aplicarSugestaoLitros(id, sugerido){
+  const { error } = await sb.from('produtos').update({ litros_por_unidade: sugerido }).eq('id', id);
+  if(error){ alert('Erro: ' + error.message); return; }
+  await carregarProdutos();
+}
+
+function ignorarSugestaoLitros(id){
+  litrosDivergenciasIgnoradas.add(id);
+  renderConferenciaLitros();
+}
+
+async function aplicarTodasSugestoesLitros(){
+  const linhas = calcularConferenciaLitros();
+  if(linhas.length === 0) return;
+  if(!confirm('Vou atualizar "Litros/unid." de ' + linhas.length + ' produto(s) com o valor lido na descrição de cada um. Confirma?')) return;
 
   const TAMANHO_LOTE = 20;
-  for(let i = 0; i < atualizacoes.length; i += TAMANHO_LOTE){
-    const lote = atualizacoes.slice(i, i + TAMANHO_LOTE);
-    await Promise.all(lote.map(a => sb.from('produtos').update({ litros_por_unidade: a.litros }).eq('id', a.id)));
+  for(let i = 0; i < linhas.length; i += TAMANHO_LOTE){
+    const lote = linhas.slice(i, i + TAMANHO_LOTE);
+    await Promise.all(lote.map(x => sb.from('produtos').update({ litros_por_unidade: x.sugerido }).eq('id', x.produto.id)));
   }
-  alert(atualizacoes.length + ' produto(s) atualizado(s). Confira a coluna "Litros/unid." — se algum ficou errado, edite direto na tabela.');
   await carregarProdutos();
+  alert(linhas.length + ' produto(s) atualizado(s).');
 }
 
 async function importarPlanilhaMensal(input){
@@ -2244,6 +2334,80 @@ function escopoBase(){
   return filialGlobalId ? quebrasCache.filter(q => q.filialId == filialGlobalId) : quebrasCache;
 }
 
+// Clique numa barra pra ver o detalhe (drill-down) dos lançamentos daquele
+// ponto do gráfico — data, produto, motivo, turno, responsável, custo etc.
+// Retorna as opções de onClick/onHover do Chart.js prontas, ou {} se não
+// tiver handler (gráfico sem drill-down configurado).
+function opcoesClique(onClick){
+  if(!onClick) return {};
+  return {
+    onClick: (evt, elements) => { if(elements && elements.length) onClick(elements[0].index); },
+    onHover: (evt, elements) => { if(evt.native && evt.native.target) evt.native.target.style.cursor = (elements && elements.length) ? 'pointer' : 'default'; },
+  };
+}
+
+// Handler de clique genérico pra gráfico agrupado por um campo com id (produto,
+// motivo, turno, departamento, área, equipamento, placa, motorista, responsável...).
+// "entradas" é o array vindo de topN (tem .id e .nome na mesma ordem das barras),
+// "lista" é o conjunto de lançamentos de onde os totais foram calculados.
+function onClickGrupo(entradas, lista, campoId){
+  return function(idx){
+    const entrada = entradas[idx];
+    if(!entrada) return;
+    abrirDrilldown(entrada.nome, lista.filter(q => q[campoId] === entrada.id));
+  };
+}
+
+// Mesma ideia, mas pra agrupamento por texto (embalagem), que não tem id numérico.
+function onClickGrupoEmbalagem(entradas, lista){
+  return function(idx){
+    const entrada = entradas[idx];
+    if(!entrada) return;
+    abrirDrilldown('Embalagem: ' + entrada.nome, lista.filter(q => {
+      const produto = produtos.find(p => p.id === q.produtoId);
+      return produto && (produto.embalagem || 'Sem embalagem informada') === entrada.nome;
+    }));
+  };
+}
+
+// Pra gráficos por dia ou por mês (custo diário/mensal, tendência de produto).
+function onClickData(labels, chaves, lista, granularidade){
+  return function(idx){
+    const chave = chaves[idx];
+    if(!chave) return;
+    const doGrupo = granularidade === 'mes' ? lista.filter(q => q.dataISO.slice(0,7) === chave) : lista.filter(q => q.dataISO === chave);
+    abrirDrilldown((granularidade === 'mes' ? 'Mês ' : 'Dia ') + labels[idx], doGrupo);
+  };
+}
+
+function abrirDrilldown(titulo, lista){
+  const ordenada = [...lista].sort((a,b) => (b.custo||0) - (a.custo||0));
+  const totalCusto = ordenada.reduce((a,q) => a + (q.custo||0), 0);
+  const totalQtd = ordenada.reduce((a,q) => a + (Number(q.quantidade)||0), 0);
+  document.getElementById('drilldown-titulo').textContent = titulo;
+  document.getElementById('drilldown-resumo').textContent =
+    ordenada.length + ' lançamento(s) · ' + totalQtd + ' unidade(s) · custo total ' + brl(totalCusto);
+  document.getElementById('tbl-drilldown').innerHTML = ordenada.slice(0, 300).map(q => `
+    <tr>
+      <td>${dataHora(q.criadoEm, q.dataISO)}</td>
+      <td>${nomePor(filiais, q.filialId)}</td>
+      <td>${nomePor(departamentos, q.departamentoId)}</td>
+      <td>${nomePor(produtos, q.produtoId)}</td>
+      <td>${nomePor(motivos, q.motivoId)}</td>
+      <td>${nomePor(turnos, q.turnoId)}</td>
+      <td>${nomePor(pessoas, q.responsavelId)}</td>
+      <td>${q.quantidade ?? '—'}</td>
+      <td>${brl(q.custo||0)}</td>
+    </tr>`).join('') || '<tr><td colspan="9" class="muted">Nenhum lançamento nesse grupo.</td></tr>';
+  if(ordenada.length > 300){
+    document.getElementById('tbl-drilldown').innerHTML += '<tr><td colspan="9" class="muted">Mostrando 300 de ' + ordenada.length + '.</td></tr>';
+  }
+  document.getElementById('modal-drilldown').classList.remove('hidden');
+}
+function fecharDrilldown(){
+  document.getElementById('modal-drilldown').classList.add('hidden');
+}
+
 function renderBarChart(canvasId, labels, data, cor, opts){
   if(chartInstances[canvasId]) chartInstances[canvasId].destroy();
   const ctx = document.getElementById(canvasId);
@@ -2263,11 +2427,12 @@ function renderBarChart(canvasId, labels, data, cor, opts){
         ...(formatarValor ? { tooltip: { callbacks: { label: c => (c.dataset.label ? c.dataset.label + ': ' : '') + formatarValor(c.parsed[horizontal ? 'x' : 'y']) } } } : {}),
       },
       scales: horizontal ? { x: eixoValor } : { y: eixoValor },
+      ...opcoesClique(opts && opts.onClick),
     },
   });
 }
 
-function renderParetoChart(canvasId, labels, data, rotuloBarra){
+function renderParetoChart(canvasId, labels, data, rotuloBarra, opts){
   if(chartInstances[canvasId]) chartInstances[canvasId].destroy();
   const total = data.reduce((a,b) => a+b, 0) || 1;
   let acumulado = 0;
@@ -2288,6 +2453,7 @@ function renderParetoChart(canvasId, labels, data, rotuloBarra){
         y: { beginAtZero: true, position: 'left' },
         y1: { beginAtZero: true, max: 100, position: 'right', grid: { drawOnChartArea: false }, ticks: { callback: v => v + '%' } },
       },
+      ...opcoesClique(opts && opts.onClick),
     },
   });
 }
@@ -3880,31 +4046,31 @@ function renderAnalises(){
   document.getElementById('titulo-chart-embalagem').textContent = 'Por embalagem — Pareto' + sufixo;
 
   const porProduto = topN(agregarPor(base, 'produtoId', campo), produtos, 8);
-  renderBarChart('chart-produto', porProduto.map(x=>x.nome), porProduto.map(x=>converter(x.valor)), '#12796B', { label: rotuloBarra });
+  renderBarChart('chart-produto', porProduto.map(x=>x.nome), porProduto.map(x=>converter(x.valor)), '#12796B', { label: rotuloBarra, onClick: onClickGrupo(porProduto, base, 'produtoId') });
 
   const porMotivo = topN(agregarPor(base, 'motivoId', campo), motivos, 8);
-  renderParetoChart('chart-pareto', porMotivo.map(x=>x.nome), porMotivo.map(x=>converter(x.valor)), rotuloBarra);
+  renderParetoChart('chart-pareto', porMotivo.map(x=>x.nome), porMotivo.map(x=>converter(x.valor)), rotuloBarra, { onClick: onClickGrupo(porMotivo, base, 'motivoId') });
 
   const porArea = topN(agregarPor(base.filter(q=>q.areaId), 'areaId', campo), areas, 8);
-  renderBarChart('chart-area', porArea.map(x=>x.nome), porArea.map(x=>converter(x.valor)), '#1F3B52', { label: rotuloBarra });
+  renderBarChart('chart-area', porArea.map(x=>x.nome), porArea.map(x=>converter(x.valor)), '#1F3B52', { label: rotuloBarra, onClick: onClickGrupo(porArea, base, 'areaId') });
 
   const porEquip = topN(agregarPor(base.filter(q=>q.equipamentoId), 'equipamentoId', campo), equipamentos, 8);
-  renderBarChart('chart-equipamento', porEquip.map(x=>x.nome), porEquip.map(x=>converter(x.valor)), '#C97A1A', { label: rotuloBarra });
+  renderBarChart('chart-equipamento', porEquip.map(x=>x.nome), porEquip.map(x=>converter(x.valor)), '#C97A1A', { label: rotuloBarra, onClick: onClickGrupo(porEquip, base, 'equipamentoId') });
 
   const porPlaca = topN(agregarPor(base.filter(q=>q.veiculoId), 'veiculoId', campo), veiculos, 8);
-  renderBarChart('chart-placa', porPlaca.map(x=>x.nome), porPlaca.map(x=>converter(x.valor)), '#A32D2D', { label: rotuloBarra });
+  renderBarChart('chart-placa', porPlaca.map(x=>x.nome), porPlaca.map(x=>converter(x.valor)), '#A32D2D', { label: rotuloBarra, onClick: onClickGrupo(porPlaca, base, 'veiculoId') });
 
   const porMotorista = topN(agregarPor(base.filter(q=>q.motoristaId), 'motoristaId', campo), motoristas, 8);
-  renderBarChart('chart-motorista', porMotorista.map(x=>x.nome), porMotorista.map(x=>converter(x.valor)), '#5B5F63', { label: rotuloBarra });
+  renderBarChart('chart-motorista', porMotorista.map(x=>x.nome), porMotorista.map(x=>converter(x.valor)), '#5B5F63', { label: rotuloBarra, onClick: onClickGrupo(porMotorista, base, 'motoristaId') });
 
   const porTurno = topN(agregarPor(base, 'turnoId', campo), turnos, 8);
-  renderBarChart('chart-custo-turno', porTurno.map(x=>x.nome), porTurno.map(x=>converter(x.valor)), '#12796B', { label: rotuloBarra });
+  renderBarChart('chart-custo-turno', porTurno.map(x=>x.nome), porTurno.map(x=>converter(x.valor)), '#12796B', { label: rotuloBarra, onClick: onClickGrupo(porTurno, base, 'turnoId') });
 
   const porFunc = topN(agregarPor(base, 'responsavelId', campo), pessoas, 8);
-  renderBarChart('chart-custo-funcionario', porFunc.map(x=>x.nome), porFunc.map(x=>converter(x.valor)), '#16283A', { label: rotuloBarra });
+  renderBarChart('chart-custo-funcionario', porFunc.map(x=>x.nome), porFunc.map(x=>converter(x.valor)), '#16283A', { label: rotuloBarra, onClick: onClickGrupo(porFunc, base, 'responsavelId') });
 
   const porEmbalagem = topNTexto(agregarPorEmbalagem(base, campo), 8);
-  renderParetoChart('chart-embalagem', porEmbalagem.map(x=>x.nome), porEmbalagem.map(x=>converter(x.valor)), rotuloBarra);
+  renderParetoChart('chart-embalagem', porEmbalagem.map(x=>x.nome), porEmbalagem.map(x=>converter(x.valor)), rotuloBarra, { onClick: onClickGrupoEmbalagem(porEmbalagem, base) });
 }
 
 /* ---------------- ANÁLISE POR PRODUTO ---------------- */
@@ -3974,13 +4140,15 @@ function renderTendenciaProduto(produtoBaseDep, produtoId){
     for(let i=29;i>=0;i--){ const d = new Date(hoje); d.setDate(d.getDate()-i); dias.push(d.toISOString().slice(0,10)); }
     const porDia = {};
     doProduto.forEach(q => { if(dias.includes(q.dataISO)) porDia[q.dataISO] = (porDia[q.dataISO]||0) + (campo ? q[campo] : q.quantidade); });
-    renderBarChart('chart-produto-diario', dias.map(d=>d.slice(8,10)+'/'+d.slice(5,7)), dias.map(d=>converter(porDia[d]||0)), '#12796B', { label: analiseProdutoModoCusto ? 'Custo (R$)' : 'Quantidade' });
+    const diasLabels = dias.map(d=>d.slice(8,10)+'/'+d.slice(5,7));
+    renderBarChart('chart-produto-diario', diasLabels, dias.map(d=>converter(porDia[d]||0)), '#12796B', { label: analiseProdutoModoCusto ? 'Custo (R$)' : 'Quantidade', onClick: onClickData(diasLabels, dias, doProduto, 'dia') });
   }
   if(produtoSubAbaAtual === 'mensal'){
     const porMes = {};
     doProduto.forEach(q => { const k = q.dataISO.slice(0,7); porMes[k] = (porMes[k]||0) + (campo ? q[campo] : q.quantidade); });
     const meses = Object.keys(porMes).sort();
-    renderBarChart('chart-produto-mensal', meses.map(m=>m.slice(5,7)+'/'+m.slice(0,4)), meses.map(m=>converter(porMes[m])), '#1F3B52', { label: analiseProdutoModoCusto ? 'Custo (R$)' : 'Quantidade' });
+    const mesesLabels = meses.map(m=>m.slice(5,7)+'/'+m.slice(0,4));
+    renderBarChart('chart-produto-mensal', mesesLabels, meses.map(m=>converter(porMes[m])), '#1F3B52', { label: analiseProdutoModoCusto ? 'Custo (R$)' : 'Quantidade', onClick: onClickData(mesesLabels, meses, doProduto, 'mes') });
   }
   if(produtoSubAbaAtual === 'ano'){
     const anoAtual = new Date().getFullYear();
@@ -3988,7 +4156,8 @@ function renderTendenciaProduto(produtoBaseDep, produtoId){
     const porMes = {};
     doAno.forEach(q => { const k = q.dataISO.slice(5,7); porMes[k] = (porMes[k]||0) + (campo ? q[campo] : q.quantidade); });
     const mesesOrdenados = Object.keys(porMes).sort();
-    renderBarChart('chart-produto-ano', mesesOrdenados.map(m=>m+'/'+anoAtual), mesesOrdenados.map(m=>converter(porMes[m])), '#C97A1A', { label: analiseProdutoModoCusto ? 'Custo (R$)' : 'Quantidade' });
+    const chavesMes = mesesOrdenados.map(m => anoAtual + '-' + m);
+    renderBarChart('chart-produto-ano', mesesOrdenados.map(m=>m+'/'+anoAtual), mesesOrdenados.map(m=>converter(porMes[m])), '#C97A1A', { label: analiseProdutoModoCusto ? 'Custo (R$)' : 'Quantidade', onClick: onClickData(mesesOrdenados.map(m=>m+'/'+anoAtual), chavesMes, doAno, 'mes') });
   }
 }
 
@@ -4020,7 +4189,7 @@ function renderAnaliseProduto(){
 
   // Pareto geral de produtos (todos, não só o selecionado)
   const porProduto = topN(agregarPor(base, 'produtoId', campo), produtos, 10);
-  renderParetoChart('chart-pareto-produtos', porProduto.map(x=>x.nome), porProduto.map(x=>converter(x.valor)), rotuloBarra);
+  renderParetoChart('chart-pareto-produtos', porProduto.map(x=>x.nome), porProduto.map(x=>converter(x.valor)), rotuloBarra, { onClick: onClickGrupo(porProduto, base, 'produtoId') });
 
   // Tendência do produto selecionado (diário/mensal/ano usa histórico completo, não só o período acima)
   const historicoAprovado = escopoAprovado();
@@ -4030,25 +4199,25 @@ function renderAnaliseProduto(){
   const doProdutoNoPeriodo = base.filter(q => q.produtoId === produtoId);
 
   const porTurno = topN(agregarPor(doProdutoNoPeriodo, 'turnoId', campo), turnos, 8);
-  renderBarChart('chart-produto-turno', porTurno.map(x=>x.nome), porTurno.map(x=>converter(x.valor)), '#12796B', { label: rotuloBarra });
+  renderBarChart('chart-produto-turno', porTurno.map(x=>x.nome), porTurno.map(x=>converter(x.valor)), '#12796B', { label: rotuloBarra, onClick: onClickGrupo(porTurno, doProdutoNoPeriodo, 'turnoId') });
 
   const porMotivo = topN(agregarPor(doProdutoNoPeriodo, 'motivoId', campo), motivos, 8);
-  renderBarChart('chart-produto-motivo', porMotivo.map(x=>x.nome), porMotivo.map(x=>converter(x.valor)), '#A32D2D', { label: rotuloBarra });
+  renderBarChart('chart-produto-motivo', porMotivo.map(x=>x.nome), porMotivo.map(x=>converter(x.valor)), '#A32D2D', { label: rotuloBarra, onClick: onClickGrupo(porMotivo, doProdutoNoPeriodo, 'motivoId') });
 
   const porDep = topN(agregarPor(doProdutoNoPeriodo, 'departamentoId', campo), departamentos, 8);
-  renderBarChart('chart-produto-departamento', porDep.map(x=>x.nome), porDep.map(x=>converter(x.valor)), '#16283A', { label: rotuloBarra });
+  renderBarChart('chart-produto-departamento', porDep.map(x=>x.nome), porDep.map(x=>converter(x.valor)), '#16283A', { label: rotuloBarra, onClick: onClickGrupo(porDep, doProdutoNoPeriodo, 'departamentoId') });
 
   const porArea = topN(agregarPor(doProdutoNoPeriodo.filter(q=>q.areaId), 'areaId', campo), areas, 8);
-  renderBarChart('chart-produto-area', porArea.map(x=>x.nome), porArea.map(x=>converter(x.valor)), '#1F3B52', { label: rotuloBarra });
+  renderBarChart('chart-produto-area', porArea.map(x=>x.nome), porArea.map(x=>converter(x.valor)), '#1F3B52', { label: rotuloBarra, onClick: onClickGrupo(porArea, doProdutoNoPeriodo, 'areaId') });
 
   const porEquip = topN(agregarPor(doProdutoNoPeriodo.filter(q=>q.equipamentoId), 'equipamentoId', campo), equipamentos, 8);
-  renderBarChart('chart-produto-equipamento', porEquip.map(x=>x.nome), porEquip.map(x=>converter(x.valor)), '#C97A1A', { label: rotuloBarra });
+  renderBarChart('chart-produto-equipamento', porEquip.map(x=>x.nome), porEquip.map(x=>converter(x.valor)), '#C97A1A', { label: rotuloBarra, onClick: onClickGrupo(porEquip, doProdutoNoPeriodo, 'equipamentoId') });
 
   const porPlaca = topN(agregarPor(doProdutoNoPeriodo.filter(q=>q.veiculoId), 'veiculoId', campo), veiculos, 8);
-  renderBarChart('chart-produto-placa', porPlaca.map(x=>x.nome), porPlaca.map(x=>converter(x.valor)), '#5B5F63', { label: rotuloBarra });
+  renderBarChart('chart-produto-placa', porPlaca.map(x=>x.nome), porPlaca.map(x=>converter(x.valor)), '#5B5F63', { label: rotuloBarra, onClick: onClickGrupo(porPlaca, doProdutoNoPeriodo, 'veiculoId') });
 
   const porMotorista = topN(agregarPor(doProdutoNoPeriodo.filter(q=>q.motoristaId), 'motoristaId', campo), motoristas, 8);
-  renderBarChart('chart-produto-motorista', porMotorista.map(x=>x.nome), porMotorista.map(x=>converter(x.valor)), '#12796B', { label: rotuloBarra });
+  renderBarChart('chart-produto-motorista', porMotorista.map(x=>x.nome), porMotorista.map(x=>converter(x.valor)), '#12796B', { label: rotuloBarra, onClick: onClickGrupo(porMotorista, doProdutoNoPeriodo, 'motoristaId') });
 
   // Cross-analysis: combinações Placa x Produto e Funcionário x Produto (todos os produtos, no período/depto filtrados)
   const combosPlaca = {};
@@ -4057,9 +4226,12 @@ function renderAnaliseProduto(){
     combosPlaca[chave] = (combosPlaca[chave] || 0) + (campo ? q[campo] : q.quantidade);
   });
   const topCombosPlaca = Object.entries(combosPlaca)
-    .map(([chave, valor]) => { const [vId, pId] = chave.split('|').map(Number); return { nome: nomePor(veiculos, vId) + ' – ' + nomePor(produtos, pId), valor: converter(valor) }; })
+    .map(([chave, valor]) => { const [vId, pId] = chave.split('|').map(Number); return { veiculoId: vId, produtoId: pId, nome: nomePor(veiculos, vId) + ' – ' + nomePor(produtos, pId), valor: converter(valor) }; })
     .sort((a,b) => b.valor - a.valor).slice(0, 10);
-  renderBarChart('chart-placa-produto', topCombosPlaca.map(x=>x.nome), topCombosPlaca.map(x=>x.valor), '#A32D2D', { horizontal: true, label: rotuloBarra });
+  renderBarChart('chart-placa-produto', topCombosPlaca.map(x=>x.nome), topCombosPlaca.map(x=>x.valor), '#A32D2D', { horizontal: true, label: rotuloBarra, onClick: idx => {
+    const c = topCombosPlaca[idx]; if(!c) return;
+    abrirDrilldown(c.nome, base.filter(q => q.veiculoId === c.veiculoId && q.produtoId === c.produtoId));
+  } });
 
   const combosFunc = {};
   base.forEach(q => {
@@ -4067,9 +4239,12 @@ function renderAnaliseProduto(){
     combosFunc[chave] = (combosFunc[chave] || 0) + (campo ? q[campo] : q.quantidade);
   });
   const topCombosFunc = Object.entries(combosFunc)
-    .map(([chave, valor]) => { const [fId, pId] = chave.split('|').map(Number); return { nome: nomePor(pessoas, fId) + ' – ' + nomePor(produtos, pId), valor: converter(valor) }; })
+    .map(([chave, valor]) => { const [fId, pId] = chave.split('|').map(Number); return { responsavelId: fId, produtoId: pId, nome: nomePor(pessoas, fId) + ' – ' + nomePor(produtos, pId), valor: converter(valor) }; })
     .sort((a,b) => b.valor - a.valor).slice(0, 10);
-  renderBarChart('chart-funcionario-produto', topCombosFunc.map(x=>x.nome), topCombosFunc.map(x=>x.valor), '#16283A', { horizontal: true, label: rotuloBarra });
+  renderBarChart('chart-funcionario-produto', topCombosFunc.map(x=>x.nome), topCombosFunc.map(x=>x.valor), '#16283A', { horizontal: true, label: rotuloBarra, onClick: idx => {
+    const c = topCombosFunc[idx]; if(!c) return;
+    abrirDrilldown(c.nome, base.filter(q => q.responsavelId === c.responsavelId && q.produtoId === c.produtoId));
+  } });
 }
 
 /* ---------------- CUSTO (diário / mensal / ano) ---------------- */
@@ -4101,7 +4276,7 @@ function renderCusto(){
     baseDep.forEach(q => { if(dias.includes(q.dataISO)) porDia[q.dataISO] = (porDia[q.dataISO]||0) + q.custo; });
     const labels = dias.map(d => d.slice(8,10)+'/'+d.slice(5,7));
     const dados = dias.map(d => +(porDia[d]||0).toFixed(2));
-    renderBarChart('chart-custo-diario', labels, dados, '#12796B');
+    renderBarChart('chart-custo-diario', labels, dados, '#12796B', { onClick: onClickData(labels, dias, baseDep, 'dia') });
 
     const totalPeriodo = dados.reduce((a,b)=>a+b,0);
     document.getElementById('custo-kpi-grid').innerHTML = `
@@ -4117,7 +4292,7 @@ function renderCusto(){
     const meses = Object.keys(porMes).sort();
     const labels = meses.map(m => m.slice(5,7)+'/'+m.slice(0,4));
     const dados = meses.map(m => +porMes[m].toFixed(2));
-    renderBarChart('chart-custo-mensal', labels, dados, '#1F3B52');
+    renderBarChart('chart-custo-mensal', labels, dados, '#1F3B52', { onClick: onClickData(labels, meses, baseDep, 'mes') });
 
     const mesAtual = new Date().toISOString().slice(0,7);
     const mesAnterior = new Date(new Date().setMonth(new Date().getMonth()-1)).toISOString().slice(0,7);
@@ -4146,7 +4321,8 @@ function renderCusto(){
     const porDep = agregarPor(doAnoTodos, 'departamentoId', 'custo');
     const labels = departamentos.map(d => d.nome);
     const dados = departamentos.map(d => +(porDep[d.id]||0).toFixed(2));
-    renderBarChart('chart-custo-ano-departamento', labels, dados, '#C97A1A');
+    const entradasDep = departamentos.map(d => ({ id: d.id, nome: d.nome }));
+    renderBarChart('chart-custo-ano-departamento', labels, dados, '#C97A1A', { onClick: onClickGrupo(entradasDep, doAnoTodos, 'departamentoId') });
   }
 }
 

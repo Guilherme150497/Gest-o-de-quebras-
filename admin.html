@@ -598,7 +598,7 @@
         <p class="muted" id="despejo-p-resumo" style="margin-top:12px;"></p>
         <div style="overflow-x:auto;">
           <table>
-            <thead><tr><th>Data</th><th>Filial</th><th>Funcionário</th><th>Produto</th><th>Embalagem</th><th>Início</th><th>Fim</th><th>Duração</th><th>Litros</th><th>Litros/min</th><th></th></tr></thead>
+            <thead><tr><th>Data</th><th>Filial</th><th>Funcionário</th><th>Produto</th><th>Embalagem</th><th>Início</th><th>Fim</th><th>Duração</th><th>Unidades</th><th>L/unid.</th><th>Litros</th><th>Litros/min</th><th></th></tr></thead>
             <tbody id="tbl-despejo-painel"></tbody>
           </table>
         </div>
@@ -3544,6 +3544,7 @@ async function carregarDespejo(){
     inicio: row.inicio,
     fim: row.fim,
     duracaoMinutos: Number(row.duracao_minutos) || 0,
+    quantidadeUnidades: Number(row.quantidade_unidades) || null,
     quantidadeLitros: Number(row.quantidade_litros) || 0,
     litrosPorMinuto: row.duracao_minutos ? (Number(row.quantidade_litros)||0) / Number(row.duracao_minutos) : 0,
   }));
@@ -3576,6 +3577,12 @@ function gerarPainelDespejo(){
 
   document.getElementById('tbl-despejo-painel').innerHTML = despejoPainelFiltrado.slice(0,500).map(r => {
     const produto = produtos.find(p=>p.id===r.produtoId);
+    // Litros/unid. realmente usado nesse lançamento (voltando a conta), pra
+    // comparar com o cadastrado no produto — se estiver diferente do que
+    // está em "Cadastro de Produtos", é sinal de conversão errada.
+    const litrosPorUnidRealizado = r.quantidadeUnidades ? (r.quantidadeLitros / r.quantidadeUnidades) : null;
+    const litrosPorUnidCadastrado = produto ? Number(produto.litros_por_unidade) || 1 : null;
+    const divergente = litrosPorUnidRealizado != null && litrosPorUnidCadastrado != null && Math.abs(litrosPorUnidRealizado - litrosPorUnidCadastrado) > 0.01;
     return `<tr>
       <td>${r.dataISO}</td>
       <td>${nomePor(filiais, r.filialId)}</td>
@@ -3585,11 +3592,13 @@ function gerarPainelDespejo(){
       <td>${new Date(r.inicio).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</td>
       <td>${r.fim ? new Date(r.fim).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}) : '—'}</td>
       <td>${formatarDuracaoAdmin(r.duracaoMinutos)}</td>
+      <td>${r.quantidadeUnidades ?? '—'}</td>
+      <td style="${divergente ? 'color:var(--red);font-weight:600;' : ''}" title="${divergente ? 'Cadastrado em Cadastro de Produtos: ' + litrosPorUnidCadastrado.toFixed(3).replace('.',',') + ' L/unid.' : ''}">${litrosPorUnidRealizado != null ? litrosPorUnidRealizado.toFixed(3).replace('.',',') : '—'}</td>
       <td>${r.quantidadeLitros}</td>
       <td>${r.litrosPorMinuto.toFixed(2)}</td>
       <td><button class="btn-sm btn-outline" onclick="excluirDespejo(${r.id})">Excluir</button></td>
     </tr>`;
-  }).join('') || '<tr><td colspan="11" class="muted">Nenhum despejo encontrado com esses filtros.</td></tr>';
+  }).join('') || '<tr><td colspan="13" class="muted">Nenhum despejo encontrado com esses filtros.</td></tr>';
 }
 
 async function excluirDespejo(id){
@@ -3602,10 +3611,11 @@ async function excluirDespejo(id){
 
 function exportarCSVDespejo(){
   if(despejoPainelFiltrado.length === 0){ alert('Gere o painel antes de exportar.'); return; }
-  const cabecalho = ['Data','Filial','Funcionario','Produto','Embalagem','Inicio','Fim','Duracao_Minutos','Litros','Litros_Por_Minuto'];
+  const cabecalho = ['Data','Filial','Funcionario','Produto','Embalagem','Inicio','Fim','Duracao_Minutos','Unidades','Litros_Por_Unidade_Realizado','Litros','Litros_Por_Minuto'];
   const linhas = despejoPainelFiltrado.map(r => {
     const produto = produtos.find(p=>p.id===r.produtoId);
-    return [r.dataISO, nomePor(filiais,r.filialId), nomePor(pessoas,r.lancadoPorId), produto?produto.descricao:'', produto?produto.embalagem||'':'', r.inicio, r.fim||'', r.duracaoMinutos.toFixed(2), r.quantidadeLitros, r.litrosPorMinuto.toFixed(2)]
+    const litrosPorUnidRealizado = r.quantidadeUnidades ? (r.quantidadeLitros / r.quantidadeUnidades).toFixed(3) : '';
+    return [r.dataISO, nomePor(filiais,r.filialId), nomePor(pessoas,r.lancadoPorId), produto?produto.descricao:'', produto?produto.embalagem||'':'', r.inicio, r.fim||'', r.duracaoMinutos.toFixed(2), r.quantidadeUnidades ?? '', litrosPorUnidRealizado, r.quantidadeLitros, r.litrosPorMinuto.toFixed(2)]
       .map(v => '"' + String(v).replace(/"/g,'""') + '"').join(';');
   });
   const csv = cabecalho.join(';') + '\n' + linhas.join('\n');

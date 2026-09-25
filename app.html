@@ -1294,6 +1294,7 @@ async function confirmarFinalizacaoDespejo(){
   const litros = +(unidades * porUnidade).toFixed(2);
 
   const { data, error } = await sb.from('despejo_lancamentos').update({
+    quantidade_unidades: unidades,
     quantidade_litros: litros,
     status: 'concluido',
   }).eq('id', despejoAtual.id).select().single();

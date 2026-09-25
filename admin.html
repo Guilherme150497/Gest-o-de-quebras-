@@ -412,7 +412,7 @@
         </div>
         <p class="muted" id="rel-resumo" style="margin-top:12px;"></p>
         <table>
-          <thead><tr><th>Data/Hora</th><th>Filial</th><th>Departamento</th><th>Produto</th><th>Qtd</th><th>Unid.</th><th>Motivo</th><th>Turno</th><th>Responsável</th><th>Status</th></tr></thead>
+          <thead><tr><th>Data/Hora</th><th>Filial</th><th>Departamento</th><th>Produto</th><th>Qtd</th><th>Unid.</th><th>Motivo</th><th>Turno</th><th>Responsável</th><th>Status</th><th></th></tr></thead>
           <tbody id="tbl-relatorio"></tbody>
         </table>
       </div>
@@ -2710,6 +2710,21 @@ async function decidirQuebra(id, novoStatus){
   renderVisaoDiaria();
 }
 
+// Desfaz uma aprovação feita sem querer (ou com algum erro percebido depois) —
+// volta o lançamento pra "pendente", de onde pode ser corrigido ou reprovado
+// normalmente na aba Aprovações. Usado a partir do Relatório de Baixa.
+async function voltarParaAprovacao(id){
+  if(!confirm('Voltar esse lançamento pra aprovação? Ele deixa de contar como aprovado e volta a aparecer como pendente na aba Aprovações, pra corrigir ou decidir de novo.')) return;
+  const { error } = await sb.from('quebras').update({ status: 'pendente' }).eq('id', id);
+  if(error){ alert('Erro ao atualizar: ' + error.message); return; }
+  const q = quebrasCache.find(x => x.id === id);
+  if(q) q.status = 'pendente';
+  gerarRelatorio();
+  renderAprovacoes();
+  renderVisaoDiaria();
+  renderLancamentos();
+}
+
 // Corrige quantidade ou produto (SKU) de um lançamento ainda pendente.
 async function corrigirCampoQuebra(id, campoDb, valor){
   const { error } = await sb.from('quebras').update({ [campoDb]: valor }).eq('id', id);
@@ -2788,9 +2803,10 @@ function gerarRelatorio(){
       <td>${nomePor(turnos, q.turnoId)}</td>
       <td>${nomePor(pessoas, q.responsavelId)}</td>
       <td><span class="status-pill status-${q.status}">${q.status}</span></td>
-    </tr>`).join('') || '<tr><td colspan="10" class="muted">Nenhum resultado — gere o relatório com outros filtros.</td></tr>';
+      <td>${q.status === 'aprovada' ? '<button class="btn-sm btn-outline" onclick="voltarParaAprovacao(' + q.id + ')">Voltar p/ aprovação</button>' : '—'}</td>
+    </tr>`).join('') || '<tr><td colspan="11" class="muted">Nenhum resultado — gere o relatório com outros filtros.</td></tr>';
   if(relatorioFiltrado.length > 200){
-    document.getElementById('tbl-relatorio').innerHTML += '<tr><td colspan="8" class="muted">Mostrando 200 de ' + relatorioFiltrado.length + ' — exporte o CSV pra ver tudo.</td></tr>';
+    document.getElementById('tbl-relatorio').innerHTML += '<tr><td colspan="11" class="muted">Mostrando 200 de ' + relatorioFiltrado.length + ' — exporte o CSV pra ver tudo.</td></tr>';
   }
 }
 

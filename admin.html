@@ -2408,6 +2408,28 @@ function fecharDrilldown(){
   document.getElementById('modal-drilldown').classList.add('hidden');
 }
 
+// Encurta um label comprido (descrição de produto, principalmente) pro eixo
+// do gráfico não virar uma bagunça de texto rotacionado/sobreposto — o texto
+// completo continua aparecendo ao passar o mouse (tooltip) e no drill-down
+// ao clicar na barra, então nada de informação se perde, só o eixo fica limpo.
+function truncarLabel(texto, max){
+  max = max || 22;
+  if(!texto || texto.length <= max) return texto;
+  return texto.slice(0, max - 1).trim() + '…';
+}
+
+// Config padrão do eixo de categorias (onde ficam os nomes/descrições) — usa
+// truncarLabel nos ticks, mas devolve o índice pro Chart.js buscar o label
+// completo original quando for montar o tooltip.
+function eixoCategoriaComTruncamento(maxLabelLen){
+  return {
+    ticks: {
+      autoSkip: false,
+      callback: function(value){ return truncarLabel(this.getLabelForValue(value), maxLabelLen); },
+    },
+  };
+}
+
 function renderBarChart(canvasId, labels, data, cor, opts){
   if(chartInstances[canvasId]) chartInstances[canvasId].destroy();
   const ctx = document.getElementById(canvasId);
@@ -2416,6 +2438,7 @@ function renderBarChart(canvasId, labels, data, cor, opts){
   const formatarValor = opts && opts.formatarValor;
   const eixoValor = { beginAtZero: true };
   if(formatarValor) eixoValor.ticks = { callback: v => formatarValor(v) };
+  const eixoCategoria = eixoCategoriaComTruncamento(opts && opts.maxLabelLen);
   chartInstances[canvasId] = new Chart(ctx, {
     type: 'bar',
     data: { labels, datasets: [{ label: (opts && opts.label) || '', data, backgroundColor: cor, borderRadius: 4 }] },
@@ -2426,7 +2449,7 @@ function renderBarChart(canvasId, labels, data, cor, opts){
         legend: { display: false },
         ...(formatarValor ? { tooltip: { callbacks: { label: c => (c.dataset.label ? c.dataset.label + ': ' : '') + formatarValor(c.parsed[horizontal ? 'x' : 'y']) } } } : {}),
       },
-      scales: horizontal ? { x: eixoValor } : { y: eixoValor },
+      scales: horizontal ? { x: eixoValor, y: eixoCategoria } : { x: eixoCategoria, y: eixoValor },
       ...opcoesClique(opts && opts.onClick),
     },
   });
@@ -2450,6 +2473,7 @@ function renderParetoChart(canvasId, labels, data, rotuloBarra, opts){
     options: {
       responsive: true, maintainAspectRatio: false,
       scales: {
+        x: eixoCategoriaComTruncamento(opts && opts.maxLabelLen),
         y: { beginAtZero: true, position: 'left' },
         y1: { beginAtZero: true, max: 100, position: 'right', grid: { drawOnChartArea: false }, ticks: { callback: v => v + '%' } },
       },

@@ -1680,7 +1680,7 @@ async function carregarFeed(){
     .from('quebras')
     .select('id, created_at, quantidade, produtos(descricao), motivos(nome), departamentos(nome), areas(nome)')
     .order('created_at', { ascending: false })
-    .limit(8);
+    .limit(20);
 
   if(error || !data || data.length === 0){
     feed.innerHTML = '<p style="color:var(--sub);font-size:13px;">Nenhum lançamento ainda.</p>';

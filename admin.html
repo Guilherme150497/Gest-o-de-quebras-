@@ -354,7 +354,8 @@
     <div class="panel active" id="panel-visao-diaria">
       <div class="kpi-grid" id="kpi-grid"></div>
       <div class="card">
-        <h3>Custo de quebras por departamento — últimos 7 dias</h3>
+        <h3>Custo de quebras por departamento — mês atual (até hoje) vs meta</h3>
+        <p class="hint">A linha de meta aparece só com uma filial específica selecionada no seletor do topo (meta é definida por filial). Ela mostra a meta proporcional aos dias úteis já passados no mês — sábado conta como dia útil.</p>
         <div class="chart-wrap"><canvas id="chart-visao-departamentos"></canvas></div>
       </div>
       <div class="card">
@@ -439,7 +440,7 @@
         <div style="overflow-x:auto;">
           <table>
             <thead><tr>
-              <th>Data</th><th>Filial</th><th>Departamento</th><th>Produto</th><th>Qtd</th><th>Unid.</th>
+              <th>Nº</th><th>Data</th><th>Filial</th><th>Departamento</th><th>Produto</th><th>Qtd</th><th>Unid.</th>
               <th>Motivo</th><th>Turno</th><th>Área</th><th>Equipamento</th><th>Placa</th><th>Motorista</th>
               <th>Responsável</th><th>Lançado por</th><th>Custo</th><th>Status</th><th>Foto</th><th></th>
             </tr></thead>
@@ -467,7 +468,7 @@
         </div>
         <p class="muted" id="transf-resumo" style="margin-top:12px;"></p>
         <table>
-          <thead><tr><th>Data</th><th>Filial</th><th>Produto</th><th>Origem</th><th>Destino</th><th>Qtd</th><th>Unid.</th><th>Motivo</th><th>Lançado por</th><th></th></tr></thead>
+          <thead><tr><th>Nº</th><th>Data</th><th>Filial</th><th>Produto</th><th>Origem</th><th>Destino</th><th>Qtd</th><th>Unid.</th><th>Motivo</th><th>Lançado por</th><th></th></tr></thead>
           <tbody id="tbl-transferencias"></tbody>
         </table>
       </div>
@@ -849,6 +850,25 @@
       </div>
       <button class="btn btn-primary" style="width:auto;padding:12px 22px;" onclick="salvarMetas()">Salvar metas deste mês/filial</button>
       <div id="metas-msg"></div>
+
+      <div class="card">
+        <h3>Acompanhamento diário — departamento</h3>
+        <p class="hint">Compara o custo realizado, acumulado dia a dia, com a meta proporcional aos dias úteis já passados no mês (sábado conta como dia útil, domingo não) — útil pra reunião diária de acompanhamento.</p>
+        <div class="filtro-grid" style="grid-template-columns:repeat(2,1fr);max-width:480px;">
+          <div><label class="fl">Departamento</label><select id="metas-dia-departamento" onchange="renderAcompanhamentoDiarioMetas()"></select></div>
+        </div>
+        <div class="kpi-grid" id="metas-dia-departamento-kpi" style="grid-template-columns:repeat(2,1fr);margin-top:12px;"></div>
+        <div class="chart-wrap"><canvas id="chart-metas-departamento-diario"></canvas></div>
+      </div>
+
+      <div class="card">
+        <h3>Acompanhamento diário — turno</h3>
+        <div class="filtro-grid" style="grid-template-columns:repeat(2,1fr);max-width:480px;">
+          <div><label class="fl">Turno</label><select id="metas-dia-turno" onchange="renderAcompanhamentoDiarioMetas()"></select></div>
+        </div>
+        <div class="kpi-grid" id="metas-dia-turno-kpi" style="grid-template-columns:repeat(2,1fr);margin-top:12px;"></div>
+        <div class="chart-wrap"><canvas id="chart-metas-turno-diario"></canvas></div>
+      </div>
     </div>
 
     <!-- CONFIGURAÇÕES -->
@@ -1272,8 +1292,18 @@ function montarFiltroFilialGlobal(){
   sel.innerHTML = '<option value="">Todas as filiais</option>' + filiais.map(f => `<option value="${f.id}">${f.nome}</option>`).join('');
 }
 
-function mudarFilialGlobal(){
+async function mudarFilialGlobal(){
   filialGlobalId = document.getElementById('filtro-filial-global').value;
+  // Mantém as metas (usadas na linha de meta dos gráficos) sincronizadas com a
+  // filial escolhida no seletor global — sem isso, a meta mostrada podia ser de
+  // uma filial diferente da que está sendo olhada.
+  if(filialGlobalId){
+    const selMetas = document.getElementById('metas-filial');
+    if(selMetas && selMetas.value !== filialGlobalId){
+      selMetas.value = filialGlobalId;
+      await carregarMetas();
+    }
+  }
   renderTudo();
 }
 
@@ -2102,6 +2132,7 @@ async function carregarQuebras(){
 
   quebrasCache = (data || []).map(row => ({
     id: row.id,
+    numeroSequencial: row.numero_sequencial,
     dataISO: row.created_at.slice(0, 10),
     filialId: row.filial_id,
     departamentoId: row.departamento_id,
@@ -2198,6 +2229,85 @@ function renderParetoChart(canvasId, labels, data, rotuloBarra){
   });
 }
 
+/* ---------------- METAS: PRORAÇÃO POR DIA ÚTIL ---------------- */
+// Sábado conta como dia útil (só domingo fica de fora) — combinado com o usuário.
+
+function ehDiaUtil(ano, mes, dia){
+  return new Date(ano, mes - 1, dia).getDay() !== 0; // 0 = domingo
+}
+
+function diasUteisNoMes(ano, mes){
+  const totalDias = new Date(ano, mes, 0).getDate();
+  let contagem = 0;
+  for(let d = 1; d <= totalDias; d++){ if(ehDiaUtil(ano, mes, d)) contagem++; }
+  return contagem;
+}
+
+// Quantos dias úteis existem do dia 1 até "ateDia" (inclusive) do mês informado.
+function diasUteisAte(ano, mes, ateDia){
+  const totalDias = new Date(ano, mes, 0).getDate();
+  const limite = Math.min(Math.max(ateDia, 0), totalDias);
+  let contagem = 0;
+  for(let d = 1; d <= limite; d++){ if(ehDiaUtil(ano, mes, d)) contagem++; }
+  return contagem;
+}
+
+// Fatia proporcional da meta mensal considerando quantos dias úteis já passaram.
+function metaProporcionalAteHoje(metaMensal, ano, mes, ateDia){
+  const totalUteis = diasUteisNoMes(ano, mes);
+  if(!totalUteis) return 0;
+  return metaMensal * (diasUteisAte(ano, mes, ateDia) / totalUteis);
+}
+
+// Gráfico de barras (realizado) com uma linha de meta sobreposta, categoria a categoria.
+// dataMeta pode vir null (ex.: quando nenhuma filial específica está selecionada) — nesse
+// caso a linha de meta simplesmente não é desenhada.
+function renderBarChartComMeta(canvasId, labels, dataReal, dataMeta, opts){
+  if(chartInstances[canvasId]) chartInstances[canvasId].destroy();
+  const ctx = document.getElementById(canvasId);
+  if(!ctx) return;
+  const cor = (opts && opts.cor) || '#12796B';
+  const formatarValor = (opts && opts.formatarValor) || (v => v);
+  const datasets = [
+    { type: 'bar', label: (opts && opts.rotuloReal) || 'Realizado', data: dataReal, backgroundColor: cor, borderRadius: 4, order: 2 },
+  ];
+  if(dataMeta){
+    datasets.push({ type: 'line', label: (opts && opts.rotuloMeta) || 'Meta (proporcional até hoje)', data: dataMeta, borderColor: '#A32D2D', backgroundColor: '#A32D2D', borderDash: [6,4], pointRadius: 3, tension: 0, order: 1 });
+  }
+  chartInstances[canvasId] = new Chart(ctx, {
+    data: { labels, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { tooltip: { callbacks: { label: c => (c.dataset.label ? c.dataset.label + ': ' : '') + formatarValor(c.parsed.y) } } },
+      scales: { y: { beginAtZero: true, ticks: { callback: v => formatarValor(v) } } },
+    },
+  });
+}
+
+// Linha do realizado acumulado no mês x linha da meta acumulada (proporcional aos dias úteis).
+function renderAcumuladoVsMeta(canvasId, dias, realAcumulado, metaAcumulada){
+  if(chartInstances[canvasId]) chartInstances[canvasId].destroy();
+  const ctx = document.getElementById(canvasId);
+  if(!ctx) return;
+  chartInstances[canvasId] = new Chart(ctx, {
+    data: {
+      labels: dias,
+      datasets: [
+        { type: 'line', label: 'Realizado acumulado', data: realAcumulado, borderColor: '#12796B', backgroundColor: '#12796B', tension: 0.2, pointRadius: 2, spanGaps: false },
+        { type: 'line', label: 'Meta acumulada', data: metaAcumulada, borderColor: '#A32D2D', backgroundColor: '#A32D2D', borderDash: [6,4], tension: 0, pointRadius: 0 },
+      ],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { tooltip: { callbacks: { label: c => (c.dataset.label || '') + ': ' + brl(c.parsed.y) } } },
+      scales: {
+        y: { beginAtZero: true, ticks: { callback: v => brl(v) } },
+        x: { title: { display: true, text: 'Dia do mês' } },
+      },
+    },
+  });
+}
+
 function agregarPor(lista, campoId, campoValor){
   const mapa = {};
   lista.forEach(q => {
@@ -2239,14 +2349,22 @@ function renderVisaoDiaria(){
     <div class="kpi-card warn"><div class="label">Pendentes de aprovação</div><div class="value">${pendentes.length}</div></div>
   `;
 
-  const ultimos7 = new Set();
-  const hoje = new Date();
-  for(let i=0;i<7;i++){ const d = new Date(hoje); d.setDate(d.getDate()-i); ultimos7.add(d.toISOString().slice(0,10)); }
-  const registros7 = escopoAprovado().filter(q => ultimos7.has(q.dataISO));
-  const porDep = agregarPor(registros7, 'departamentoId', 'custo');
+  const anoAtual = hoje.getFullYear();
+  const mesAtual = hoje.getMonth() + 1;
+  const diaAtual = hoje.getDate();
+  const anoMesAtualStr = anoAtual + '-' + String(mesAtual).padStart(2,'0');
+  const registrosMesAtual = escopoAprovado().filter(q => q.dataISO.slice(0,7) === anoMesAtualStr);
+  const porDep = agregarPor(registrosMesAtual, 'departamentoId', 'custo');
   const labelsDep = departamentos.map(d => d.nome);
   const dataDep = departamentos.map(d => +((porDep[d.id] || 0).toFixed(2)));
-  renderBarChart('chart-visao-departamentos', labelsDep, dataDep, '#12796B');
+  // A linha de meta só é exibida com uma filial específica selecionada no topo —
+  // meta é definida por filial, então com "Todas as filiais" ela ficaria ambígua.
+  const metaDep = filialGlobalId
+    ? departamentos.map(d => +(metaProporcionalAteHoje((metasDepartamento[d.id] || {}).custo || 0, anoAtual, mesAtual, diaAtual)).toFixed(2))
+    : null;
+  renderBarChartComMeta('chart-visao-departamentos', labelsDep, dataDep, metaDep, {
+    cor: '#12796B', rotuloReal: 'Custo realizado no mês', rotuloMeta: 'Meta até dia ' + diaAtual, formatarValor: brl,
+  });
 
   const doDiaTudo = baseTudo.filter(q => q.dataISO === hojeISO);
   document.getElementById('tbl-hoje').innerHTML = doDiaTudo.slice(0,10).map(q => `
@@ -2492,6 +2610,7 @@ function renderLancamentos(){
 
   document.getElementById('tbl-lancamentos').innerHTML = lancamentosFiltrados.slice(0, 500).map(q => `
     <tr>
+      <td>${q.numeroSequencial ?? '—'}</td>
       <td>${q.dataISO}</td>
       <td>${nomePor(filiais, q.filialId)}</td>
       <td>${nomePor(departamentos, q.departamentoId)}</td>
@@ -2510,15 +2629,16 @@ function renderLancamentos(){
       <td><span class="status-pill status-${q.status}">${q.status}</span></td>
       <td>${q.fotoPath ? '<button class="btn-sm btn-outline" onclick="abrirFotoModalPorId(' + q.id + ')">Ver</button>' : '—'}</td>
       <td><button class="btn-sm btn-outline" onclick="excluirQuebra(${q.id})">Excluir</button></td>
-    </tr>`).join('') || '<tr><td colspan="18" class="muted">Nenhum lançamento encontrado com esses filtros.</td></tr>';
+    </tr>`).join('') || '<tr><td colspan="19" class="muted">Nenhum lançamento encontrado com esses filtros.</td></tr>';
 }
 
 function exportarCSVLancamentos(){
   if(lancamentosFiltrados.length === 0){ alert('Nenhum lançamento pra exportar com os filtros atuais.'); return; }
-  const cabecalho = ['Data','Filial','Departamento','Codigo_Produto','Descricao_Produto','Quantidade','Unidade_Medida','Motivo','Turno','Area','Equipamento','Placa','Motorista','Responsavel','Lancado_Por','Custo','Status'];
+  const cabecalho = ['Numero_Sequencial','Data','Filial','Departamento','Codigo_Produto','Descricao_Produto','Quantidade','Unidade_Medida','Motivo','Turno','Area','Equipamento','Placa','Motorista','Responsavel','Lancado_Por','Custo','Status'];
   const linhas = lancamentosFiltrados.map(q => {
     const produto = produtos.find(p => p.id === q.produtoId);
     return [
+      q.numeroSequencial ?? '',
       q.dataISO,
       nomePor(filiais, q.filialId),
       nomePor(departamentos, q.departamentoId),
@@ -2560,6 +2680,7 @@ async function carregarTransferencias(){
 
   transferenciasCache = (data || []).map(row => ({
     id: row.id,
+    numeroSequencial: row.numero_sequencial,
     dataISO: row.created_at.slice(0, 10),
     filialId: row.filial_id,
     produtoId: row.produto_id,
@@ -2616,6 +2737,7 @@ function renderTabelaTransferencias(){
 
   document.getElementById('tbl-transferencias').innerHTML = relatorioTransferenciaFiltrado.slice(0, 200).map(t => `
     <tr>
+      <td>${t.numeroSequencial ?? '—'}</td>
       <td>${t.dataISO}</td>
       <td>${nomePor(filiais, t.filialId)}</td>
       <td>${nomePor(produtos, t.produtoId)}</td>
@@ -2626,7 +2748,7 @@ function renderTabelaTransferencias(){
       <td>${nomePor(motivos_transferencia, t.motivoId)}</td>
       <td>${nomePor(pessoas, t.lancadoPorId)}</td>
       <td><button class="btn-sm btn-reprovar" onclick="excluirTransferencia(${t.id})">Excluir</button></td>
-    </tr>`).join('') || '<tr><td colspan="10" class="muted">Nenhuma transferência encontrada.</td></tr>';
+    </tr>`).join('') || '<tr><td colspan="11" class="muted">Nenhuma transferência encontrada.</td></tr>';
 }
 
 async function excluirTransferencia(id){
@@ -3172,10 +3294,11 @@ async function salvarMetasDespejo(){
 
 function exportarCSVTransferencias(){
   if(relatorioTransferenciaFiltrado.length === 0){ alert('Gere o relatório antes de exportar.'); return; }
-  const cabecalho = ['Data','Filial','Codigo_Produto','Descricao_Produto','Deposito_Origem','Deposito_Destino','Quantidade','Unidade_Medida','Motivo','Lancado_Por'];
+  const cabecalho = ['Numero_Sequencial','Data','Filial','Codigo_Produto','Descricao_Produto','Deposito_Origem','Deposito_Destino','Quantidade','Unidade_Medida','Motivo','Lancado_Por'];
   const linhas = relatorioTransferenciaFiltrado.map(t => {
     const produto = produtos.find(p => p.id === t.produtoId);
     return [
+      t.numeroSequencial ?? '',
       t.dataISO,
       nomePor(filiais, t.filialId),
       produto ? produto.codigo : '',
@@ -3653,6 +3776,7 @@ function montarFiltroMetas(){
   const sel = document.getElementById('metas-filial');
   if(sel.options.length === 0){
     sel.innerHTML = filiais.map(f => `<option value="${f.id}">${f.nome}</option>`).join('');
+    if(filialGlobalId) sel.value = filialGlobalId;
   }
   const mesInput = document.getElementById('metas-mes');
   if(!mesInput.value){ mesInput.value = new Date().toISOString().slice(0,7); }
@@ -3713,6 +3837,80 @@ function renderMetas(){
         <td><span class="status-pill ${pct > 100 ? 'status-reprovada' : 'status-aprovada'}">${pct}%</span></td>
       </tr>`;
   }).join('');
+
+  renderAcompanhamentoDiarioMetas();
+}
+
+function popularSelectsAcompanhamentoMetas(){
+  const selDep = document.getElementById('metas-dia-departamento');
+  if(selDep && selDep.options.length === 0){
+    selDep.innerHTML = departamentos.map(d => `<option value="${d.id}">${d.nome}</option>`).join('');
+  }
+  const selTurno = document.getElementById('metas-dia-turno');
+  if(selTurno && selTurno.options.length === 0){
+    selTurno.innerHTML = turnos.map(t => `<option value="${t.id}">${t.nome}</option>`).join('');
+  }
+}
+
+// Monta a série diária (realizado por dia, acumulado x meta acumulada) de um único
+// departamento ou turno, dentro do mês/filial escolhidos no filtro de Metas.
+function montarSerieDiariaMetas(lancamentosDoMes, campo, id, metaMensal, ano, mes, diaReferencia){
+  const totalDias = new Date(ano, mes, 0).getDate();
+  const totalUteis = diasUteisNoMes(ano, mes);
+  const custoPorDia = new Array(totalDias + 1).fill(0);
+  lancamentosDoMes.filter(q => q[campo] == id).forEach(q => {
+    const dia = Number(q.dataISO.slice(8, 10));
+    custoPorDia[dia] = (custoPorDia[dia] || 0) + q.custo;
+  });
+
+  const dias = [];
+  const realAcumulado = [];
+  const metaAcumulada = [];
+  let acumReal = 0;
+  for(let d = 1; d <= totalDias; d++){
+    acumReal += custoPorDia[d] || 0;
+    dias.push(d);
+    realAcumulado.push(d <= diaReferencia ? +acumReal.toFixed(2) : null); // não projeta o realizado além da referência
+    metaAcumulada.push(totalUteis ? +(metaMensal * diasUteisAte(ano, mes, d) / totalUteis).toFixed(2) : 0);
+  }
+
+  let realAteReferencia = 0;
+  for(let d = 1; d <= diaReferencia; d++){ realAteReferencia += custoPorDia[d] || 0; }
+  const metaAteReferencia = totalUteis ? metaMensal * diasUteisAte(ano, mes, diaReferencia) / totalUteis : 0;
+
+  return { dias, realAcumulado, metaAcumulada, realAteReferencia, metaAteReferencia };
+}
+
+function renderAcompanhamentoDiarioMetas(){
+  popularSelectsAcompanhamentoMetas();
+  const filialId = document.getElementById('metas-filial').value;
+  const mesValor = document.getElementById('metas-mes').value;
+  if(!filialId || !mesValor || departamentos.length === 0 || turnos.length === 0) return;
+  const [ano, mes] = mesValor.split('-').map(Number);
+
+  const hoje = new Date();
+  const ehMesAtual = hoje.getFullYear() === ano && (hoje.getMonth() + 1) === mes;
+  const totalDiasMes = new Date(ano, mes, 0).getDate();
+  const diaReferencia = ehMesAtual ? hoje.getDate() : totalDiasMes; // mês passado/futuro: compara o mês inteiro
+
+  const anoMesStr = ano + '-' + String(mes).padStart(2, '0');
+  const lancamentosDoMes = quebrasCache.filter(q => q.status === 'aprovada' && q.filialId == filialId && q.dataISO.slice(0,7) === anoMesStr);
+
+  const depId = document.getElementById('metas-dia-departamento').value;
+  const serieDep = montarSerieDiariaMetas(lancamentosDoMes, 'departamentoId', depId, (metasDepartamento[depId] || {}).custo || 0, ano, mes, diaReferencia);
+  renderAcumuladoVsMeta('chart-metas-departamento-diario', serieDep.dias, serieDep.realAcumulado, serieDep.metaAcumulada);
+  document.getElementById('metas-dia-departamento-kpi').innerHTML = `
+    <div class="kpi-card"><div class="label">Meta até dia ${diaReferencia}</div><div class="value">${brl(serieDep.metaAteReferencia)}</div></div>
+    <div class="kpi-card ${serieDep.realAteReferencia > serieDep.metaAteReferencia ? 'warn' : ''}"><div class="label">Realizado até dia ${diaReferencia}</div><div class="value">${brl(serieDep.realAteReferencia)}</div></div>
+  `;
+
+  const turnoId = document.getElementById('metas-dia-turno').value;
+  const serieTurno = montarSerieDiariaMetas(lancamentosDoMes, 'turnoId', turnoId, (metasTurno[turnoId] || {}).custo || 0, ano, mes, diaReferencia);
+  renderAcumuladoVsMeta('chart-metas-turno-diario', serieTurno.dias, serieTurno.realAcumulado, serieTurno.metaAcumulada);
+  document.getElementById('metas-dia-turno-kpi').innerHTML = `
+    <div class="kpi-card"><div class="label">Meta até dia ${diaReferencia}</div><div class="value">${brl(serieTurno.metaAteReferencia)}</div></div>
+    <div class="kpi-card ${serieTurno.realAteReferencia > serieTurno.metaAteReferencia ? 'warn' : ''}"><div class="label">Realizado até dia ${diaReferencia}</div><div class="value">${brl(serieTurno.realAteReferencia)}</div></div>
+  `;
 }
 
 async function salvarMetas(){

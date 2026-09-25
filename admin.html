@@ -231,6 +231,7 @@
           <div class="tab" data-tab="analises">Análises</div>
           <div class="tab" data-tab="produto-analise">Análise por Produto</div>
           <div class="tab" data-tab="custo">Custo</div>
+          <div class="tab" data-tab="meta-x-real">Meta x Real</div>
         </div>
         <div class="nav-group">
           <div class="nav-group-title">Planejamento</div>
@@ -859,7 +860,7 @@
         <p class="hint">Cada filial tem suas próprias metas, mês a mês — escolha qual quer ver/editar.</p>
         <div class="filtro-grid" style="grid-template-columns:repeat(2,1fr);max-width:480px;">
           <div><label class="fl">Filial</label><select id="metas-filial" onchange="carregarMetas()"></select></div>
-          <div><label class="fl">Mês</label><input type="month" id="metas-mes" onchange="carregarMetas()" /></div>
+          <div><label class="fl">Mês</label><input type="month" id="metas-mes" onchange="mudarMesMetas('metas-mes')" /></div>
         </div>
       </div>
       <div class="card">
@@ -879,6 +880,17 @@
       </div>
       <button class="btn btn-primary" style="width:auto;padding:12px 22px;" onclick="salvarMetas()">Salvar metas deste mês/filial</button>
       <div id="metas-msg"></div>
+    </div>
+
+    <!-- META x REAL -->
+    <div class="panel" id="panel-meta-x-real">
+      <div class="card">
+        <h3>Período</h3>
+        <p class="hint">A filial é a que estiver selecionada no seletor do topo da página. O mês aqui é o mesmo usado na aba Metas.</p>
+        <div class="filtro-grid" style="grid-template-columns:repeat(1,1fr);max-width:220px;">
+          <div><label class="fl">Mês</label><input type="month" id="meta-real-mes" onchange="mudarMesMetas('meta-real-mes')" /></div>
+        </div>
+      </div>
 
       <div class="card">
         <h3>Acompanhamento diário — departamento</h3>
@@ -897,6 +909,11 @@
         </div>
         <div class="kpi-grid" id="metas-dia-turno-kpi" style="grid-template-columns:repeat(2,1fr);margin-top:12px;"></div>
         <div class="chart-wrap"><canvas id="chart-metas-turno-diario"></canvas></div>
+        <p class="hint" style="margin-top:14px;">Todos os turnos juntos, pra visualizar na reunião:</p>
+        <table>
+          <thead><tr><th>Turno</th><th>Meta até hoje</th><th>Realizado até hoje</th><th>Diferença</th></tr></thead>
+          <tbody id="tbl-meta-real-turno"></tbody>
+        </table>
       </div>
     </div>
 
@@ -1142,7 +1159,7 @@ function entrarNoAdmin(){
 const MODULO_DE_TAB = {
   'visao-diaria':'quebras', 'aprovacoes':'quebras', 'relatorio':'quebras', 'lancamentos':'quebras',
   'check-promax':'quebras',
-  'analises':'quebras', 'produto-analise':'quebras', 'custo':'quebras',
+  'analises':'quebras', 'produto-analise':'quebras', 'custo':'quebras', 'meta-x-real':'quebras',
   'metas':'quebras', 'configuracoes':'quebras',
   'transferencias':'transferencias',
   'repack-painel':'repack', 'repack-produtividade':'repack', 'repack-metas':'repack',
@@ -1216,6 +1233,7 @@ document.querySelectorAll('.tab').forEach(tab => {
     if(tab.dataset.tab === 'produto-analise') renderAnaliseProduto();
     if(tab.dataset.tab === 'custo') renderCusto();
     if(tab.dataset.tab === 'metas') renderMetas();
+    if(tab.dataset.tab === 'meta-x-real') renderAcompanhamentoDiarioMetas();
     if(tab.dataset.tab === 'transferencias') renderTransferencias();
     if(tab.dataset.tab === 'repack-painel') gerarPainelRepack();
     if(tab.dataset.tab === 'repack-produtividade') renderProdutividadeRepack();
@@ -2382,6 +2400,7 @@ function renderVisaoDiaria(){
     <div class="kpi-card warn"><div class="label">Pendentes de aprovação</div><div class="value">${pendentes.length}</div></div>
   `;
 
+  const hoje = new Date();
   const anoAtual = hoje.getFullYear();
   const mesAtual = hoje.getMonth() + 1;
   const diaAtual = hoje.getDate();
@@ -2958,7 +2977,11 @@ function renderCheckPromax(){
             </tr></tfoot>
           </table>
         </div>
-        <button class="btn btn-outline" style="margin-top:12px;width:auto;padding:10px 18px;" onclick="verificarDivergenciasPromax('${nomeDep.replace(/'/g,"\\'")}')">Verificar divergências</button>
+        <div class="row-inline" style="margin-top:12px;align-items:center;gap:10px;">
+          <button class="btn btn-outline" id="btn-divergencias-${slugify(nomeDep)}" style="width:auto;padding:10px 18px;" onclick="verificarDivergenciasPromax('${nomeDep.replace(/'/g,"\\'")}')">Verificar divergências</button>
+          <label class="fl" style="margin:0;">Tolerância (dias)</label>
+          <input type="number" min="0" id="tol-dias-${slugify(nomeDep)}" value="10" style="width:70px;" />
+        </div>
         <div id="divergencias-${slugify(nomeDep)}" style="margin-top:12px;"></div>
       </div>`;
   }).join('');
@@ -2969,12 +2992,24 @@ function renderCheckPromax(){
 // departamento já filtra isso — porque a mesma quebra pode ser lançada com um
 // motivo no app e cair em outro código no Promax.
 function verificarDivergenciasPromax(nomeDep){
-  const TOLERANCIA_DIAS = 10;
+  const slug = slugify(nomeDep);
+  const alvo = document.getElementById('divergencias-' + slug);
+  const botao = document.getElementById('btn-divergencias-' + slug);
+  if(!alvo) return;
+
+  // Clicar de novo com o painel já aberto só esconde — sem precisar recarregar a página.
+  if(alvo.dataset.aberto === 'true'){
+    alvo.innerHTML = '';
+    alvo.dataset.aberto = 'false';
+    if(botao) botao.textContent = 'Verificar divergências';
+    return;
+  }
+
+  const tolInput = document.getElementById('tol-dias-' + slug);
+  const TOLERANCIA_DIAS = tolInput ? (Number(tolInput.value) || 0) : 10;
   const mesValor = document.getElementById('check-promax-mes').value;
   const dep = encontrarDepartamentoPorNome(nomeDep);
-  const alvo = document.getElementById('divergencias-' + slugify(nomeDep));
-  if(!alvo) return;
-  if(!dep){ alvo.innerHTML = '<div class="error">Departamento não encontrado no cadastro.</div>'; return; }
+  if(!dep){ alvo.innerHTML = '<div class="error">Departamento não encontrado no cadastro.</div>'; alvo.dataset.aberto = 'true'; if(botao) botao.textContent = 'Ocultar divergências'; return; }
 
   const nossos = (filialGlobalId ? quebrasCache.filter(q => q.filialId == filialGlobalId) : quebrasCache)
     .filter(q => q.status === 'aprovada' && q.dataISO.slice(0, 7) === mesValor && q.departamentoId === dep.id)
@@ -3009,6 +3044,9 @@ function verificarDivergenciasPromax(nomeDep){
 
   const soApp = nossos.filter(n => !n.usado);
   const soPromax = promax.filter(p => !p.usado);
+
+  alvo.dataset.aberto = 'true';
+  if(botao) botao.textContent = 'Ocultar divergências';
 
   if(soApp.length === 0 && soPromax.length === 0){
     alvo.innerHTML = '<div class="ok">Nenhuma divergência encontrada — todo mundo tem um par (mesmo produto, mesma quantidade, data próxima).</div>';
@@ -4139,6 +4177,19 @@ function montarFiltroMetas(){
   }
   const mesInput = document.getElementById('metas-mes');
   if(!mesInput.value){ mesInput.value = new Date().toISOString().slice(0,7); }
+  // "Meta x Real" usa o mesmo mês da aba Metas — mantém os dois sincronizados.
+  const mesRealInput = document.getElementById('meta-real-mes');
+  if(mesRealInput && mesRealInput.value !== mesInput.value){ mesRealInput.value = mesInput.value; }
+}
+
+// Chamado pelos seletores de mês tanto da aba Metas quanto da aba Meta x Real —
+// os dois representam o mesmo período, então mudar um recarrega os dois.
+async function mudarMesMetas(origemId){
+  const valor = document.getElementById(origemId).value;
+  const outroId = origemId === 'metas-mes' ? 'meta-real-mes' : 'metas-mes';
+  const outro = document.getElementById(outroId);
+  if(outro) outro.value = valor;
+  await carregarMetas();
 }
 
 async function carregarMetas(){
@@ -4270,6 +4321,23 @@ function renderAcompanhamentoDiarioMetas(){
     <div class="kpi-card"><div class="label">Meta até dia ${diaReferencia}</div><div class="value">${brl(serieTurno.metaAteReferencia)}</div></div>
     <div class="kpi-card ${serieTurno.realAteReferencia > serieTurno.metaAteReferencia ? 'warn' : ''}"><div class="label">Realizado até dia ${diaReferencia}</div><div class="value">${brl(serieTurno.realAteReferencia)}</div></div>
   `;
+
+  // Tabela com todos os turnos juntos (não só o selecionado no dropdown acima) —
+  // pra ver todos de uma vez na reunião, igual você pediu.
+  const tblTurnos = document.getElementById('tbl-meta-real-turno');
+  if(tblTurnos){
+    tblTurnos.innerHTML = turnos.map(t => {
+      const serie = montarSerieDiariaMetas(lancamentosDoMes, 'turnoId', t.id, (metasTurno[t.id] || {}).custo || 0, ano, mes, diaReferencia);
+      const diff = serie.realAteReferencia - serie.metaAteReferencia;
+      const estourou = diff > 0.01;
+      return `<tr>
+        <td>${t.nome}</td>
+        <td>${brl(serie.metaAteReferencia)}</td>
+        <td>${brl(serie.realAteReferencia)}</td>
+        <td style="${estourou ? 'color:var(--red);font-weight:600;' : 'color:var(--teal);'}">${brl(diff)}</td>
+      </tr>`;
+    }).join('') || '<tr><td colspan="4" class="muted">Nenhum turno cadastrado.</td></tr>';
+  }
 }
 
 async function salvarMetas(){

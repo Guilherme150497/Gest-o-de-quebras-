@@ -252,6 +252,7 @@
           <div class="nav-group-title">Repack</div>
           <div class="tab" data-tab="repack-painel">Painel</div>
           <div class="tab" data-tab="repack-produtividade">Produtividade</div>
+          <div class="tab" data-tab="repack-anomalias">Anomalias</div>
           <div class="tab" data-tab="repack-metas">Metas</div>
         </div>
       </div>
@@ -261,6 +262,7 @@
           <div class="nav-group-title">Despejo</div>
           <div class="tab" data-tab="despejo-painel">Painel</div>
           <div class="tab" data-tab="despejo-produtividade">Produtividade</div>
+          <div class="tab" data-tab="despejo-anomalias">Anomalias</div>
           <div class="tab" data-tab="despejo-metas">Metas</div>
         </div>
       </div>
@@ -471,7 +473,7 @@
 
       <div class="card">
         <h3>Período</h3>
-        <p class="hint">A filial é a que estiver selecionada no seletor do topo da página ("Todas as filiais" soma tudo). Use "Até qual dia" pra ver a conferência só até uma data específica dentro do mês (ex.: até 24/09).</p>
+        <p class="hint">A filial é a que estiver selecionada no seletor do topo da página ("Todas as filiais" soma tudo). Use "Até qual dia" pra ver a conferência só até uma data específica dentro do mês (ex.: até 24/09). <b>Só nessa aba</b>, o lançamento entra na data em que foi <b>aprovado</b> (não a data em que a quebra aconteceu) — é o dia em que o controle baixa no Promax, então fica batendo certo. As outras análises do sistema continuam usando a data real da quebra normalmente.</p>
         <div class="filtro-grid" style="grid-template-columns:repeat(2,1fr);max-width:420px;">
           <div><label class="fl">Mês</label><input type="month" id="check-promax-mes" onchange="mudarMesCheckPromax()" /></div>
           <div><label class="fl">Até qual dia</label><input type="date" id="check-promax-ate" onchange="renderCheckPromax()" /></div>
@@ -560,6 +562,60 @@
       </div>
     </div>
 
+    <!-- REPACK: ANOMALIAS -->
+    <div class="panel" id="panel-repack-anomalias">
+      <div class="card">
+        <h3>Anomalias — Repack</h3>
+        <p class="hint">
+          Pra abrir plano de ação em cima do que realmente pesa: produtos/embalagens com número de
+          reembalamentos muito acima da média do catálogo (indício de avaria recorrente que merece
+          investigar causa raiz), e colaboradores com produtividade muito acima da média da equipe
+          (pode ser um problema de cronometragem, de lançamento ou até de processo — vale conferir de
+          perto). Pra filtrar por filial, use o seletor no topo da página.
+        </p>
+        <div class="filtro-grid" style="grid-template-columns:repeat(3,1fr);max-width:620px;">
+          <div><label class="fl">De</label><input type="date" id="repack-anom-data-de" onchange="renderAnomaliasRepack()" /></div>
+          <div><label class="fl">Até</label><input type="date" id="repack-anom-data-ate" onchange="renderAnomaliasRepack()" /></div>
+          <div><label class="fl">Sensibilidade (x vezes a média)</label><input type="number" step="0.1" min="1.1" id="repack-anom-sensibilidade" value="1.5" onchange="renderAnomaliasRepack()" /></div>
+        </div>
+        <button class="btn btn-outline" style="margin-top:10px;" onclick="limparFiltrosAnomaliasRepack()">Limpar filtros</button>
+      </div>
+
+      <div class="card">
+        <h3>Produtos com reembalamento acima da média</h3>
+        <p class="muted" id="repack-anom-produto-resumo" style="margin-bottom:10px;"></p>
+        <div style="overflow-x:auto;">
+          <table>
+            <thead><tr><th>Produto</th><th>Reembalamentos no período</th><th>Média do catálogo</th><th>Quantas vezes a média</th><th></th></tr></thead>
+            <tbody id="tbl-repack-anom-produto"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Embalagens com reembalamento acima da média</h3>
+        <p class="muted" id="repack-anom-embalagem-resumo" style="margin-bottom:10px;"></p>
+        <div style="overflow-x:auto;">
+          <table>
+            <thead><tr><th>Embalagem</th><th>Reembalamentos no período</th><th>Média do catálogo</th><th>Quantas vezes a média</th><th></th></tr></thead>
+            <tbody id="tbl-repack-anom-embalagem"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Colaboradores com produtividade muito acima da média</h3>
+        <p class="hint">Métrica: caixas por hora. Alto demais pode ser tempo não cronometrado direito, lançamento errado, ou processo que vale copiar dos outros — vale conferir antes de tirar conclusão.</p>
+        <p class="muted" id="repack-anom-func-resumo" style="margin-bottom:10px;"></p>
+        <div style="overflow-x:auto;">
+          <table>
+            <thead><tr><th>Funcionário</th><th>Caixas/hora</th><th>Média da equipe</th><th>Quantas vezes a média</th><th>Reembalamentos no período</th><th></th></tr></thead>
+            <tbody id="tbl-repack-anom-func"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
     <!-- REPACK: METAS -->
     <div class="panel" id="panel-repack-metas">
       <div class="card">
@@ -631,6 +687,36 @@
         <div class="card"><h3>Por funcionário (litros por minuto)</h3><div class="chart-wrap"><canvas id="chart-despejo-funcionario"></canvas></div></div>
         <div class="card"><h3>Por embalagem (litros por minuto)</h3><div class="chart-wrap"><canvas id="chart-despejo-embalagem"></canvas></div></div>
         <div class="card"><h3>Distribuição de litros por minuto (histograma)</h3><div class="chart-wrap"><canvas id="chart-despejo-histograma"></canvas></div></div>
+      </div>
+    </div>
+
+    <!-- DESPEJO: ANOMALIAS -->
+    <div class="panel" id="panel-despejo-anomalias">
+      <div class="card">
+        <h3>Anomalias — Despejo</h3>
+        <p class="hint">
+          Colaboradores com produtividade muito acima da média da equipe (litros por minuto) — vale
+          conferir de perto antes de tirar conclusão: pode ser tempo não cronometrado direito,
+          lançamento errado, ou processo que vale copiar dos outros. Pra filtrar por filial, use o
+          seletor no topo da página.
+        </p>
+        <div class="filtro-grid" style="grid-template-columns:repeat(3,1fr);max-width:620px;">
+          <div><label class="fl">De</label><input type="date" id="despejo-anom-data-de" onchange="renderAnomaliasDespejo()" /></div>
+          <div><label class="fl">Até</label><input type="date" id="despejo-anom-data-ate" onchange="renderAnomaliasDespejo()" /></div>
+          <div><label class="fl">Sensibilidade (x vezes a média)</label><input type="number" step="0.1" min="1.1" id="despejo-anom-sensibilidade" value="1.5" onchange="renderAnomaliasDespejo()" /></div>
+        </div>
+        <button class="btn btn-outline" style="margin-top:10px;" onclick="limparFiltrosAnomaliasDespejo()">Limpar filtros</button>
+      </div>
+
+      <div class="card">
+        <h3>Colaboradores com produtividade muito acima da média</h3>
+        <p class="muted" id="despejo-anom-func-resumo" style="margin-bottom:10px;"></p>
+        <div style="overflow-x:auto;">
+          <table>
+            <thead><tr><th>Funcionário</th><th>Litros/min</th><th>Média da equipe</th><th>Quantas vezes a média</th><th>Despejos no período</th><th></th></tr></thead>
+            <tbody id="tbl-despejo-anom-func"></tbody>
+          </table>
+        </div>
       </div>
     </div>
 
@@ -1106,7 +1192,7 @@
       <p class="muted" id="drilldown-resumo" style="margin-top:6px;"></p>
       <div style="overflow-x:auto;margin-top:10px;">
         <table>
-          <thead><tr><th>Data/Hora</th><th>Filial</th><th>Departamento</th><th>Produto</th><th>Motivo</th><th>Turno</th><th>Responsável</th><th>Qtd</th><th>Custo</th></tr></thead>
+          <thead><tr id="drilldown-cabecalho"><th>Data/Hora</th><th>Filial</th><th>Departamento</th><th>Produto</th><th>Motivo</th><th>Turno</th><th>Responsável</th><th>Qtd</th><th>Custo</th></tr></thead>
           <tbody id="tbl-drilldown"></tbody>
         </table>
       </div>
@@ -1197,8 +1283,8 @@ const MODULO_DE_TAB = {
   'analises':'quebras', 'produto-analise':'quebras', 'custo':'quebras', 'meta-x-real':'quebras',
   'metas':'quebras', 'configuracoes':'quebras',
   'transferencias':'transferencias',
-  'repack-painel':'repack', 'repack-produtividade':'repack', 'repack-metas':'repack',
-  'despejo-painel':'despejo', 'despejo-produtividade':'despejo', 'despejo-metas':'despejo',
+  'repack-painel':'repack', 'repack-produtividade':'repack', 'repack-anomalias':'repack', 'repack-metas':'repack',
+  'despejo-painel':'despejo', 'despejo-produtividade':'despejo', 'despejo-anomalias':'despejo', 'despejo-metas':'despejo',
   'filiais':'cadastros', 'departamentos':'cadastros', 'pessoas':'cadastros', 'areas':'cadastros',
   'equipamentos':'cadastros', 'motivos':'cadastros', 'turnos':'cadastros', 'veiculos':'cadastros',
   'motoristas':'cadastros', 'produtos':'cadastros', 'depositos':'cadastros', 'motivos_transferencia':'cadastros',
@@ -1272,9 +1358,11 @@ document.querySelectorAll('.tab').forEach(tab => {
     if(tab.dataset.tab === 'transferencias') renderTransferencias();
     if(tab.dataset.tab === 'repack-painel') gerarPainelRepack();
     if(tab.dataset.tab === 'repack-produtividade') renderProdutividadeRepack();
+    if(tab.dataset.tab === 'repack-anomalias') renderAnomaliasRepack();
     if(tab.dataset.tab === 'repack-metas') carregarMetasRepack();
     if(tab.dataset.tab === 'despejo-painel') gerarPainelDespejo();
     if(tab.dataset.tab === 'despejo-produtividade') renderProdutividadeDespejo();
+    if(tab.dataset.tab === 'despejo-anomalias') renderAnomaliasDespejo();
     if(tab.dataset.tab === 'despejo-metas') carregarMetasDespejo();
     if(tab.dataset.tab === 'lancamentos') renderLancamentos();
     if(tab.dataset.tab === 'check-promax') renderCheckPromax();
@@ -2287,6 +2375,12 @@ async function carregarQuebras(){
     numeroSequencial: row.numero_sequencial,
     dataISO: row.created_at.slice(0, 10),
     criadoEm: row.created_at,
+    // Data em que foi APROVADO (não quando a quebra aconteceu) — só usada na
+    // Conferência de Lançamento x Promax, pra bater com o dia em que o
+    // controle baixa no Promax. Lançamentos aprovados antes de existir essa
+    // coluna caem de volta na data do lançamento (é a melhor informação que
+    // sobrou pra eles).
+    dataAprovacaoISO: row.aprovado_em ? row.aprovado_em.slice(0, 10) : row.created_at.slice(0, 10),
     filialId: row.filial_id,
     departamentoId: row.departamento_id,
     produtoId: row.produto_id,
@@ -2381,6 +2475,8 @@ function onClickData(labels, chaves, lista, granularidade){
 }
 
 function abrirDrilldown(titulo, lista){
+  document.getElementById('drilldown-cabecalho').innerHTML =
+    '<th>Data/Hora</th><th>Filial</th><th>Departamento</th><th>Produto</th><th>Motivo</th><th>Turno</th><th>Responsável</th><th>Qtd</th><th>Custo</th>';
   const ordenada = [...lista].sort((a,b) => (b.custo||0) - (a.custo||0));
   const totalCusto = ordenada.reduce((a,q) => a + (q.custo||0), 0);
   const totalQtd = ordenada.reduce((a,q) => a + (Number(q.quantidade)||0), 0);
@@ -2406,6 +2502,27 @@ function abrirDrilldown(titulo, lista){
 }
 function fecharDrilldown(){
   document.getElementById('modal-drilldown').classList.add('hidden');
+}
+
+// Serializa um valor pra embutir dentro de um onclick='...' delimitado por
+// aspas simples — troca aspas simples por &#39; (o navegador decodifica de
+// volta antes do JS rodar), senão um nome de produto com apóstrofo quebraria
+// o atributo HTML no meio.
+function jsonAttr(v){
+  return JSON.stringify(v).replace(/'/g, '&#39;');
+}
+
+// Mesma janela de detalhe, só que com colunas/linhas escolhidas por quem chama —
+// usado nas Anomalias (Repack/Despejo), que não têm o mesmo formato de uma quebra.
+// "colunas" é array de texto do cabeçalho; "linhas" é array de arrays já formatados.
+function abrirDrilldownGenerico(titulo, resumo, colunas, linhas){
+  document.getElementById('drilldown-cabecalho').innerHTML = colunas.map(c => '<th>' + c + '</th>').join('');
+  document.getElementById('drilldown-titulo').textContent = titulo;
+  document.getElementById('drilldown-resumo').textContent = resumo;
+  document.getElementById('tbl-drilldown').innerHTML = linhas.map(cols =>
+    '<tr>' + cols.map(c => '<td>' + c + '</td>').join('') + '</tr>'
+  ).join('') || '<tr><td colspan="' + colunas.length + '" class="muted">Nenhum lançamento nesse grupo.</td></tr>';
+  document.getElementById('modal-drilldown').classList.remove('hidden');
 }
 
 // Encurta um label comprido (descrição de produto, principalmente) pro eixo
@@ -2702,10 +2819,20 @@ function fecharFotoModal(){
 }
 
 async function decidirQuebra(id, novoStatus){
-  const { error } = await sb.from('quebras').update({ status: novoStatus }).eq('id', id);
+  // Grava o momento da aprovação (só quando o novo status é "aprovada") —
+  // é essa data que a Conferência de Lançamento x Promax usa pra comparar
+  // com o dia em que o controle baixa no Promax.
+  const payload = { status: novoStatus };
+  const agoraISO = new Date().toISOString();
+  if(novoStatus === 'aprovada') payload.aprovado_em = agoraISO;
+
+  const { error } = await sb.from('quebras').update(payload).eq('id', id);
   if(error){ alert('Erro ao atualizar: ' + error.message); return; }
   const q = quebrasCache.find(x => x.id === id);
-  if(q) q.status = novoStatus;
+  if(q){
+    q.status = novoStatus;
+    if(novoStatus === 'aprovada') q.dataAprovacaoISO = agoraISO.slice(0, 10);
+  }
   renderAprovacoes();
   renderVisaoDiaria();
 }
@@ -3173,8 +3300,10 @@ function renderCheckPromax(){
   const container = document.getElementById('check-promax-cards');
   if(!mesValor || !container) return;
 
+  // Usa a data de APROVAÇÃO (não a data real da quebra) só nessa conferência —
+  // é o dia em que o controle baixa no Promax, então é isso que precisa bater.
   const nossosDoMes = (filialGlobalId ? quebrasCache.filter(q => q.filialId == filialGlobalId) : quebrasCache)
-    .filter(q => q.status === 'aprovada' && q.dataISO.slice(0, 7) === mesValor && (!ateValor || q.dataISO <= ateValor));
+    .filter(q => q.status === 'aprovada' && q.dataAprovacaoISO.slice(0, 7) === mesValor && (!ateValor || q.dataAprovacaoISO <= ateValor));
   const promaxDoMes = (filialGlobalId ? promaxBaixasCache.filter(p => p.filialId == filialGlobalId) : promaxBaixasCache)
     .filter(p => p.dataISO.slice(0, 7) === mesValor && (!ateValor || p.dataISO <= ateValor));
 
@@ -3184,7 +3313,7 @@ function renderCheckPromax(){
     const promaxDoDepto = dep ? promaxDoMes.filter(p => p.departamentoId === dep.id) : [];
 
     const porDiaNosso = {};
-    nossosDoDepto.forEach(q => { porDiaNosso[q.dataISO] = (porDiaNosso[q.dataISO] || 0) + q.custo; });
+    nossosDoDepto.forEach(q => { porDiaNosso[q.dataAprovacaoISO] = (porDiaNosso[q.dataAprovacaoISO] || 0) + q.custo; });
     const porDiaPromax = {};
     promaxDoDepto.forEach(p => { porDiaPromax[p.dataISO] = (porDiaPromax[p.dataISO] || 0) + p.valor; });
 
@@ -3254,11 +3383,13 @@ function verificarDivergenciasPromax(nomeDep){
   const dep = encontrarDepartamentoPorNome(nomeDep);
   if(!dep){ alvo.innerHTML = '<div class="error">Departamento não encontrado no cadastro.</div>'; alvo.dataset.aberto = 'true'; if(botao) botao.textContent = 'Ocultar divergências'; return; }
 
+  // Usa a data de APROVAÇÃO (não a data real da quebra) — mesmo motivo do
+  // renderCheckPromax: é o dia em que o controle baixa no Promax.
   const nossos = (filialGlobalId ? quebrasCache.filter(q => q.filialId == filialGlobalId) : quebrasCache)
-    .filter(q => q.status === 'aprovada' && q.dataISO.slice(0, 7) === mesValor && (!ateValor || q.dataISO <= ateValor) && q.departamentoId === dep.id)
+    .filter(q => q.status === 'aprovada' && q.dataAprovacaoISO.slice(0, 7) === mesValor && (!ateValor || q.dataAprovacaoISO <= ateValor) && q.departamentoId === dep.id)
     .map(q => {
       const produto = produtos.find(p => p.id === q.produtoId);
-      return { dataISO: q.dataISO, codigoProduto: produto ? String(produto.codigo).trim() : '', descricao: produto ? produto.descricao : '—', quantidade: Number(q.quantidade), valor: q.custo, usado: false };
+      return { dataISO: q.dataAprovacaoISO, codigoProduto: produto ? String(produto.codigo).trim() : '', descricao: produto ? produto.descricao : '—', quantidade: Number(q.quantidade), valor: q.custo, usado: false };
     });
 
   const promax = (filialGlobalId ? promaxBaixasCache.filter(p => p.filialId == filialGlobalId) : promaxBaixasCache)
@@ -3659,6 +3790,102 @@ function calcularIndicadoresRepack(lista){
   };
 }
 
+/* ---------------- REPACK: ANOMALIAS ---------------- */
+
+function limparFiltrosAnomaliasRepack(){
+  document.getElementById('repack-anom-data-de').value = '';
+  document.getElementById('repack-anom-data-ate').value = '';
+  document.getElementById('repack-anom-sensibilidade').value = '1.5';
+  renderAnomaliasRepack();
+}
+
+function baseAnomaliasRepack(){
+  const deF = document.getElementById('repack-anom-data-de').value;
+  const ateF = document.getElementById('repack-anom-data-ate').value;
+  return (filialGlobalId ? repackCache.filter(r => r.filialId == filialGlobalId) : repackCache)
+    .filter(r => (!deF || r.dataISO >= deF) && (!ateF || r.dataISO <= ateF));
+}
+
+// Conta ocorrências por chave (produtoId ou embalagem) e sinaliza quem está a
+// pelo menos "sensibilidade" vezes a média do grupo inteiro — não é "quem tem
+// mais" (isso é só um ranking), é "quem está fora da curva" de verdade.
+function calcularAnomaliasContagem(lista, chaveFn, nomeFn, sensibilidade){
+  const contagem = {};
+  lista.forEach(r => { const chave = chaveFn(r); if(chave === null || chave === undefined) return; contagem[chave] = (contagem[chave] || 0) + 1; });
+  const chaves = Object.keys(contagem);
+  if(chaves.length === 0) return { linhas: [], media: 0 };
+  const media = chaves.reduce((a,k) => a + contagem[k], 0) / chaves.length;
+  const linhas = chaves
+    .map(k => ({ chave: k, nome: nomeFn(k), qtd: contagem[k], vezesMedia: media ? contagem[k] / media : 0 }))
+    .filter(x => media > 0 && x.qtd >= media * sensibilidade)
+    .sort((a,b) => b.qtd - a.qtd);
+  return { linhas, media };
+}
+
+// Mesma ideia, mas pra produtividade por colaborador (caixas/hora, litros/min):
+// agrupa a lista por quem lançou, calcula o indicador de cada um com a função
+// passada, e sinaliza quem está a pelo menos "sensibilidade" vezes a média da
+// equipe — só pra cima (produtividade baixa não entra aqui, foi o que foi pedido).
+function calcularAnomaliasProdutividade(lista, calcularIndicadoresFn, metricaKey, sensibilidade){
+  const porFunc = {};
+  lista.forEach(r => { (porFunc[r.lancadoPorId] = porFunc[r.lancadoPorId] || []).push(r); });
+  const ids = Object.keys(porFunc);
+  const comIndicador = ids.map(id => ({ id: Number(id), lista: porFunc[id], valor: calcularIndicadoresFn(porFunc[id])[metricaKey] }));
+  const validos = comIndicador.filter(x => x.valor > 0);
+  if(validos.length === 0) return { linhas: [], media: 0 };
+  const media = validos.reduce((a,x) => a + x.valor, 0) / validos.length;
+  const linhas = validos
+    .map(x => ({ id: x.id, nome: nomePor(pessoas, x.id), valor: x.valor, qtdLancamentos: x.lista.length, vezesMedia: media ? x.valor / media : 0, lista: x.lista }))
+    .filter(x => media > 0 && x.valor >= media * sensibilidade)
+    .sort((a,b) => b.valor - a.valor);
+  return { linhas, media };
+}
+
+function renderAnomaliasRepack(){
+  const sensibilidade = Number(document.getElementById('repack-anom-sensibilidade').value) || 1.5;
+  const base = baseAnomaliasRepack();
+
+  const porProduto = calcularAnomaliasContagem(base, r => r.produtoId, id => nomePor(produtos, Number(id)), sensibilidade);
+  document.getElementById('repack-anom-produto-resumo').textContent = porProduto.linhas.length
+    ? porProduto.linhas.length + ' produto(s) com reembalamento a partir de ' + sensibilidade.toFixed(1).replace('.',',') + 'x a média (' + porProduto.media.toFixed(1).replace('.',',') + ' reembalamento(s) por produto no período).'
+    : 'Nenhum produto acima da sensibilidade escolhida no período.';
+  document.getElementById('tbl-repack-anom-produto').innerHTML = porProduto.linhas.map(x => `
+    <tr>
+      <td>${x.nome}</td>
+      <td style="color:var(--red);font-weight:600;">${x.qtd}</td>
+      <td>${porProduto.media.toFixed(1).replace('.',',')}</td>
+      <td>${x.vezesMedia.toFixed(1).replace('.',',')}x</td>
+      <td><button class="btn-sm btn-outline" onclick='abrirDrilldownGenerico(${jsonAttr(x.nome)}, ${jsonAttr(x.qtd + ' reembalamento(s) no período')}, ["Data","Filial","Funcionário","Embalagem","Duração","Caixas","Min/caixa"], ${jsonAttr(base.filter(r => r.produtoId === Number(x.chave)).map(r => { const p = produtos.find(pp=>pp.id===r.produtoId); return [r.dataISO, nomePor(filiais, r.filialId), nomePor(pessoas, r.lancadoPorId), p&&p.embalagem||'—', formatarDuracaoAdmin(r.duracaoMinutos), r.quantidadeCaixas, r.minPorCaixa.toFixed(2)]; }))})'>Ver lançamentos</button></td>
+    </tr>`).join('') || '<tr><td colspan="5" class="muted">Nenhuma anomalia encontrada.</td></tr>';
+
+  const porEmbalagem = calcularAnomaliasContagem(base.filter(r => { const p = produtos.find(x=>x.id===r.produtoId); return p && p.embalagem; }), r => { const p = produtos.find(x=>x.id===r.produtoId); return p.embalagem; }, nome => nome, sensibilidade);
+  document.getElementById('repack-anom-embalagem-resumo').textContent = porEmbalagem.linhas.length
+    ? porEmbalagem.linhas.length + ' embalagem(ns) com reembalamento a partir de ' + sensibilidade.toFixed(1).replace('.',',') + 'x a média (' + porEmbalagem.media.toFixed(1).replace('.',',') + ' reembalamento(s) por embalagem no período).'
+    : 'Nenhuma embalagem acima da sensibilidade escolhida no período.';
+  document.getElementById('tbl-repack-anom-embalagem').innerHTML = porEmbalagem.linhas.map(x => `
+    <tr>
+      <td>${x.nome}</td>
+      <td style="color:var(--red);font-weight:600;">${x.qtd}</td>
+      <td>${porEmbalagem.media.toFixed(1).replace('.',',')}</td>
+      <td>${x.vezesMedia.toFixed(1).replace('.',',')}x</td>
+      <td><button class="btn-sm btn-outline" onclick='abrirDrilldownGenerico(${jsonAttr('Embalagem: ' + x.nome)}, ${jsonAttr(x.qtd + ' reembalamento(s) no período')}, ["Data","Filial","Funcionário","Produto","Duração","Caixas","Min/caixa"], ${jsonAttr(base.filter(r => { const p = produtos.find(pp=>pp.id===r.produtoId); return p && p.embalagem === x.chave; }).map(r => { const p = produtos.find(pp=>pp.id===r.produtoId); return [r.dataISO, nomePor(filiais, r.filialId), nomePor(pessoas, r.lancadoPorId), p?p.descricao:'—', formatarDuracaoAdmin(r.duracaoMinutos), r.quantidadeCaixas, r.minPorCaixa.toFixed(2)]; }))})'>Ver lançamentos</button></td>
+    </tr>`).join('') || '<tr><td colspan="5" class="muted">Nenhuma anomalia encontrada.</td></tr>';
+
+  const porFunc = calcularAnomaliasProdutividade(base, calcularIndicadoresRepack, 'caixasPorHora', sensibilidade);
+  document.getElementById('repack-anom-func-resumo').textContent = porFunc.linhas.length
+    ? porFunc.linhas.length + ' colaborador(es) com produtividade a partir de ' + sensibilidade.toFixed(1).replace('.',',') + 'x a média da equipe (' + porFunc.media.toFixed(1).replace('.',',') + ' caixas/hora no período).'
+    : 'Nenhum colaborador acima da sensibilidade escolhida no período.';
+  document.getElementById('tbl-repack-anom-func').innerHTML = porFunc.linhas.map(x => `
+    <tr>
+      <td>${x.nome}</td>
+      <td style="color:var(--red);font-weight:600;">${x.valor.toFixed(1)}</td>
+      <td>${porFunc.media.toFixed(1)}</td>
+      <td>${x.vezesMedia.toFixed(1).replace('.',',')}x</td>
+      <td>${x.qtdLancamentos}</td>
+      <td><button class="btn-sm btn-outline" onclick='abrirDrilldownGenerico(${jsonAttr(x.nome)}, ${jsonAttr(x.qtdLancamentos + ' reembalamento(s) no período')}, ["Data","Filial","Produto","Embalagem","Duração","Caixas","Min/caixa"], ${jsonAttr(x.lista.map(r => { const p = produtos.find(pp=>pp.id===r.produtoId); return [r.dataISO, nomePor(filiais, r.filialId), p?p.descricao:'—', p&&p.embalagem||'—', formatarDuracaoAdmin(r.duracaoMinutos), r.quantidadeCaixas, r.minPorCaixa.toFixed(2)]; }))})'>Ver lançamentos</button></td>
+    </tr>`).join('') || '<tr><td colspan="6" class="muted">Nenhuma anomalia encontrada.</td></tr>';
+}
+
 /* ---------------- REPACK: METAS ---------------- */
 
 let metasRepackAtuais = { meta_minutos_por_embalagem: 0, meta_caixas_por_hora: 0 };
@@ -3841,6 +4068,41 @@ function calcularIndicadoresDespejo(lista){
     totalLitros,
     totalLancamentos: lista.length,
   };
+}
+
+/* ---------------- DESPEJO: ANOMALIAS ---------------- */
+
+function limparFiltrosAnomaliasDespejo(){
+  document.getElementById('despejo-anom-data-de').value = '';
+  document.getElementById('despejo-anom-data-ate').value = '';
+  document.getElementById('despejo-anom-sensibilidade').value = '1.5';
+  renderAnomaliasDespejo();
+}
+
+function baseAnomaliasDespejo(){
+  const deF = document.getElementById('despejo-anom-data-de').value;
+  const ateF = document.getElementById('despejo-anom-data-ate').value;
+  return (filialGlobalId ? despejoCache.filter(r => r.filialId == filialGlobalId) : despejoCache)
+    .filter(r => (!deF || r.dataISO >= deF) && (!ateF || r.dataISO <= ateF));
+}
+
+function renderAnomaliasDespejo(){
+  const sensibilidade = Number(document.getElementById('despejo-anom-sensibilidade').value) || 1.5;
+  const base = baseAnomaliasDespejo();
+
+  const porFunc = calcularAnomaliasProdutividade(base, calcularIndicadoresDespejo, 'litrosPorMinuto', sensibilidade);
+  document.getElementById('despejo-anom-func-resumo').textContent = porFunc.linhas.length
+    ? porFunc.linhas.length + ' colaborador(es) com produtividade a partir de ' + sensibilidade.toFixed(1).replace('.',',') + 'x a média da equipe (' + porFunc.media.toFixed(2).replace('.',',') + ' litros/min no período).'
+    : 'Nenhum colaborador acima da sensibilidade escolhida no período.';
+  document.getElementById('tbl-despejo-anom-func').innerHTML = porFunc.linhas.map(x => `
+    <tr>
+      <td>${x.nome}</td>
+      <td style="color:var(--red);font-weight:600;">${x.valor.toFixed(2)}</td>
+      <td>${porFunc.media.toFixed(2)}</td>
+      <td>${x.vezesMedia.toFixed(1).replace('.',',')}x</td>
+      <td>${x.qtdLancamentos}</td>
+      <td><button class="btn-sm btn-outline" onclick='abrirDrilldownGenerico(${jsonAttr(x.nome)}, ${jsonAttr(x.qtdLancamentos + ' despejo(s) no período')}, ["Data","Filial","Produto","Embalagem","Duração","Unidades","Litros","Litros/min"], ${jsonAttr(x.lista.map(r => { const p = produtos.find(pp=>pp.id===r.produtoId); return [r.dataISO, nomePor(filiais, r.filialId), p?p.descricao:'—', p&&p.embalagem||'—', formatarDuracaoAdmin(r.duracaoMinutos), r.quantidadeUnidades ?? '—', r.quantidadeLitros, r.litrosPorMinuto.toFixed(2)]; }))})'>Ver lançamentos</button></td>
+    </tr>`).join('') || '<tr><td colspan="6" class="muted">Nenhuma anomalia encontrada.</td></tr>';
 }
 
 function renderProdutividadeDespejo(){

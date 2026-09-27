@@ -3761,6 +3761,8 @@ function renderProdutividadeRepack(){
   renderBarChart('chart-repack-tendencia-minutos', labelsTendencia, minutosTendencia, '#0891B2', { label: 'Tempo/embalagem', formatarValor: formatarMinutosComoRelogio });
   renderBarChart('chart-repack-tendencia-caixashora', labelsTendencia, caixasHoraTendencia, '#0D9488', { label: 'Caixas/hora' });
 
+  renderKpiMetaRepack(labelsTendencia, minutosTendencia, caixasHoraTendencia);
+
   // Por funcionário
   const porFunc = {};
   baseNoRange.forEach(r => { (porFunc[r.lancadoPorId] = porFunc[r.lancadoPorId] || []).push(r); });
@@ -3783,8 +3785,6 @@ function renderProdutividadeRepack(){
 
   // Histograma de minutos por caixa
   renderHistograma('chart-repack-histograma', baseNoRange.map(r=>r.minPorCaixa), 8, '#C97A1A', formatarMinutosComoRelogio);
-
-  renderKpiMetaRepack();
 }
 
 // Mostra a meta do mês atual (a mesma cadastrada na aba Metas, pra filial
@@ -3792,7 +3792,7 @@ function renderProdutividadeRepack(){
 // coloridinho igual a aba Metas tem — assim não precisa ficar trocando de
 // aba pra ver se está batendo. Sempre compara com o MÊS ATUAL, independente
 // da "Visão" escolhida acima (diária/semanal/etc.), porque meta é mensal.
-async function renderKpiMetaRepack(){
+async function renderKpiMetaRepack(labelsTendencia, minutosTendencia, caixasHoraTendencia){
   const elMin = document.getElementById('repack-kpi-meta-min');
   const elCaixasHora = document.getElementById('repack-kpi-meta-caixashora');
   if(!elMin || !elCaixasHora) return;
@@ -3805,7 +3805,9 @@ async function renderKpiMetaRepack(){
 
   const anoMesAtual = new Date().toISOString().slice(0,7);
   const [ano, mes] = anoMesAtual.split('-').map(Number);
-  const { data } = await sb.from('repack_metas').select('*').eq('filial_id', filialGlobalId).eq('ano', ano).eq('mes', mes).maybeSingle();
+  const { data, error } = await sb.from('repack_metas').select('*').eq('filial_id', filialGlobalId).eq('ano', ano).eq('mes', mes).maybeSingle();
+  if(error) console.error('Erro ao buscar meta de repack:', error);
+  console.log('[meta repack] filial', filialGlobalId, 'ano/mes', ano, mes, '-> linha encontrada:', data);
   const metas = data || { meta_minutos_por_embalagem: 0, meta_caixas_por_hora: 0 };
 
   const doMesAtual = repackCache.filter(r => r.filialId == filialGlobalId && r.dataISO.slice(0,7) === anoMesAtual);
@@ -3827,6 +3829,25 @@ async function renderKpiMetaRepack(){
       ' · <span class="status-pill ' + (indicadores.caixasPorHora < metaCaixasHora ? 'status-reprovada' : 'status-aprovada') + '">' +
       Math.round((indicadores.caixasPorHora/metaCaixasHora)*100) + '%</span></div>'
     : '<span class="muted" style="font-size:13px;">Meta não definida (aba Metas)</span>';
+
+  // Recolore os gráficos de tendência: verde quem bateu a meta do mês naquele
+  // ponto, vermelho quem não bateu, cinza quando não teve lançamento nenhum
+  // (não dá pra dizer que "não bateu meta" quem simplesmente não trabalhou).
+  // Usa a MESMA meta do mês atual pra todos os pontos do gráfico (é a única
+  // meta que temos à mão aqui) — se o período junta vários meses diferentes,
+  // isso é só uma referência, não uma comparação mês a mês exata.
+  if(labelsTendencia && minutosTendencia){
+    const coresMin = metaMin
+      ? minutosTendencia.map(v => v === 0 ? '#C7CDD3' : (v <= metaMin ? '#12796B' : '#A32D2D'))
+      : '#0891B2';
+    renderBarChart('chart-repack-tendencia-minutos', labelsTendencia, minutosTendencia, coresMin, { label: 'Tempo/embalagem', formatarValor: formatarMinutosComoRelogio });
+  }
+  if(labelsTendencia && caixasHoraTendencia){
+    const coresCaixasHora = metaCaixasHora
+      ? caixasHoraTendencia.map(v => v === 0 ? '#C7CDD3' : (v >= metaCaixasHora ? '#12796B' : '#A32D2D'))
+      : '#0D9488';
+    renderBarChart('chart-repack-tendencia-caixashora', labelsTendencia, caixasHoraTendencia, coresCaixasHora, { label: 'Caixas/hora' });
+  }
 }
 
 function calcularIndicadoresRepack(lista){
@@ -4196,6 +4217,8 @@ function renderProdutividadeDespejo(){
   const litrosMinTendencia = chavesTendencia.map(c => +calcularIndicadoresDespejo(porBucket[c]).litrosPorMinuto.toFixed(2));
   renderBarChart('chart-despejo-tendencia', labelsTendencia, litrosMinTendencia, '#0D9488', { label: 'Litros/minuto' });
 
+  renderKpiMetaDespejo(labelsTendencia, litrosMinTendencia);
+
   const porFunc = {};
   baseNoRange.forEach(r => { (porFunc[r.lancadoPorId] = porFunc[r.lancadoPorId] || []).push(r); });
   const funcEntradas = Object.entries(porFunc)
@@ -4215,13 +4238,13 @@ function renderProdutividadeDespejo(){
   renderBarChart('chart-despejo-embalagem', embEntradas.map(x=>x.nome), embEntradas.map(x=>x.valor), '#7C3AED', { label: 'Litros/minuto' });
 
   renderHistograma('chart-despejo-histograma', baseNoRange.map(r=>r.litrosPorMinuto), 8, '#C97A1A');
-
-  renderKpiMetaDespejo();
 }
 
 // Mesma ideia do renderKpiMetaRepack: mostra a meta do MÊS ATUAL (cadastrada
-// na aba Metas) direto aqui na Produtividade, pra filial selecionada no topo.
-async function renderKpiMetaDespejo(){
+// na aba Metas) direto aqui na Produtividade, pra filial selecionada no topo,
+// e recolore o gráfico de tendência (verde bateu meta, vermelho não bateu,
+// cinza sem lançamento no período).
+async function renderKpiMetaDespejo(labelsTendencia, litrosMinTendencia){
   const elMeta = document.getElementById('despejo-kpi-meta');
   if(!elMeta) return;
 
@@ -4232,7 +4255,9 @@ async function renderKpiMetaDespejo(){
 
   const anoMesAtual = new Date().toISOString().slice(0,7);
   const [ano, mes] = anoMesAtual.split('-').map(Number);
-  const { data } = await sb.from('despejo_metas').select('*').eq('filial_id', filialGlobalId).eq('ano', ano).eq('mes', mes).maybeSingle();
+  const { data, error } = await sb.from('despejo_metas').select('*').eq('filial_id', filialGlobalId).eq('ano', ano).eq('mes', mes).maybeSingle();
+  if(error) console.error('Erro ao buscar meta de despejo:', error);
+  console.log('[meta despejo] filial', filialGlobalId, 'ano/mes', ano, mes, '-> linha encontrada:', data);
   const metas = data || { meta_litros_por_minuto: 0 };
 
   const doMesAtual = despejoCache.filter(r => r.filialId == filialGlobalId && r.dataISO.slice(0,7) === anoMesAtual);
@@ -4245,6 +4270,13 @@ async function renderKpiMetaDespejo(){
       ' · <span class="status-pill ' + (indicadores.litrosPorMinuto < meta ? 'status-reprovada' : 'status-aprovada') + '">' +
       Math.round((indicadores.litrosPorMinuto/meta)*100) + '%</span></div>'
     : '<span class="muted" style="font-size:13px;">Meta não definida (aba Metas)</span>';
+
+  if(labelsTendencia && litrosMinTendencia){
+    const cores = meta
+      ? litrosMinTendencia.map(v => v === 0 ? '#C7CDD3' : (v >= meta ? '#12796B' : '#A32D2D'))
+      : '#0D9488';
+    renderBarChart('chart-despejo-tendencia', labelsTendencia, litrosMinTendencia, cores, { label: 'Litros/minuto' });
+  }
 }
 
 let metasDespejoAtuais = { meta_litros_por_minuto: 0 };

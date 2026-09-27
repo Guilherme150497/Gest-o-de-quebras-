@@ -569,9 +569,9 @@
         <p class="hint">
           Pra abrir plano de ação em cima do que realmente pesa: produtos/embalagens com número de
           reembalamentos muito acima da média do catálogo (indício de avaria recorrente que merece
-          investigar causa raiz), e colaboradores com produtividade muito acima da média da equipe
-          (pode ser um problema de cronometragem, de lançamento ou até de processo — vale conferir de
-          perto). Pra filtrar por filial, use o seletor no topo da página.
+          investigar causa raiz), e colaboradores com produtividade fora da curva da equipe — pra cima
+          e pra baixo (pode ser um problema de cronometragem, de lançamento, de treinamento ou até de
+          processo — vale conferir de perto). Pra filtrar por filial, use o seletor no topo da página.
         </p>
         <div class="filtro-grid" style="grid-template-columns:repeat(3,1fr);max-width:620px;">
           <div><label class="fl">De</label><input type="date" id="repack-anom-data-de" onchange="renderAnomaliasRepack()" /></div>
@@ -604,12 +604,12 @@
       </div>
 
       <div class="card">
-        <h3>Colaboradores com produtividade muito acima da média</h3>
-        <p class="hint">Métrica: caixas por hora. Alto demais pode ser tempo não cronometrado direito, lançamento errado, ou processo que vale copiar dos outros — vale conferir antes de tirar conclusão.</p>
+        <h3>Colaboradores com produtividade fora da curva</h3>
+        <p class="hint">Métrica: caixas por hora. <b>Muito acima</b> pode ser tempo não cronometrado direito, lançamento errado, ou processo que vale copiar dos outros. <b>Muito abaixo</b> pode ser dificuldade, falta de treinamento ou problema no processo — vale conferir os dois casos antes de tirar conclusão.</p>
         <p class="muted" id="repack-anom-func-resumo" style="margin-bottom:10px;"></p>
         <div style="overflow-x:auto;">
           <table>
-            <thead><tr><th>Funcionário</th><th>Caixas/hora</th><th>Média da equipe</th><th>Quantas vezes a média</th><th>Reembalamentos no período</th><th></th></tr></thead>
+            <thead><tr><th>Funcionário</th><th>Tipo</th><th>Caixas/hora</th><th>Média da equipe</th><th>Quantas vezes a média</th><th>Reembalamentos no período</th><th></th></tr></thead>
             <tbody id="tbl-repack-anom-func"></tbody>
           </table>
         </div>
@@ -695,10 +695,10 @@
       <div class="card">
         <h3>Anomalias — Despejo</h3>
         <p class="hint">
-          Colaboradores com produtividade muito acima da média da equipe (litros por minuto) — vale
-          conferir de perto antes de tirar conclusão: pode ser tempo não cronometrado direito,
-          lançamento errado, ou processo que vale copiar dos outros. Pra filtrar por filial, use o
-          seletor no topo da página.
+          Colaboradores com produtividade fora da curva da equipe (litros por minuto), pra cima e pra
+          baixo. <b>Muito acima</b> pode ser tempo não cronometrado direito, lançamento errado, ou
+          processo que vale copiar dos outros. <b>Muito abaixo</b> pode ser dificuldade, falta de
+          treinamento ou problema no processo. Pra filtrar por filial, use o seletor no topo da página.
         </p>
         <div class="filtro-grid" style="grid-template-columns:repeat(3,1fr);max-width:620px;">
           <div><label class="fl">De</label><input type="date" id="despejo-anom-data-de" onchange="renderAnomaliasDespejo()" /></div>
@@ -709,11 +709,11 @@
       </div>
 
       <div class="card">
-        <h3>Colaboradores com produtividade muito acima da média</h3>
+        <h3>Colaboradores com produtividade fora da curva</h3>
         <p class="muted" id="despejo-anom-func-resumo" style="margin-bottom:10px;"></p>
         <div style="overflow-x:auto;">
           <table>
-            <thead><tr><th>Funcionário</th><th>Litros/min</th><th>Média da equipe</th><th>Quantas vezes a média</th><th>Despejos no período</th><th></th></tr></thead>
+            <thead><tr><th>Funcionário</th><th>Tipo</th><th>Litros/min</th><th>Média da equipe</th><th>Quantas vezes a média</th><th>Despejos no período</th><th></th></tr></thead>
             <tbody id="tbl-despejo-anom-func"></tbody>
           </table>
         </div>
@@ -1415,8 +1415,10 @@ function renderTudo(){
   renderCheckPromax();
   gerarPainelRepack();
   renderProdutividadeRepack();
+  renderAnomaliasRepack();
   gerarPainelDespejo();
   renderProdutividadeDespejo();
+  renderAnomaliasDespejo();
 }
 
 /* ---------------- HELPERS GENÉRICOS DE CRUD ---------------- */
@@ -3824,8 +3826,12 @@ function calcularAnomaliasContagem(lista, chaveFn, nomeFn, sensibilidade){
 
 // Mesma ideia, mas pra produtividade por colaborador (caixas/hora, litros/min):
 // agrupa a lista por quem lançou, calcula o indicador de cada um com a função
-// passada, e sinaliza quem está a pelo menos "sensibilidade" vezes a média da
-// equipe — só pra cima (produtividade baixa não entra aqui, foi o que foi pedido).
+// passada, e sinaliza os dois lados — quem está a pelo menos "sensibilidade"
+// vezes ACIMA da média da equipe (pode ser tempo mal cronometrado, lançamento
+// errado ou algo pra copiar dos outros) e quem está a "sensibilidade" vezes
+// ABAIXO (pode ser dificuldade, falta de treinamento ou problema no processo).
+// Ex.: sensibilidade 1.5 pega quem está acima de 1,5x a média OU abaixo de
+// 1/1,5 (≈0,67x) a média.
 function calcularAnomaliasProdutividade(lista, calcularIndicadoresFn, metricaKey, sensibilidade){
   const porFunc = {};
   lista.forEach(r => { (porFunc[r.lancadoPorId] = porFunc[r.lancadoPorId] || []).push(r); });
@@ -3834,9 +3840,12 @@ function calcularAnomaliasProdutividade(lista, calcularIndicadoresFn, metricaKey
   const validos = comIndicador.filter(x => x.valor > 0);
   if(validos.length === 0) return { linhas: [], media: 0 };
   const media = validos.reduce((a,x) => a + x.valor, 0) / validos.length;
+  const limiteAcima = media * sensibilidade;
+  const limiteAbaixo = sensibilidade > 0 ? media / sensibilidade : 0;
   const linhas = validos
     .map(x => ({ id: x.id, nome: nomePor(pessoas, x.id), valor: x.valor, qtdLancamentos: x.lista.length, vezesMedia: media ? x.valor / media : 0, lista: x.lista }))
-    .filter(x => media > 0 && x.valor >= media * sensibilidade)
+    .filter(x => media > 0 && (x.valor >= limiteAcima || x.valor <= limiteAbaixo))
+    .map(x => ({ ...x, tipo: x.valor >= limiteAcima ? 'acima' : 'abaixo' }))
     .sort((a,b) => b.valor - a.valor);
   return { linhas, media };
 }
@@ -3872,18 +3881,21 @@ function renderAnomaliasRepack(){
     </tr>`).join('') || '<tr><td colspan="5" class="muted">Nenhuma anomalia encontrada.</td></tr>';
 
   const porFunc = calcularAnomaliasProdutividade(base, calcularIndicadoresRepack, 'caixasPorHora', sensibilidade);
+  const qtdAcimaRepack = porFunc.linhas.filter(x => x.tipo === 'acima').length;
+  const qtdAbaixoRepack = porFunc.linhas.filter(x => x.tipo === 'abaixo').length;
   document.getElementById('repack-anom-func-resumo').textContent = porFunc.linhas.length
-    ? porFunc.linhas.length + ' colaborador(es) com produtividade a partir de ' + sensibilidade.toFixed(1).replace('.',',') + 'x a média da equipe (' + porFunc.media.toFixed(1).replace('.',',') + ' caixas/hora no período).'
-    : 'Nenhum colaborador acima da sensibilidade escolhida no período.';
+    ? qtdAcimaRepack + ' acima e ' + qtdAbaixoRepack + ' abaixo de ' + sensibilidade.toFixed(1).replace('.',',') + 'x a média da equipe (' + porFunc.media.toFixed(1).replace('.',',') + ' caixas/hora no período).'
+    : 'Nenhum colaborador fora da sensibilidade escolhida no período.';
   document.getElementById('tbl-repack-anom-func').innerHTML = porFunc.linhas.map(x => `
     <tr>
       <td>${x.nome}</td>
-      <td style="color:var(--red);font-weight:600;">${x.valor.toFixed(1)}</td>
+      <td>${x.tipo === 'acima' ? '<span class="status-pill status-reprovada">▲ Muito acima</span>' : '<span class="status-pill" style="background:#DCEEFB;color:#1D6FA5;">▼ Muito abaixo</span>'}</td>
+      <td style="font-weight:600;">${x.valor.toFixed(1)}</td>
       <td>${porFunc.media.toFixed(1)}</td>
       <td>${x.vezesMedia.toFixed(1).replace('.',',')}x</td>
       <td>${x.qtdLancamentos}</td>
       <td><button class="btn-sm btn-outline" onclick='abrirDrilldownGenerico(${jsonAttr(x.nome)}, ${jsonAttr(x.qtdLancamentos + ' reembalamento(s) no período')}, ["Data","Filial","Produto","Embalagem","Duração","Caixas","Min/caixa"], ${jsonAttr(x.lista.map(r => { const p = produtos.find(pp=>pp.id===r.produtoId); return [r.dataISO, nomePor(filiais, r.filialId), p?p.descricao:'—', p&&p.embalagem||'—', formatarDuracaoAdmin(r.duracaoMinutos), r.quantidadeCaixas, r.minPorCaixa.toFixed(2)]; }))})'>Ver lançamentos</button></td>
-    </tr>`).join('') || '<tr><td colspan="6" class="muted">Nenhuma anomalia encontrada.</td></tr>';
+    </tr>`).join('') || '<tr><td colspan="7" class="muted">Nenhuma anomalia encontrada.</td></tr>';
 }
 
 /* ---------------- REPACK: METAS ---------------- */
@@ -4091,18 +4103,21 @@ function renderAnomaliasDespejo(){
   const base = baseAnomaliasDespejo();
 
   const porFunc = calcularAnomaliasProdutividade(base, calcularIndicadoresDespejo, 'litrosPorMinuto', sensibilidade);
+  const qtdAcimaDespejo = porFunc.linhas.filter(x => x.tipo === 'acima').length;
+  const qtdAbaixoDespejo = porFunc.linhas.filter(x => x.tipo === 'abaixo').length;
   document.getElementById('despejo-anom-func-resumo').textContent = porFunc.linhas.length
-    ? porFunc.linhas.length + ' colaborador(es) com produtividade a partir de ' + sensibilidade.toFixed(1).replace('.',',') + 'x a média da equipe (' + porFunc.media.toFixed(2).replace('.',',') + ' litros/min no período).'
-    : 'Nenhum colaborador acima da sensibilidade escolhida no período.';
+    ? qtdAcimaDespejo + ' acima e ' + qtdAbaixoDespejo + ' abaixo de ' + sensibilidade.toFixed(1).replace('.',',') + 'x a média da equipe (' + porFunc.media.toFixed(2).replace('.',',') + ' litros/min no período).'
+    : 'Nenhum colaborador fora da sensibilidade escolhida no período.';
   document.getElementById('tbl-despejo-anom-func').innerHTML = porFunc.linhas.map(x => `
     <tr>
       <td>${x.nome}</td>
-      <td style="color:var(--red);font-weight:600;">${x.valor.toFixed(2)}</td>
+      <td>${x.tipo === 'acima' ? '<span class="status-pill status-reprovada">▲ Muito acima</span>' : '<span class="status-pill" style="background:#DCEEFB;color:#1D6FA5;">▼ Muito abaixo</span>'}</td>
+      <td style="font-weight:600;">${x.valor.toFixed(2)}</td>
       <td>${porFunc.media.toFixed(2)}</td>
       <td>${x.vezesMedia.toFixed(1).replace('.',',')}x</td>
       <td>${x.qtdLancamentos}</td>
       <td><button class="btn-sm btn-outline" onclick='abrirDrilldownGenerico(${jsonAttr(x.nome)}, ${jsonAttr(x.qtdLancamentos + ' despejo(s) no período')}, ["Data","Filial","Produto","Embalagem","Duração","Unidades","Litros","Litros/min"], ${jsonAttr(x.lista.map(r => { const p = produtos.find(pp=>pp.id===r.produtoId); return [r.dataISO, nomePor(filiais, r.filialId), p?p.descricao:'—', p&&p.embalagem||'—', formatarDuracaoAdmin(r.duracaoMinutos), r.quantidadeUnidades ?? '—', r.quantidadeLitros, r.litrosPorMinuto.toFixed(2)]; }))})'>Ver lançamentos</button></td>
-    </tr>`).join('') || '<tr><td colspan="6" class="muted">Nenhuma anomalia encontrada.</td></tr>';
+    </tr>`).join('') || '<tr><td colspan="7" class="muted">Nenhuma anomalia encontrada.</td></tr>';
 }
 
 function renderProdutividadeDespejo(){

@@ -552,6 +552,8 @@
         <div class="kpi-card"><div class="label">Tempo médio por embalagem (mm:ss)</div><div class="value" id="repack-kpi-minutos">—</div></div>
         <div class="kpi-card"><div class="label">Embalagens (caixas) por hora</div><div class="value" id="repack-kpi-caixashora">—</div></div>
         <div class="kpi-card"><div class="label">Total de reembalamentos no período</div><div class="value" id="repack-kpi-total">—</div></div>
+        <div class="kpi-card"><div class="label">Meta — minutos/embalagem (mês atual)</div><div id="repack-kpi-meta-min">—</div></div>
+        <div class="kpi-card"><div class="label">Meta — caixas/hora (mês atual)</div><div id="repack-kpi-meta-caixashora">—</div></div>
       </div>
       <div class="analise-grid">
         <div class="card"><h3>Minutos médio por embalagem — tendência</h3><div class="chart-wrap"><canvas id="chart-repack-tendencia-minutos"></canvas></div></div>
@@ -681,6 +683,7 @@
         <div class="kpi-card"><div class="label">Litros por minuto (média)</div><div class="value" id="despejo-kpi-litrosmin">—</div></div>
         <div class="kpi-card"><div class="label">Total de litros no período</div><div class="value" id="despejo-kpi-totallitros">—</div></div>
         <div class="kpi-card"><div class="label">Total de despejos no período</div><div class="value" id="despejo-kpi-total">—</div></div>
+        <div class="kpi-card"><div class="label">Meta — litros/min (mês atual)</div><div id="despejo-kpi-meta">—</div></div>
       </div>
       <div class="analise-grid">
         <div class="card"><h3>Litros por minuto — tendência</h3><div class="chart-wrap"><canvas id="chart-despejo-tendencia"></canvas></div></div>
@@ -3780,6 +3783,50 @@ function renderProdutividadeRepack(){
 
   // Histograma de minutos por caixa
   renderHistograma('chart-repack-histograma', baseNoRange.map(r=>r.minPorCaixa), 8, '#C97A1A', formatarMinutosComoRelogio);
+
+  renderKpiMetaRepack();
+}
+
+// Mostra a meta do mês atual (a mesma cadastrada na aba Metas, pra filial
+// selecionada no topo) direto nos KPIs da Produtividade, com o "% da meta"
+// coloridinho igual a aba Metas tem — assim não precisa ficar trocando de
+// aba pra ver se está batendo. Sempre compara com o MÊS ATUAL, independente
+// da "Visão" escolhida acima (diária/semanal/etc.), porque meta é mensal.
+async function renderKpiMetaRepack(){
+  const elMin = document.getElementById('repack-kpi-meta-min');
+  const elCaixasHora = document.getElementById('repack-kpi-meta-caixashora');
+  if(!elMin || !elCaixasHora) return;
+
+  if(!filialGlobalId){
+    elMin.innerHTML = '<span class="muted" style="font-size:13px;">Selecione uma filial no topo</span>';
+    elCaixasHora.innerHTML = '<span class="muted" style="font-size:13px;">Selecione uma filial no topo</span>';
+    return;
+  }
+
+  const anoMesAtual = new Date().toISOString().slice(0,7);
+  const [ano, mes] = anoMesAtual.split('-').map(Number);
+  const { data } = await sb.from('repack_metas').select('*').eq('filial_id', filialGlobalId).eq('ano', ano).eq('mes', mes).maybeSingle();
+  const metas = data || { meta_minutos_por_embalagem: 0, meta_caixas_por_hora: 0 };
+
+  const doMesAtual = repackCache.filter(r => r.filialId == filialGlobalId && r.dataISO.slice(0,7) === anoMesAtual);
+  const indicadores = calcularIndicadoresRepack(doMesAtual);
+
+  const metaMin = Number(metas.meta_minutos_por_embalagem) || 0;
+  const metaCaixasHora = Number(metas.meta_caixas_por_hora) || 0;
+
+  elMin.innerHTML = metaMin
+    ? '<span class="value" style="font-size:20px;">' + formatarMinutosComoRelogio(indicadores.minutosMedioPorEmbalagem) + '</span>' +
+      '<div style="font-size:12.5px;color:var(--sub);margin-top:4px;">Meta: ' + formatarMinutosComoRelogio(metaMin) +
+      ' · <span class="status-pill ' + (indicadores.minutosMedioPorEmbalagem > metaMin ? 'status-reprovada' : 'status-aprovada') + '">' +
+      Math.round((indicadores.minutosMedioPorEmbalagem/metaMin)*100) + '%</span></div>'
+    : '<span class="muted" style="font-size:13px;">Meta não definida (aba Metas)</span>';
+
+  elCaixasHora.innerHTML = metaCaixasHora
+    ? '<span class="value" style="font-size:20px;">' + indicadores.caixasPorHora.toFixed(1) + '</span>' +
+      '<div style="font-size:12.5px;color:var(--sub);margin-top:4px;">Meta: ' + metaCaixasHora.toFixed(1) +
+      ' · <span class="status-pill ' + (indicadores.caixasPorHora < metaCaixasHora ? 'status-reprovada' : 'status-aprovada') + '">' +
+      Math.round((indicadores.caixasPorHora/metaCaixasHora)*100) + '%</span></div>'
+    : '<span class="muted" style="font-size:13px;">Meta não definida (aba Metas)</span>';
 }
 
 function calcularIndicadoresRepack(lista){
@@ -4168,6 +4215,36 @@ function renderProdutividadeDespejo(){
   renderBarChart('chart-despejo-embalagem', embEntradas.map(x=>x.nome), embEntradas.map(x=>x.valor), '#7C3AED', { label: 'Litros/minuto' });
 
   renderHistograma('chart-despejo-histograma', baseNoRange.map(r=>r.litrosPorMinuto), 8, '#C97A1A');
+
+  renderKpiMetaDespejo();
+}
+
+// Mesma ideia do renderKpiMetaRepack: mostra a meta do MÊS ATUAL (cadastrada
+// na aba Metas) direto aqui na Produtividade, pra filial selecionada no topo.
+async function renderKpiMetaDespejo(){
+  const elMeta = document.getElementById('despejo-kpi-meta');
+  if(!elMeta) return;
+
+  if(!filialGlobalId){
+    elMeta.innerHTML = '<span class="muted" style="font-size:13px;">Selecione uma filial no topo</span>';
+    return;
+  }
+
+  const anoMesAtual = new Date().toISOString().slice(0,7);
+  const [ano, mes] = anoMesAtual.split('-').map(Number);
+  const { data } = await sb.from('despejo_metas').select('*').eq('filial_id', filialGlobalId).eq('ano', ano).eq('mes', mes).maybeSingle();
+  const metas = data || { meta_litros_por_minuto: 0 };
+
+  const doMesAtual = despejoCache.filter(r => r.filialId == filialGlobalId && r.dataISO.slice(0,7) === anoMesAtual);
+  const indicadores = calcularIndicadoresDespejo(doMesAtual);
+  const meta = Number(metas.meta_litros_por_minuto) || 0;
+
+  elMeta.innerHTML = meta
+    ? '<span class="value" style="font-size:20px;">' + indicadores.litrosPorMinuto.toFixed(2) + '</span>' +
+      '<div style="font-size:12.5px;color:var(--sub);margin-top:4px;">Meta: ' + meta.toFixed(2) +
+      ' · <span class="status-pill ' + (indicadores.litrosPorMinuto < meta ? 'status-reprovada' : 'status-aprovada') + '">' +
+      Math.round((indicadores.litrosPorMinuto/meta)*100) + '%</span></div>'
+    : '<span class="muted" style="font-size:13px;">Meta não definida (aba Metas)</span>';
 }
 
 let metasDespejoAtuais = { meta_litros_por_minuto: 0 };

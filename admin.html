@@ -2530,6 +2530,57 @@ function abrirDrilldownGenerico(titulo, resumo, colunas, linhas){
   document.getElementById('modal-drilldown').classList.remove('hidden');
 }
 
+// Monta as linhas de detalhe de uma lista de reembalamentos (Repack) pro
+// modal genérico de drill-down.
+function linhasDrilldownRepack(lista){
+  return lista.map(r => {
+    const p = produtos.find(pp => pp.id === r.produtoId);
+    return [r.dataISO, nomePor(filiais, r.filialId), nomePor(pessoas, r.lancadoPorId), p ? p.descricao : '—', p && p.embalagem || '—', formatarDuracaoAdmin(r.duracaoMinutos), r.quantidadeCaixas, r.minPorCaixa.toFixed(2)];
+  });
+}
+function abrirDrilldownRepack(titulo, lista){
+  abrirDrilldownGenerico(titulo, lista.length + ' reembalamento(s) no período.',
+    ['Data','Filial','Funcionário','Produto','Embalagem','Duração','Caixas','Min/Caixa'],
+    linhasDrilldownRepack(lista));
+}
+
+// Mesma ideia pra Despejo.
+function linhasDrilldownDespejo(lista){
+  return lista.map(r => {
+    const p = produtos.find(pp => pp.id === r.produtoId);
+    return [r.dataISO, nomePor(filiais, r.filialId), nomePor(pessoas, r.lancadoPorId), p ? p.descricao : '—', p && p.embalagem || '—', formatarDuracaoAdmin(r.duracaoMinutos), r.quantidadeUnidades ?? '—', r.quantidadeLitros, r.litrosPorMinuto.toFixed(2)];
+  });
+}
+function abrirDrilldownDespejo(titulo, lista){
+  abrirDrilldownGenerico(titulo, lista.length + ' despejo(s) no período.',
+    ['Data','Filial','Funcionário','Produto','Embalagem','Duração','Unidades','Litros','Litros/min'],
+    linhasDrilldownDespejo(lista));
+}
+
+// Clique numa barra de um gráfico agrupado por bucket de tempo (dia/semana/mês/
+// ano) do Repack ou Despejo — abre os lançamentos daquele ponto. "porBucket" é
+// o mapa chave->lista já calculado por quem chama; "abrirFn" é abrirDrilldownRepack
+// ou abrirDrilldownDespejo, conforme o módulo.
+function onClickBucketProdutividade(chavesTendencia, labelsTendencia, porBucket, tipo, abrirFn){
+  return function(idx){
+    const chave = chavesTendencia[idx];
+    if(!chave) return;
+    const rotuloTipo = tipo === 'semana' ? 'Semana de ' : (tipo === 'mes' || tipo === 'ano') ? 'Mês ' : 'Dia ';
+    abrirFn(rotuloTipo + labelsTendencia[idx], porBucket[chave] || []);
+  };
+}
+
+// Clique numa barra de um gráfico agrupado por funcionário ou por embalagem
+// (Repack/Despejo) — "entradas" precisa ter .nome e .lista (a lista de
+// lançamentos daquele grupo); "abrirFn" é abrirDrilldownRepack/Despejo.
+function onClickEntradaComLista(entradas, abrirFn, prefixo){
+  return function(idx){
+    const entrada = entradas[idx];
+    if(!entrada) return;
+    abrirFn((prefixo ? prefixo + ': ' : '') + entrada.nome, entrada.lista);
+  };
+}
+
 // Encurta um label comprido (descrição de produto, principalmente) pro eixo
 // do gráfico não virar uma bagunça de texto rotacionado/sobreposto — o texto
 // completo continua aparecendo ao passar o mouse (tooltip) e no drill-down
@@ -3584,24 +3635,32 @@ function filtrarPorTipoPeriodo(lista, tipo){
 }
 
 // Histograma simples: agrupa valores numéricos em faixas e conta quantos caem em cada uma.
-function renderHistograma(canvasId, valores, numBuckets, cor, formatarRotulo){
+// "opts.lista" (mesmo tamanho/ordem de "valores") + "opts.abrirFn" habilitam o
+// clique numa faixa pra abrir os lançamentos que caíram nela (drill-down).
+function renderHistograma(canvasId, valores, numBuckets, cor, formatarRotulo, opts){
   formatarRotulo = formatarRotulo || (v => v.toFixed(1));
-  valores = valores.filter(v => isFinite(v));
-  if(valores.length === 0){
+  opts = opts || {};
+  const itens = valores
+    .map((v, i) => ({ valor: v, origem: opts.lista ? opts.lista[i] : null }))
+    .filter(x => isFinite(x.valor));
+  if(itens.length === 0){
     if(chartInstances[canvasId]) chartInstances[canvasId].destroy();
     return;
   }
-  const min = Math.min(...valores), max = Math.max(...valores);
+  const vals = itens.map(x => x.valor);
+  const min = Math.min(...vals), max = Math.max(...vals);
   const largura = (max - min) / numBuckets || 1;
-  const contagens = new Array(numBuckets).fill(0);
-  valores.forEach(v => {
-    let idx = Math.floor((v - min) / largura);
+  const buckets = Array.from({ length: numBuckets }, () => []);
+  itens.forEach(x => {
+    let idx = Math.floor((x.valor - min) / largura);
     if(idx >= numBuckets) idx = numBuckets - 1;
     if(idx < 0) idx = 0;
-    contagens[idx]++;
+    buckets[idx].push(x.origem);
   });
-  const labels = contagens.map((_, i) => formatarRotulo(min + i*largura) + '–' + formatarRotulo(min + (i+1)*largura));
-  renderBarChart(canvasId, labels, contagens, cor, { label: 'Lançamentos' });
+  const labels = buckets.map((_, i) => formatarRotulo(min + i*largura) + '–' + formatarRotulo(min + (i+1)*largura));
+  const contagens = buckets.map(b => b.length);
+  const onClick = opts.abrirFn ? function(idx){ opts.abrirFn('Faixa ' + labels[idx], buckets[idx].filter(Boolean)); } : undefined;
+  renderBarChart(canvasId, labels, contagens, cor, { label: 'Lançamentos', onClick });
 }
 
 // Converte minutos decimais (ex: 1.8) pro formato de relógio "MM:SS" (ex: "01:48").
@@ -3758,18 +3817,23 @@ function renderProdutividadeRepack(){
   const minutosTendencia = chavesTendencia.map(c => +calcularIndicadoresRepack(porBucket[c]).minutosMedioPorEmbalagem.toFixed(2));
   const caixasHoraTendencia = chavesTendencia.map(c => +calcularIndicadoresRepack(porBucket[c]).caixasPorHora.toFixed(1));
 
-  renderBarChart('chart-repack-tendencia-minutos', labelsTendencia, minutosTendencia, '#0891B2', { label: 'Tempo/embalagem', formatarValor: formatarMinutosComoRelogio });
-  renderBarChart('chart-repack-tendencia-caixashora', labelsTendencia, caixasHoraTendencia, '#0D9488', { label: 'Caixas/hora' });
+  // Todos os gráficos daqui pra baixo são clicáveis: clicar numa barra abre
+  // os lançamentos daquele ponto (dia/funcionário/embalagem/faixa) no modal
+  // de drill-down — mesmo padrão já usado em Custo/Análise de Produto.
+  const onClickTendenciaMin = onClickBucketProdutividade(chavesTendencia, labelsTendencia, porBucket, tipo, abrirDrilldownRepack);
+  const onClickTendenciaCaixasHora = onClickBucketProdutividade(chavesTendencia, labelsTendencia, porBucket, tipo, abrirDrilldownRepack);
+  renderBarChart('chart-repack-tendencia-minutos', labelsTendencia, minutosTendencia, '#0891B2', { label: 'Tempo/embalagem', formatarValor: formatarMinutosComoRelogio, onClick: onClickTendenciaMin });
+  renderBarChart('chart-repack-tendencia-caixashora', labelsTendencia, caixasHoraTendencia, '#0D9488', { label: 'Caixas/hora', onClick: onClickTendenciaCaixasHora });
 
-  renderKpiMetaRepack(labelsTendencia, minutosTendencia, caixasHoraTendencia);
+  renderKpiMetaRepack(labelsTendencia, minutosTendencia, caixasHoraTendencia, chavesTendencia, porBucket, tipo);
 
   // Por funcionário
   const porFunc = {};
   baseNoRange.forEach(r => { (porFunc[r.lancadoPorId] = porFunc[r.lancadoPorId] || []).push(r); });
   const funcEntradas = Object.entries(porFunc)
-    .map(([id, lista]) => ({ nome: nomePor(pessoas, Number(id)), valor: +calcularIndicadoresRepack(lista).minutosMedioPorEmbalagem.toFixed(2) }))
+    .map(([id, lista]) => ({ nome: nomePor(pessoas, Number(id)), valor: +calcularIndicadoresRepack(lista).minutosMedioPorEmbalagem.toFixed(2), lista }))
     .sort((a,b) => a.valor - b.valor).slice(0, 10);
-  renderBarChart('chart-repack-funcionario', funcEntradas.map(x=>x.nome), funcEntradas.map(x=>x.valor), '#0E8E7D', { label: 'Tempo/embalagem', formatarValor: formatarMinutosComoRelogio });
+  renderBarChart('chart-repack-funcionario', funcEntradas.map(x=>x.nome), funcEntradas.map(x=>x.valor), '#0E8E7D', { label: 'Tempo/embalagem', formatarValor: formatarMinutosComoRelogio, onClick: onClickEntradaComLista(funcEntradas, abrirDrilldownRepack) });
 
   // Por embalagem — tempo médio por embalagem (taxa), não volume total
   const porEmbalagemGrupos = {};
@@ -3779,12 +3843,30 @@ function renderProdutividadeRepack(){
     (porEmbalagemGrupos[chave] = porEmbalagemGrupos[chave] || []).push(r);
   });
   const embEntradas = Object.entries(porEmbalagemGrupos)
-    .map(([nome, lista]) => ({ nome, valor: +calcularIndicadoresRepack(lista).minutosMedioPorEmbalagem.toFixed(2) }))
+    .map(([nome, lista]) => ({ nome, valor: +calcularIndicadoresRepack(lista).minutosMedioPorEmbalagem.toFixed(2), lista }))
     .sort((a,b) => a.valor - b.valor).slice(0, 10);
-  renderBarChart('chart-repack-embalagem', embEntradas.map(x=>x.nome), embEntradas.map(x=>x.valor), '#7C3AED', { label: 'Tempo/embalagem', formatarValor: formatarMinutosComoRelogio });
+  renderBarChart('chart-repack-embalagem', embEntradas.map(x=>x.nome), embEntradas.map(x=>x.valor), '#7C3AED', { label: 'Tempo/embalagem', formatarValor: formatarMinutosComoRelogio, onClick: onClickEntradaComLista(embEntradas, abrirDrilldownRepack, 'Embalagem') });
 
   // Histograma de minutos por caixa
-  renderHistograma('chart-repack-histograma', baseNoRange.map(r=>r.minPorCaixa), 8, '#C97A1A', formatarMinutosComoRelogio);
+  renderHistograma('chart-repack-histograma', baseNoRange.map(r=>r.minPorCaixa), 8, '#C97A1A', formatarMinutosComoRelogio, { lista: baseNoRange, abrirFn: abrirDrilldownRepack });
+}
+
+// Monta o "cartão de atingimento de meta" (valor real + meta + % com barrinha
+// de progresso colorida) usado nos KPIs de Produtividade do Repack e Despejo.
+// "bateu" decide a cor (verde bateu a meta, vermelho não bateu); a barra usa
+// o % limitado entre 0-100 só pra não estourar visualmente quando passa muito
+// da meta (o número do pill continua mostrando o valor real, sem limite).
+function montarCardAtingimentoMeta(valorFmt, metaFmt, pct, bateu){
+  const corBarra = bateu ? 'var(--teal)' : 'var(--red)';
+  const larguraBarra = Math.max(0, Math.min(100, pct));
+  return '<div style="display:flex; align-items:baseline; gap:10px; flex-wrap:wrap;">' +
+      '<span class="value" style="font-size:22px;">' + valorFmt + '</span>' +
+      '<span class="status-pill ' + (bateu ? 'status-aprovada' : 'status-reprovada') + '" style="font-size:12.5px; padding:4px 11px;">' + pct + '%</span>' +
+    '</div>' +
+    '<div style="font-size:14.5px; font-weight:600; color:var(--sub); margin-top:8px;">Meta: ' + metaFmt + '</div>' +
+    '<div style="height:6px; border-radius:3px; background:#EEF1F4; margin-top:8px; overflow:hidden;">' +
+      '<div style="height:100%; width:' + larguraBarra + '%; background:' + corBarra + '; border-radius:3px;"></div>' +
+    '</div>';
 }
 
 // Mostra a meta do mês atual (a mesma cadastrada na aba Metas, pra filial
@@ -3792,7 +3874,7 @@ function renderProdutividadeRepack(){
 // coloridinho igual a aba Metas tem — assim não precisa ficar trocando de
 // aba pra ver se está batendo. Sempre compara com o MÊS ATUAL, independente
 // da "Visão" escolhida acima (diária/semanal/etc.), porque meta é mensal.
-async function renderKpiMetaRepack(labelsTendencia, minutosTendencia, caixasHoraTendencia){
+async function renderKpiMetaRepack(labelsTendencia, minutosTendencia, caixasHoraTendencia, chavesTendencia, porBucket, tipo){
   const elMin = document.getElementById('repack-kpi-meta-min');
   const elCaixasHora = document.getElementById('repack-kpi-meta-caixashora');
   if(!elMin || !elCaixasHora) return;
@@ -3817,17 +3899,19 @@ async function renderKpiMetaRepack(labelsTendencia, minutosTendencia, caixasHora
   const metaCaixasHora = Number(metas.meta_caixas_por_hora) || 0;
 
   elMin.innerHTML = metaMin
-    ? '<span class="value" style="font-size:20px;">' + formatarMinutosComoRelogio(indicadores.minutosMedioPorEmbalagem) + '</span>' +
-      '<div style="font-size:12.5px;color:var(--sub);margin-top:4px;">Meta: ' + formatarMinutosComoRelogio(metaMin) +
-      ' · <span class="status-pill ' + (indicadores.minutosMedioPorEmbalagem > metaMin ? 'status-reprovada' : 'status-aprovada') + '">' +
-      Math.round((indicadores.minutosMedioPorEmbalagem/metaMin)*100) + '%</span></div>'
+    ? montarCardAtingimentoMeta(
+        formatarMinutosComoRelogio(indicadores.minutosMedioPorEmbalagem),
+        formatarMinutosComoRelogio(metaMin),
+        Math.round((indicadores.minutosMedioPorEmbalagem/metaMin)*100),
+        indicadores.minutosMedioPorEmbalagem <= metaMin)
     : '<span class="muted" style="font-size:13px;">Meta não definida (aba Metas)</span>';
 
   elCaixasHora.innerHTML = metaCaixasHora
-    ? '<span class="value" style="font-size:20px;">' + indicadores.caixasPorHora.toFixed(1) + '</span>' +
-      '<div style="font-size:12.5px;color:var(--sub);margin-top:4px;">Meta: ' + metaCaixasHora.toFixed(1) +
-      ' · <span class="status-pill ' + (indicadores.caixasPorHora < metaCaixasHora ? 'status-reprovada' : 'status-aprovada') + '">' +
-      Math.round((indicadores.caixasPorHora/metaCaixasHora)*100) + '%</span></div>'
+    ? montarCardAtingimentoMeta(
+        indicadores.caixasPorHora.toFixed(1),
+        metaCaixasHora.toFixed(1),
+        Math.round((indicadores.caixasPorHora/metaCaixasHora)*100),
+        indicadores.caixasPorHora >= metaCaixasHora)
     : '<span class="muted" style="font-size:13px;">Meta não definida (aba Metas)</span>';
 
   // Recolore os gráficos de tendência: verde quem bateu a meta do mês naquele
@@ -3836,17 +3920,18 @@ async function renderKpiMetaRepack(labelsTendencia, minutosTendencia, caixasHora
   // Usa a MESMA meta do mês atual pra todos os pontos do gráfico (é a única
   // meta que temos à mão aqui) — se o período junta vários meses diferentes,
   // isso é só uma referência, não uma comparação mês a mês exata.
+  const onClickTendencia = (chavesTendencia && porBucket) ? onClickBucketProdutividade(chavesTendencia, labelsTendencia, porBucket, tipo, abrirDrilldownRepack) : undefined;
   if(labelsTendencia && minutosTendencia){
     const coresMin = metaMin
       ? minutosTendencia.map(v => v === 0 ? '#C7CDD3' : (v <= metaMin ? '#12796B' : '#A32D2D'))
       : '#0891B2';
-    renderBarChart('chart-repack-tendencia-minutos', labelsTendencia, minutosTendencia, coresMin, { label: 'Tempo/embalagem', formatarValor: formatarMinutosComoRelogio });
+    renderBarChart('chart-repack-tendencia-minutos', labelsTendencia, minutosTendencia, coresMin, { label: 'Tempo/embalagem', formatarValor: formatarMinutosComoRelogio, onClick: onClickTendencia });
   }
   if(labelsTendencia && caixasHoraTendencia){
     const coresCaixasHora = metaCaixasHora
       ? caixasHoraTendencia.map(v => v === 0 ? '#C7CDD3' : (v >= metaCaixasHora ? '#12796B' : '#A32D2D'))
       : '#0D9488';
-    renderBarChart('chart-repack-tendencia-caixashora', labelsTendencia, caixasHoraTendencia, coresCaixasHora, { label: 'Caixas/hora' });
+    renderBarChart('chart-repack-tendencia-caixashora', labelsTendencia, caixasHoraTendencia, coresCaixasHora, { label: 'Caixas/hora', onClick: onClickTendencia });
   }
 }
 
@@ -4215,16 +4300,17 @@ function renderProdutividadeDespejo(){
   });
   const labelsTendencia = chavesTendencia.map(c => rotuloBucket(c, tipo));
   const litrosMinTendencia = chavesTendencia.map(c => +calcularIndicadoresDespejo(porBucket[c]).litrosPorMinuto.toFixed(2));
-  renderBarChart('chart-despejo-tendencia', labelsTendencia, litrosMinTendencia, '#0D9488', { label: 'Litros/minuto' });
+  const onClickTendenciaDespejo = onClickBucketProdutividade(chavesTendencia, labelsTendencia, porBucket, tipo, abrirDrilldownDespejo);
+  renderBarChart('chart-despejo-tendencia', labelsTendencia, litrosMinTendencia, '#0D9488', { label: 'Litros/minuto', onClick: onClickTendenciaDespejo });
 
-  renderKpiMetaDespejo(labelsTendencia, litrosMinTendencia);
+  renderKpiMetaDespejo(labelsTendencia, litrosMinTendencia, chavesTendencia, porBucket, tipo);
 
   const porFunc = {};
   baseNoRange.forEach(r => { (porFunc[r.lancadoPorId] = porFunc[r.lancadoPorId] || []).push(r); });
   const funcEntradas = Object.entries(porFunc)
-    .map(([id, lista]) => ({ nome: nomePor(pessoas, Number(id)), valor: +calcularIndicadoresDespejo(lista).litrosPorMinuto.toFixed(2) }))
+    .map(([id, lista]) => ({ nome: nomePor(pessoas, Number(id)), valor: +calcularIndicadoresDespejo(lista).litrosPorMinuto.toFixed(2), lista }))
     .sort((a,b) => b.valor - a.valor).slice(0, 10);
-  renderBarChart('chart-despejo-funcionario', funcEntradas.map(x=>x.nome), funcEntradas.map(x=>x.valor), '#0E8E7D', { label: 'Litros/minuto' });
+  renderBarChart('chart-despejo-funcionario', funcEntradas.map(x=>x.nome), funcEntradas.map(x=>x.valor), '#0E8E7D', { label: 'Litros/minuto', onClick: onClickEntradaComLista(funcEntradas, abrirDrilldownDespejo) });
 
   const porEmbalagemGrupos = {};
   baseNoRange.forEach(r => {
@@ -4233,18 +4319,18 @@ function renderProdutividadeDespejo(){
     (porEmbalagemGrupos[chave] = porEmbalagemGrupos[chave] || []).push(r);
   });
   const embEntradas = Object.entries(porEmbalagemGrupos)
-    .map(([nome, lista]) => ({ nome, valor: +calcularIndicadoresDespejo(lista).litrosPorMinuto.toFixed(2) }))
+    .map(([nome, lista]) => ({ nome, valor: +calcularIndicadoresDespejo(lista).litrosPorMinuto.toFixed(2), lista }))
     .sort((a,b) => b.valor - a.valor).slice(0, 10);
-  renderBarChart('chart-despejo-embalagem', embEntradas.map(x=>x.nome), embEntradas.map(x=>x.valor), '#7C3AED', { label: 'Litros/minuto' });
+  renderBarChart('chart-despejo-embalagem', embEntradas.map(x=>x.nome), embEntradas.map(x=>x.valor), '#7C3AED', { label: 'Litros/minuto', onClick: onClickEntradaComLista(embEntradas, abrirDrilldownDespejo, 'Embalagem') });
 
-  renderHistograma('chart-despejo-histograma', baseNoRange.map(r=>r.litrosPorMinuto), 8, '#C97A1A');
+  renderHistograma('chart-despejo-histograma', baseNoRange.map(r=>r.litrosPorMinuto), 8, '#C97A1A', undefined, { lista: baseNoRange, abrirFn: abrirDrilldownDespejo });
 }
 
 // Mesma ideia do renderKpiMetaRepack: mostra a meta do MÊS ATUAL (cadastrada
 // na aba Metas) direto aqui na Produtividade, pra filial selecionada no topo,
 // e recolore o gráfico de tendência (verde bateu meta, vermelho não bateu,
 // cinza sem lançamento no período).
-async function renderKpiMetaDespejo(labelsTendencia, litrosMinTendencia){
+async function renderKpiMetaDespejo(labelsTendencia, litrosMinTendencia, chavesTendencia, porBucket, tipo){
   const elMeta = document.getElementById('despejo-kpi-meta');
   if(!elMeta) return;
 
@@ -4265,17 +4351,19 @@ async function renderKpiMetaDespejo(labelsTendencia, litrosMinTendencia){
   const meta = Number(metas.meta_litros_por_minuto) || 0;
 
   elMeta.innerHTML = meta
-    ? '<span class="value" style="font-size:20px;">' + indicadores.litrosPorMinuto.toFixed(2) + '</span>' +
-      '<div style="font-size:12.5px;color:var(--sub);margin-top:4px;">Meta: ' + meta.toFixed(2) +
-      ' · <span class="status-pill ' + (indicadores.litrosPorMinuto < meta ? 'status-reprovada' : 'status-aprovada') + '">' +
-      Math.round((indicadores.litrosPorMinuto/meta)*100) + '%</span></div>'
+    ? montarCardAtingimentoMeta(
+        indicadores.litrosPorMinuto.toFixed(2),
+        meta.toFixed(2),
+        Math.round((indicadores.litrosPorMinuto/meta)*100),
+        indicadores.litrosPorMinuto >= meta)
     : '<span class="muted" style="font-size:13px;">Meta não definida (aba Metas)</span>';
 
   if(labelsTendencia && litrosMinTendencia){
     const cores = meta
       ? litrosMinTendencia.map(v => v === 0 ? '#C7CDD3' : (v >= meta ? '#12796B' : '#A32D2D'))
       : '#0D9488';
-    renderBarChart('chart-despejo-tendencia', labelsTendencia, litrosMinTendencia, cores, { label: 'Litros/minuto' });
+    const onClickTendencia = (chavesTendencia && porBucket) ? onClickBucketProdutividade(chavesTendencia, labelsTendencia, porBucket, tipo, abrirDrilldownDespejo) : undefined;
+    renderBarChart('chart-despejo-tendencia', labelsTendencia, litrosMinTendencia, cores, { label: 'Litros/minuto', onClick: onClickTendencia });
   }
 }
 

@@ -1167,9 +1167,9 @@
 
       <div class="card">
         <h3>Produtos cadastrados</h3>
-        <p class="hint">O <b>custo unitário</b> aqui alimenta todos os gráficos e KPIs de custo do gerencial — edite direto na tabela. "Fator" é quantas unidades vêm numa caixa fechada (usado pra calcular o custo certo quando a quebra é lançada em caixa). "Litros/unid." é quantos litros tem 1 unidade desse produto — pode editar direto aqui também, além da conferência automática acima.</p>
+        <p class="hint">O <b>custo unitário</b> aqui alimenta todos os gráficos e KPIs de custo do gerencial — edite direto na tabela. "Fator" é quantas unidades vêm numa caixa fechada (usado pra calcular o custo certo quando a quebra é lançada em caixa). "Litros/unid." é quantos litros tem 1 unidade desse produto — pode editar direto aqui também, além da conferência automática acima. <b>"Vasilhame vinculado"</b>: pra produtos retornáveis (ex: Brahma 300ml), escolha aqui o vasilhame correspondente (ex: Vasilhame 300ml). Com isso vinculado, quando o time lançar uma quebra desse produto no app, aparece a pergunta "o vasilhame também quebrou?" — se marcarem sim, o sistema já calcula sozinho a quantidade e o custo do vasilhame e soma tudo no mesmo lançamento, sem precisar lançar o vasilhame separado.</p>
         <input type="text" id="busca-produto" placeholder="Buscar por código, EAN ou descrição..." onkeyup="filtrarProdutos()" style="margin-bottom:10px;" />
-        <table><thead><tr><th>Código</th><th>Descrição</th><th>EAN</th><th>Custo unitário</th><th>Fator caixa</th><th>Litros/unid.</th><th>Vasilhame</th><th>Ativo</th></tr></thead><tbody id="tbl-produtos"></tbody></table>
+        <table><thead><tr><th>Código</th><th>Descrição</th><th>EAN</th><th>Custo unitário</th><th>Fator caixa</th><th>Litros/unid.</th><th>Vasilhame</th><th>Vasilhame vinculado</th><th>Ativo</th></tr></thead><tbody id="tbl-produtos"></tbody></table>
       </div>
     </div>
   </main>
@@ -1955,6 +1955,9 @@ async function carregarProdutos(){
 }
 
 function renderProdutos(lista){
+  // Lista de vasilhames pra montar o <select> de vínculo — só aparece pra
+  // quem NÃO é vasilhame (não faz sentido um vasilhame apontar pra outro).
+  const vasilhames = produtos.filter(v => v.eh_vasilhame);
   document.getElementById('tbl-produtos').innerHTML = lista.map(p => `
     <tr>
       <td>${p.codigo}</td><td>${p.descricao}</td>
@@ -1963,6 +1966,12 @@ function renderProdutos(lista){
       <td><input class="small-input" type="number" step="1" min="1" value="${p.fator_caixa || 1}" onchange="atualizarCampoProduto(${p.id}, 'fator_caixa', Number(this.value) || 1)" style="width:70px;" /></td>
       <td><input class="small-input" type="number" step="0.001" min="0" value="${p.litros_por_unidade || 1}" onchange="atualizarCampoProduto(${p.id}, 'litros_por_unidade', Number(this.value) || 1)" style="width:80px;" /></td>
       <td><button class="toggle ${p.eh_vasilhame ? 'on' : ''}" onclick="atualizarCampoProduto(${p.id}, 'eh_vasilhame', ${!p.eh_vasilhame})"><span class="dot"></span></button></td>
+      <td>${p.eh_vasilhame
+        ? '<span class="muted" style="font-size:12px;">—</span>'
+        : '<select class="small-input" style="width:170px;" onchange="atualizarCampoProduto(' + p.id + ', \'vasilhame_produto_id\', this.value ? Number(this.value) : null)">' +
+          '<option value="">Sem vínculo</option>' +
+          vasilhames.map(v => '<option value="' + v.id + '"' + (p.vasilhame_produto_id === v.id ? ' selected' : '') + '>' + v.descricao + '</option>').join('') +
+          '</select>'}</td>
       <td><button class="toggle ${p.ativo ? 'on' : ''}" onclick="toggleAtivo('produtos', ${p.id}, ${!p.ativo}, carregarProdutos)"><span class="dot"></span></button></td>
     </tr>`).join('');
 }
@@ -3856,14 +3865,14 @@ function renderProdutividadeRepack(){
 // "bateu" decide a cor (verde bateu a meta, vermelho não bateu); a barra usa
 // o % limitado entre 0-100 só pra não estourar visualmente quando passa muito
 // da meta (o número do pill continua mostrando o valor real, sem limite).
-function montarCardAtingimentoMeta(valorFmt, metaFmt, pct, bateu){
+function montarCardAtingimentoMeta(valorFmt, metaFmt, pct, bateu, nota){
   const corBarra = bateu ? 'var(--teal)' : 'var(--red)';
   const larguraBarra = Math.max(0, Math.min(100, pct));
   return '<div style="display:flex; align-items:baseline; gap:10px; flex-wrap:wrap;">' +
       '<span class="value" style="font-size:22px;">' + valorFmt + '</span>' +
       '<span class="status-pill ' + (bateu ? 'status-aprovada' : 'status-reprovada') + '" style="font-size:12.5px; padding:4px 11px;">' + pct + '%</span>' +
     '</div>' +
-    '<div style="font-size:14.5px; font-weight:600; color:var(--sub); margin-top:8px;">Meta: ' + metaFmt + '</div>' +
+    '<div style="font-size:14.5px; font-weight:600; color:var(--sub); margin-top:8px;">Meta: ' + metaFmt + (nota ? ' <span style="font-weight:400; font-size:12px;">(' + nota + ')</span>' : '') + '</div>' +
     '<div style="height:6px; border-radius:3px; background:#EEF1F4; margin-top:8px; overflow:hidden;">' +
       '<div style="height:100%; width:' + larguraBarra + '%; background:' + corBarra + '; border-radius:3px;"></div>' +
     '</div>';
@@ -3879,31 +3888,46 @@ async function renderKpiMetaRepack(labelsTendencia, minutosTendencia, caixasHora
   const elCaixasHora = document.getElementById('repack-kpi-meta-caixashora');
   if(!elMin || !elCaixasHora) return;
 
-  if(!filialGlobalId){
-    elMin.innerHTML = '<span class="muted" style="font-size:13px;">Selecione uma filial no topo</span>';
-    elCaixasHora.innerHTML = '<span class="muted" style="font-size:13px;">Selecione uma filial no topo</span>';
-    return;
-  }
-
   const anoMesAtual = new Date().toISOString().slice(0,7);
   const [ano, mes] = anoMesAtual.split('-').map(Number);
-  const { data, error } = await sb.from('repack_metas').select('*').eq('filial_id', filialGlobalId).eq('ano', ano).eq('mes', mes).maybeSingle();
-  if(error) console.error('Erro ao buscar meta de repack:', error);
-  console.log('[meta repack] filial', filialGlobalId, 'ano/mes', ano, mes, '-> linha encontrada:', data);
-  const metas = data || { meta_minutos_por_embalagem: 0, meta_caixas_por_hora: 0 };
 
-  const doMesAtual = repackCache.filter(r => r.filialId == filialGlobalId && r.dataISO.slice(0,7) === anoMesAtual);
+  let metaMin, metaCaixasHora, doMesAtual;
+
+  if(!filialGlobalId){
+    // "Todas as filiais": não existe uma meta única pra comparar, então usamos
+    // a MÉDIA das metas de cada filial cadastrada (a meta em si é uma taxa —
+    // minutos/embalagem, caixas/hora — então tirar a média das 3 faz sentido
+    // como referência combinada). O realizado já é o das 3 filiais juntas.
+    const { data, error } = await sb.from('repack_metas').select('*').eq('ano', ano).eq('mes', mes);
+    if(error) console.error('Erro ao buscar metas de repack (todas as filiais):', error);
+    console.log('[meta repack] todas as filiais · ano/mes', ano, mes, '-> linhas encontradas:', data);
+    const linhas = data || [];
+    const valoresMin = linhas.map(l => Number(l.meta_minutos_por_embalagem)).filter(v => v > 0);
+    const valoresCaixasHora = linhas.map(l => Number(l.meta_caixas_por_hora)).filter(v => v > 0);
+    metaMin = valoresMin.length ? valoresMin.reduce((a,v)=>a+v,0) / valoresMin.length : 0;
+    metaCaixasHora = valoresCaixasHora.length ? valoresCaixasHora.reduce((a,v)=>a+v,0) / valoresCaixasHora.length : 0;
+    doMesAtual = repackCache.filter(r => r.dataISO.slice(0,7) === anoMesAtual);
+  } else {
+    const { data, error } = await sb.from('repack_metas').select('*').eq('filial_id', filialGlobalId).eq('ano', ano).eq('mes', mes).maybeSingle();
+    if(error) console.error('Erro ao buscar meta de repack:', error);
+    console.log('[meta repack] filial', filialGlobalId, 'ano/mes', ano, mes, '-> linha encontrada:', data);
+    const metas = data || { meta_minutos_por_embalagem: 0, meta_caixas_por_hora: 0 };
+    metaMin = Number(metas.meta_minutos_por_embalagem) || 0;
+    metaCaixasHora = Number(metas.meta_caixas_por_hora) || 0;
+    doMesAtual = repackCache.filter(r => r.filialId == filialGlobalId && r.dataISO.slice(0,7) === anoMesAtual);
+  }
+
   const indicadores = calcularIndicadoresRepack(doMesAtual);
 
-  const metaMin = Number(metas.meta_minutos_por_embalagem) || 0;
-  const metaCaixasHora = Number(metas.meta_caixas_por_hora) || 0;
+  const notaMedia = !filialGlobalId ? 'média das filiais' : null;
 
   elMin.innerHTML = metaMin
     ? montarCardAtingimentoMeta(
         formatarMinutosComoRelogio(indicadores.minutosMedioPorEmbalagem),
         formatarMinutosComoRelogio(metaMin),
         Math.round((indicadores.minutosMedioPorEmbalagem/metaMin)*100),
-        indicadores.minutosMedioPorEmbalagem <= metaMin)
+        indicadores.minutosMedioPorEmbalagem <= metaMin,
+        notaMedia)
     : '<span class="muted" style="font-size:13px;">Meta não definida (aba Metas)</span>';
 
   elCaixasHora.innerHTML = metaCaixasHora
@@ -3911,7 +3935,8 @@ async function renderKpiMetaRepack(labelsTendencia, minutosTendencia, caixasHora
         indicadores.caixasPorHora.toFixed(1),
         metaCaixasHora.toFixed(1),
         Math.round((indicadores.caixasPorHora/metaCaixasHora)*100),
-        indicadores.caixasPorHora >= metaCaixasHora)
+        indicadores.caixasPorHora >= metaCaixasHora,
+        notaMedia)
     : '<span class="muted" style="font-size:13px;">Meta não definida (aba Metas)</span>';
 
   // Recolore os gráficos de tendência: verde quem bateu a meta do mês naquele
@@ -4334,28 +4359,38 @@ async function renderKpiMetaDespejo(labelsTendencia, litrosMinTendencia, chavesT
   const elMeta = document.getElementById('despejo-kpi-meta');
   if(!elMeta) return;
 
-  if(!filialGlobalId){
-    elMeta.innerHTML = '<span class="muted" style="font-size:13px;">Selecione uma filial no topo</span>';
-    return;
-  }
-
   const anoMesAtual = new Date().toISOString().slice(0,7);
   const [ano, mes] = anoMesAtual.split('-').map(Number);
-  const { data, error } = await sb.from('despejo_metas').select('*').eq('filial_id', filialGlobalId).eq('ano', ano).eq('mes', mes).maybeSingle();
-  if(error) console.error('Erro ao buscar meta de despejo:', error);
-  console.log('[meta despejo] filial', filialGlobalId, 'ano/mes', ano, mes, '-> linha encontrada:', data);
-  const metas = data || { meta_litros_por_minuto: 0 };
 
-  const doMesAtual = despejoCache.filter(r => r.filialId == filialGlobalId && r.dataISO.slice(0,7) === anoMesAtual);
+  let meta, doMesAtual;
+
+  if(!filialGlobalId){
+    // "Todas as filiais": usa a MÉDIA das metas de litros/min cadastradas pra
+    // cada filial (mesma lógica do Repack) — o realizado já soma as 3 juntas.
+    const { data, error } = await sb.from('despejo_metas').select('*').eq('ano', ano).eq('mes', mes);
+    if(error) console.error('Erro ao buscar metas de despejo (todas as filiais):', error);
+    console.log('[meta despejo] todas as filiais · ano/mes', ano, mes, '-> linhas encontradas:', data);
+    const valores = (data || []).map(l => Number(l.meta_litros_por_minuto)).filter(v => v > 0);
+    meta = valores.length ? valores.reduce((a,v)=>a+v,0) / valores.length : 0;
+    doMesAtual = despejoCache.filter(r => r.dataISO.slice(0,7) === anoMesAtual);
+  } else {
+    const { data, error } = await sb.from('despejo_metas').select('*').eq('filial_id', filialGlobalId).eq('ano', ano).eq('mes', mes).maybeSingle();
+    if(error) console.error('Erro ao buscar meta de despejo:', error);
+    console.log('[meta despejo] filial', filialGlobalId, 'ano/mes', ano, mes, '-> linha encontrada:', data);
+    const metas = data || { meta_litros_por_minuto: 0 };
+    meta = Number(metas.meta_litros_por_minuto) || 0;
+    doMesAtual = despejoCache.filter(r => r.filialId == filialGlobalId && r.dataISO.slice(0,7) === anoMesAtual);
+  }
+
   const indicadores = calcularIndicadoresDespejo(doMesAtual);
-  const meta = Number(metas.meta_litros_por_minuto) || 0;
 
   elMeta.innerHTML = meta
     ? montarCardAtingimentoMeta(
         indicadores.litrosPorMinuto.toFixed(2),
         meta.toFixed(2),
         Math.round((indicadores.litrosPorMinuto/meta)*100),
-        indicadores.litrosPorMinuto >= meta)
+        indicadores.litrosPorMinuto >= meta,
+        !filialGlobalId ? 'média das filiais' : null)
     : '<span class="muted" style="font-size:13px;">Meta não definida (aba Metas)</span>';
 
   if(labelsTendencia && litrosMinTendencia){

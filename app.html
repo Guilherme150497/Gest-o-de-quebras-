@@ -193,6 +193,17 @@
             <option value="caixa">Caixa</option>
           </select>
 
+          <div id="bloco-vasilhame-junto" class="hidden card" style="background:var(--teal-l, #EAF6F4); margin-top:12px; padding:12px;">
+            <div class="row-inline">
+              <button class="toggle" id="toggle-vasilhame-junto" onclick="alternarVasilhameJunto()"><span class="dot"></span></button>
+              <span style="font-size:14px;font-weight:600;">🍾 O vasilhame (garrafa) também quebrou?</span>
+            </div>
+            <p style="font-size:12px;color:var(--sub);margin:6px 0 0;">
+              Se marcar, não precisa lançar o vasilhame separado — o sistema já calcula a
+              quantidade e o custo dele e soma tudo nesse mesmo lançamento.
+            </p>
+          </div>
+
           <div id="bloco-foto" style="margin-top:14px;">
             <input type="file" id="foto-input" accept="image/*" capture="environment" class="hidden" onchange="onFotoSelecionada(event)" />
             <button class="btn btn-navy" onclick="document.getElementById('foto-input').click()">📸 Tirar foto de conferência</button>
@@ -651,6 +662,18 @@ async function onCodigoLido(codigo){
   }
   const encontrado = await buscarProdutoPorCodigo(codigo, modoVasilhame);
   if(encontrado){ selecionarProduto(encontrado); fecharScanner(); }
+}
+
+// Marca se, no lançamento atual do produto líquido, o vasilhame (garrafa)
+// quebrou junto — só aparece pra produtos que têm um vasilhame vinculado no
+// cadastro (produto.vasilhame_produto_id). Quando marcado, o custo e a
+// quantidade do vasilhame são calculados sozinhos e somados nesse mesmo
+// lançamento — ninguém precisa selecionar e lançar o vasilhame à parte.
+let vasilhameJuntoMarcado = false;
+
+function alternarVasilhameJunto(){
+  vasilhameJuntoMarcado = !vasilhameJuntoMarcado;
+  document.getElementById('toggle-vasilhame-junto').classList.toggle('on', vasilhameJuntoMarcado);
 }
 
 let modoVasilhame = false;
@@ -1367,12 +1390,22 @@ function selecionarProduto(produto){
   document.getElementById('codigo-manual').value = '';
   esconderSugestoes();
   resetarFoto();
+
+  // Só mostra a pergunta do vasilhame se ESSE produto (o líquido) tiver um
+  // vasilhame vinculado no cadastro, e não estivermos no modo "isso já é um
+  // vasilhame" (nesse caso não existe um "vasilhame do vasilhame").
+  vasilhameJuntoMarcado = false;
+  document.getElementById('toggle-vasilhame-junto').classList.remove('on');
+  const mostrarBlocoVasilhame = !modoVasilhame && !!produto.vasilhame_produto_id;
+  document.getElementById('bloco-vasilhame-junto').classList.toggle('hidden', !mostrarBlocoVasilhame);
 }
 
 function limparProduto(){
   produtoAtual = null;
+  vasilhameJuntoMarcado = false;
   document.getElementById('produto-found').classList.add('hidden');
   document.getElementById('qty-block').classList.add('hidden');
+  document.getElementById('bloco-vasilhame-junto').classList.add('hidden');
   resetarFoto();
 }
 
@@ -1620,7 +1653,22 @@ async function registrarQuebra(){
 
   const quantidadeLancada = parseInt(document.getElementById('quantidade').value || '1', 10);
   const fatorAplicado = unidadeMedida === 'caixa' ? (Number(produtoAtual.fator_caixa) || 1) : 1;
-  const custoCongelado = quantidadeLancada * fatorAplicado * (Number(produtoAtual.custo_unitario) || 0);
+  const unidadesQuebradas = quantidadeLancada * fatorAplicado;
+  const custoLiquido = unidadesQuebradas * (Number(produtoAtual.custo_unitario) || 0);
+
+  // Se marcaram que o vasilhame também quebrou junto, busca o custo unitário
+  // do vasilhame vinculado e soma no mesmo lançamento — mesma quantidade de
+  // unidades do líquido (1 garrafa quebrada = 1 vasilhame quebrado).
+  let custoVasilhame = 0;
+  let quantidadeVasilhame = null;
+  if(vasilhameJuntoMarcado && produtoAtual.vasilhame_produto_id){
+    const { data: vasilhameVinculado } = await sb.from('produtos').select('custo_unitario').eq('id', produtoAtual.vasilhame_produto_id).maybeSingle();
+    if(vasilhameVinculado){
+      quantidadeVasilhame = unidadesQuebradas;
+      custoVasilhame = unidadesQuebradas * (Number(vasilhameVinculado.custo_unitario) || 0);
+    }
+  }
+  const custoCongelado = custoLiquido + custoVasilhame;
 
   const payload = {
     lancado_por_id: pessoaAtual.id,
@@ -1629,6 +1677,9 @@ async function registrarQuebra(){
     quantidade: quantidadeLancada,
     unidade_medida: unidadeMedida,
     motivo_id: motivoId,
+    vasilhame_quebrado: vasilhameJuntoMarcado && quantidadeVasilhame !== null,
+    quantidade_vasilhame: quantidadeVasilhame,
+    custo_vasilhame: custoVasilhame || null,
     equipamento_id: document.getElementById('sel-equipamento').value || null,
     veiculo_id: document.getElementById('sel-veiculo').value || null,
     motorista_id: document.getElementById('sel-motorista').value || null,

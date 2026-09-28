@@ -83,6 +83,21 @@
   .grid2{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
   @media (max-width:480px){.grid2{grid-template-columns:1fr;}}
 
+  /* Interruptor liga/desliga (usado em "Isso é um vasilhame?" e "O vasilhame
+     também quebrou?") — sem essa regra o botão ficava em branco, sem cara de
+     clicável, e ninguém sabia onde apertar. */
+  .row-inline{display:flex; align-items:center; gap:10px;}
+  button.toggle{
+    width:46px; height:26px; border-radius:20px; border:none; background:#D8DCE0;
+    position:relative; flex-shrink:0; cursor:pointer; padding:0; transition:background .15s;
+  }
+  button.toggle .dot{
+    position:absolute; top:3px; left:3px; width:20px; height:20px; border-radius:50%;
+    background:#fff; box-shadow:0 1px 2px rgba(0,0,0,.25); transition:left .15s;
+  }
+  button.toggle.on{background:var(--teal);}
+  button.toggle.on .dot{left:23px;}
+
   #scanner-modal{
     position:fixed; inset:0; background:rgba(0,0,0,.85); z-index:50;
     display:flex; flex-direction:column; align-items:center; justify-content:center; padding:20px;
@@ -155,8 +170,8 @@
     <div class="section">
       <div class="section-title">1. Produto avariado</div>
       <div class="card">
-        <div class="row-inline" style="margin-bottom:12px;">
-          <button class="toggle" id="toggle-vasilhame" onclick="alternarModoVasilhame()"><span class="dot"></span></button>
+        <div class="row-inline" style="margin-bottom:12px;cursor:pointer;" onclick="alternarModoVasilhame()">
+          <button class="toggle" id="toggle-vasilhame" tabindex="-1"><span class="dot"></span></button>
           <span style="font-size:14px;font-weight:600;">🍾 Isso é um vasilhame?</span>
         </div>
         <div class="scan-row" style="position:relative;">
@@ -194,8 +209,8 @@
           </select>
 
           <div id="bloco-vasilhame-junto" class="hidden card" style="background:var(--teal-l, #EAF6F4); margin-top:12px; padding:12px;">
-            <div class="row-inline">
-              <button class="toggle" id="toggle-vasilhame-junto" onclick="alternarVasilhameJunto()"><span class="dot"></span></button>
+            <div class="row-inline" style="cursor:pointer;" onclick="alternarVasilhameJunto()">
+              <button class="toggle" id="toggle-vasilhame-junto" tabindex="-1"><span class="dot"></span></button>
               <span style="font-size:14px;font-weight:600;">🍾 O vasilhame (garrafa) também quebrou?</span>
             </div>
             <p style="font-size:12px;color:var(--sub);margin:6px 0 0;">

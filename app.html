@@ -80,6 +80,39 @@
   .foto-preview img{width:72px; height:72px; object-fit:cover; border-radius:8px; border:1px solid var(--line);}
   .foto-preview .status{flex:1; font-size:13px;}
 
+
+  /* ---- módulo Falta de Vasilhame ---- */
+  .btn-outline{background:#fff; border:1px solid var(--line); color:var(--text);}
+  .btn-amber{background:var(--amber); color:#fff;}
+  .btn.sm{width:auto; padding:10px 14px; font-size:13px; margin-top:0;}
+  .fv-tabs{display:flex; gap:4px; margin-bottom:12px;}
+  .fv-tabs button{flex:1; border:1px solid var(--line); background:#fff; border-radius:9px; padding:10px 4px; font-size:12.5px; font-weight:700; color:var(--sub); cursor:pointer;}
+  .fv-tabs button.on{background:var(--navy); color:#fff; border-color:var(--navy);}
+  .fv-tabs .bd{display:inline-block; min-width:18px; padding:1px 6px; border-radius:10px; background:var(--amber); color:#fff; font-size:11px; margin-left:4px;}
+  .fv-qty{display:flex; gap:8px; align-items:center;}
+  .fv-qty button{width:44px; height:44px; border-radius:9px; border:1px solid var(--line); background:#fff; font-size:20px; font-weight:700; color:var(--teal); cursor:pointer;}
+  .fv-qty input{text-align:center; font-size:20px; font-weight:700; width:80px;}
+  .fv-unit{display:flex; gap:8px; margin-top:8px;}
+  .fv-unit button{flex:1; padding:11px; border:1px solid var(--line); background:#fff; border-radius:9px; font-size:14px; font-weight:600; color:var(--sub); cursor:pointer;}
+  .fv-unit button.on{background:var(--teal-l); border-color:var(--teal); color:var(--teal);}
+  .fv-banner{border-radius:10px; padding:12px; font-size:13px; margin-top:12px; line-height:1.45;}
+  .fv-b-red{background:var(--red-l); color:var(--red);} .fv-b-amb{background:var(--amber-l); color:#8a5b13;} .fv-b-grn{background:var(--teal-l); color:var(--teal);}
+  .fv-pill{display:inline-block; font-size:11px; font-weight:700; padding:3px 10px; border-radius:20px; white-space:nowrap;}
+  .fv-p-ok{background:var(--teal-l); color:var(--teal);} .fv-p-venc{background:var(--red-l); color:var(--red);} .fv-p-hoje{background:var(--amber-l); color:#8a5b13;}
+  .fv-p-azul{background:#DCEEFB; color:#1D6FA5;} .fv-p-cinza{background:#ECEEF0; color:var(--sub);}
+  .fv-item{background:#fff; border:1px solid var(--line); border-radius:12px; padding:14px; margin-bottom:12px;}
+  .fv-item .top{display:flex; justify-content:space-between; gap:8px; align-items:flex-start;}
+  .fv-item .sub{font-size:12.5px; color:var(--sub); margin-top:3px;}
+  .fv-acts{display:flex; gap:8px; margin-top:12px;}
+  .fv-chips{display:flex; gap:8px; margin-bottom:12px;}
+  .fv-chip{flex:1; border-radius:10px; padding:10px; text-align:center; font-size:12px; font-weight:600;}
+  .fv-chip b{display:block; font-size:20px;}
+  .fv-vazio{text-align:center; color:var(--sub); font-size:13px; padding:26px 8px;}
+  .fv-overlay{position:fixed; inset:0; background:rgba(15,25,35,.6); z-index:70; display:flex; align-items:center; justify-content:center; padding:16px;}
+  .fv-modal{background:#fff; border-radius:14px; padding:20px; width:100%; max-width:420px; max-height:90vh; overflow:auto;}
+  .fv-modal h3{margin:0 0 4px; font-size:17px;}
+  .fv-modal .acts{display:flex; gap:8px; margin-top:16px;} .fv-modal .acts .btn{margin-top:0;}
+
   .grid2{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
   @media (max-width:480px){.grid2{grid-template-columns:1fr;}}
 
@@ -154,6 +187,7 @@
     <button class="seg-btn" data-modo="transferencia" onclick="mudarModo('transferencia')">🔄 Transferência</button>
     <button class="seg-btn" data-modo="repack" onclick="mudarModo('repack')">♻️ Repack</button>
     <button class="seg-btn" data-modo="despejo" onclick="mudarModo('despejo')">🚰 Despejo</button>
+    <button class="seg-btn" data-modo="falta-vasilhame" onclick="mudarModo('falta-vasilhame')">🍾 Falta de Vasilhame<span id="fv-badge" class="hidden" style="margin-left:6px;background:var(--red);color:#fff;border-radius:10px;font-size:11px;padding:1px 7px;"></span></button>
   </div>
 
   <main>
@@ -452,6 +486,14 @@
       </div>
     </div>
 
+    <div id="modo-falta-vasilhame" class="hidden">
+      <div class="section">
+        <div class="section-title">Falta de Vasilhame — Retorno de Rota</div>
+        <div class="fv-tabs" id="fv-tabs"></div>
+        <div id="fv-corpo"></div>
+      </div>
+    </div>
+
     <div class="admin-link hidden" id="admin-link"><a href="admin.html">Abrir painel gerencial →</a></div>
   </main>
 </div>
@@ -539,6 +581,7 @@ async function entrarNoApp(){
   await carregarFeedRepack();
   await carregarFeedDespejo();
   atualizarContadorSessao();
+  fvCarregarTudo();
 }
 
 (async function initSession(){
@@ -627,6 +670,8 @@ function mudarModo(modo){
   document.getElementById('modo-transferencia').classList.toggle('hidden', modo !== 'transferencia');
   document.getElementById('modo-repack').classList.toggle('hidden', modo !== 'repack');
   document.getElementById('modo-despejo').classList.toggle('hidden', modo !== 'despejo');
+  document.getElementById('modo-falta-vasilhame').classList.toggle('hidden', modo !== 'falta-vasilhame');
+  if(modo === 'falta-vasilhame') fvCarregarTudo();
 }
 
 function mudarDepartamento(){
@@ -1765,6 +1810,285 @@ async function carregarFeed(){
     </div>
   `).join('');
 }
+
+/* ============================================================
+   MÓDULO FALTA DE VASILHAME — RETORNO DE ROTA
+   O conferente aponta o vasilhame que faltou no retorno de rota; o gerencial
+   aprova/corrige; depois a pendência volta pra cá com prazo, pra registrar a
+   devolução ou sinalizar que o vale foi gerado no WMS.
+   ============================================================ */
+
+let fvVasilhames = [];      // todos os produtos eh_vasilhame (ativos e inativos — pra mostrar nome em histórico)
+let fvMotoristas = [];      // motoristas da base do conferente
+let fvVeiculos = [];        // placas da base do conferente
+let fvConfig = { limite_reincidencia: 2, prazo_dias: 2 };
+let fvFaltas = [];          // faltas da base
+let fvLiberacoes = [];      // pedidos de liberação da base
+let fvTab = 'lancar';
+let fvForm = { vas: '', qtd: 1, un: 'caixa', mot: '', vei: '', contagem: null };
+let fvEnviando = false;
+
+const fvEsc = t => String(t ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fvHojeISO = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+const fvFmtData = iso => iso ? iso.slice(8,10) + '/' + iso.slice(5,7) : '—';
+const fvDiffDias = (de, ate) => Math.round((new Date(ate + 'T12:00:00') - new Date(de + 'T12:00:00')) / 86400000);
+const fvQtdTxt = (q, un) => q + (un === 'caixa' ? ' cx' : ' un');
+const fvNomeVas = id => { const v = fvVasilhames.find(x => x.id === id); return v ? v.descricao : '—'; };
+const fvNomeMot = id => { const m = fvMotoristas.find(x => x.id === id); return m ? m.nome : '—'; };
+const fvNomePla = id => { const v = fvVeiculos.find(x => x.id === id); return v ? v.placa : '—'; };
+const fvSaldo = f => f.status === 'pendente' ? f.quantidade - f.quantidade_devolvida : 0;
+
+function fvPrazoInfo(f){
+  if(f.status !== 'pendente' || !f.prazo_ate) return null;
+  const d = fvDiffDias(fvHojeISO(), f.prazo_ate);
+  if(d < 0) return { cls: 'fv-p-venc', txt: 'Vencido há ' + (-d) + ' dia' + (-d > 1 ? 's' : ''), venc: true, ord: d };
+  if(d === 0) return { cls: 'fv-p-hoje', txt: 'Vence hoje', venc: false, ord: 0 };
+  return { cls: 'fv-p-ok', txt: 'No prazo · ' + d + ' dia' + (d > 1 ? 's' : ''), venc: false, ord: d };
+}
+const FV_STATUS = {
+  aguardando: ['fv-p-azul', 'Aguardando aprovação'], reprovada: ['fv-p-venc', 'Reprovada'], pendente: ['fv-p-hoje', 'Aguardando devolução'],
+  devolvido: ['fv-p-ok', 'Devolvido'], vale: ['fv-p-cinza', 'Vale gerado'],
+};
+function fvStatusPill(f){
+  if(f.status === 'pendente'){ const p = fvPrazoInfo(f); return '<span class="fv-pill ' + p.cls + '">' + p.txt + '</span>'; }
+  return '<span class="fv-pill ' + FV_STATUS[f.status][0] + '">' + FV_STATUS[f.status][1] + '</span>';
+}
+
+async function fvCarregarTudo(){
+  if(!pessoaAtual || !pessoaAtual.filial_id) return;
+  const filialId = pessoaAtual.filial_id;
+  const [vas, mot, vei, cfg, fal, lib] = await Promise.all([
+    sb.from('produtos').select('id,descricao,codigo,ativo').eq('eh_vasilhame', true).order('descricao'),
+    sb.from('motoristas').select('id,nome,ativo').eq('filial_id', filialId).order('nome'),
+    sb.from('veiculos').select('id,placa,ativo').eq('filial_id', filialId).order('placa'),
+    sb.from('falta_vasilhame_config').select('*').eq('id', 1).maybeSingle(),
+    sb.from('faltas_vasilhame').select('*').eq('filial_id', filialId).order('id', { ascending: false }).limit(400),
+    sb.from('faltas_vasilhame_liberacoes').select('*').eq('filial_id', filialId).order('id', { ascending: false }).limit(100),
+  ]);
+  if(fal.error) console.error('Falta de vasilhame — erro ao carregar:', fal.error);
+  fvVasilhames = vas.data || [];
+  fvMotoristas = mot.data || [];
+  fvVeiculos = vei.data || [];
+  if(cfg.data) fvConfig = cfg.data;
+  fvFaltas = fal.data || [];
+  fvLiberacoes = lib.data || [];
+  fvRender();
+}
+
+function fvRender(){
+  const pend = fvFaltas.filter(f => f.status === 'pendente');
+  const venc = pend.filter(f => fvPrazoInfo(f).venc).length;
+  const badge = document.getElementById('fv-badge');
+  if(badge){
+    badge.classList.toggle('hidden', pend.length === 0);
+    badge.textContent = pend.length;
+    badge.style.background = venc ? 'var(--red)' : 'var(--amber)';
+  }
+  const tabs = [['lancar', '➕ Lançar'], ['pend', '⏳ Pendências'], ['meus', '📋 Meus envios']];
+  document.getElementById('fv-tabs').innerHTML = tabs.map(([k, l]) =>
+    '<button class="' + (fvTab === k ? 'on' : '') + '" onclick="fvTab=\'' + k + '\';fvRender()">' + l +
+    (k === 'pend' && pend.length ? '<span class="bd" style="background:' + (venc ? 'var(--red)' : 'var(--amber)') + '">' + pend.length + '</span>' : '') + '</button>').join('');
+  const corpo = document.getElementById('fv-corpo');
+  corpo.innerHTML = fvTab === 'lancar' ? fvHtmlLancar() : fvTab === 'pend' ? fvHtmlPendencias() : fvHtmlMeus();
+}
+
+/* ---------- lançar ---------- */
+
+function fvOpcoes(lista, sel, label){
+  return lista.map(x => '<option value="' + x.id + '"' + (String(x.id) === String(sel) ? ' selected' : '') + '>' + fvEsc(label(x)) + '</option>').join('');
+}
+
+function fvBannerReincidencia(){
+  if(!fvForm.mot) return { html: '', bloqueado: false };
+  const mid = Number(fvForm.mot);
+  const c = fvForm.contagem;
+  if(c === null) return { html: '<div class="fv-banner fv-b-amb">Verificando faltas do motorista no mês…</div>', bloqueado: true };
+  const lim = fvConfig.limite_reincidencia;
+  if(c >= lim){
+    const lib = fvLiberacoes.find(l => l.motorista_id === mid && l.status === 'aprovada' && !l.usada);
+    const pen = fvLiberacoes.find(l => l.motorista_id === mid && l.status === 'pendente');
+    if(lib) return { html: '<div class="fv-banner fv-b-grn">✅ <b>Liberado pelo gerencial.</b> ' + fvEsc(fvNomeMot(mid)) + ' é reincidente (' + c + ' falta' + (c > 1 ? 's' : '') + ' no mês), mas este lançamento foi autorizado.</div>', bloqueado: false };
+    if(pen) return { html: '<div class="fv-banner fv-b-amb">⏳ <b>Liberação solicitada.</b> Aguardando o gerencial autorizar o lançamento para ' + fvEsc(fvNomeMot(mid)) + '.</div>', bloqueado: true };
+    return { html: '<div class="fv-banner fv-b-red">⛔ <b>Motorista reincidente.</b> ' + fvEsc(fvNomeMot(mid)) + ' já tem <b>' + c + ' falta' + (c > 1 ? 's' : '') + '</b> de vasilhame neste mês (limite: ' + lim + ').<br><b>Não lance aqui — gere o vale direto no WMS.</b><br>Se precisar lançar mesmo assim, peça liberação ao gerencial.' +
+      '<button class="btn btn-outline" style="margin-top:10px;color:var(--red)" onclick="fvPedirLiberacao(' + mid + ')">Solicitar liberação ao gerencial</button></div>', bloqueado: true };
+  }
+  if(lim > 1 && c === lim - 1 && c > 0){
+    return { html: '<div class="fv-banner fv-b-amb">⚠️ ' + fvEsc(fvNomeMot(mid)) + ' já tem <b>' + c + ' falta no mês</b>. Se faltar de novo, o próximo lançamento será bloqueado (limite: ' + lim + ').</div>', bloqueado: false };
+  }
+  return { html: '', bloqueado: false };
+}
+
+function fvHtmlLancar(){
+  const vasAtivos = fvVasilhames.filter(v => v.ativo !== false);
+  const motAtivos = fvMotoristas.filter(m => m.ativo !== false);
+  const veiAtivos = fvVeiculos.filter(v => v.ativo !== false);
+  const ban = fvBannerReincidencia();
+  const ok = fvForm.vas && fvForm.mot && fvForm.vei && fvForm.qtd > 0 && !ban.bloqueado && !fvEnviando;
+  const base = pessoaAtual.filiais ? pessoaAtual.filiais.nome : 'sua base';
+  const semCadastro = (!motAtivos.length || !veiAtivos.length)
+    ? '<div class="fv-banner fv-b-amb">Nenhum ' + (!motAtivos.length ? 'motorista' : 'veículo') + ' cadastrado para a base ' + fvEsc(base) + '. Peça ao gerencial para definir a filial no cadastro de Motoristas/Veículos.</div>' : '';
+  return '<div class="card">' +
+    '<label style="margin-top:0">Qual vasilhame faltou?</label>' +
+    '<select onchange="fvForm.vas=this.value;fvRender()"><option value="">Selecione o vasilhame</option>' + fvOpcoes(vasAtivos, fvForm.vas, v => v.descricao) + '</select>' +
+    '<label>Quantidade faltante</label>' +
+    '<div class="fv-qty"><button onclick="fvForm.qtd=Math.max(1,fvForm.qtd-1);fvRender()">−</button>' +
+    '<input type="number" min="1" value="' + fvForm.qtd + '" onchange="fvForm.qtd=Math.max(1,parseInt(this.value)||1);fvRender()"/>' +
+    '<button onclick="fvForm.qtd++;fvRender()">+</button></div>' +
+    '<div class="fv-unit"><button class="' + (fvForm.un === 'caixa' ? 'on' : '') + '" onclick="fvForm.un=\'caixa\';fvRender()">📦 Caixa</button>' +
+    '<button class="' + (fvForm.un === 'unidade' ? 'on' : '') + '" onclick="fvForm.un=\'unidade\';fvRender()">🍾 Unidade</button></div>' +
+    '<label>Motorista</label>' +
+    '<select onchange="fvSelecionarMotorista(this.value)"><option value="">Selecione o motorista</option>' + fvOpcoes(motAtivos, fvForm.mot, m => m.nome) + '</select>' +
+    '<label>Placa</label>' +
+    '<select onchange="fvForm.vei=this.value;fvRender()"><option value="">Selecione a placa</option>' + fvOpcoes(veiAtivos, fvForm.vei, v => v.placa) + '</select>' +
+    '<p style="font-size:12px;color:var(--sub);margin:6px 0 0;">Lista filtrada: só motoristas e placas da base ' + fvEsc(base) + ' (' + motAtivos.length + ' motoristas · ' + veiAtivos.length + ' placas).</p>' +
+    semCadastro + ban.html +
+    '<button class="btn btn-primary" ' + (ok ? '' : 'disabled') + ' onclick="fvEnviar()">' + (fvEnviando ? 'Enviando…' : 'Enviar para aprovação') + '</button>' +
+    '<div id="fv-msg"></div></div>';
+}
+
+async function fvSelecionarMotorista(valor){
+  fvForm.mot = valor;
+  fvForm.contagem = null;
+  fvRender();
+  if(!valor) return;
+  const { data, error } = await sb.rpc('fv_faltas_no_mes', { p_motorista_id: Number(valor) });
+  if(fvForm.mot !== valor) return; // trocou de motorista enquanto consultava
+  fvForm.contagem = error ? 0 : (data ?? 0);
+  if(error) console.error('fv_faltas_no_mes:', error);
+  fvRender();
+}
+
+async function fvEnviar(){
+  if(fvEnviando) return;
+  fvEnviando = true; fvRender();
+  const { error } = await sb.from('faltas_vasilhame').insert({
+    filial_id: pessoaAtual.filial_id,
+    vasilhame_id: Number(fvForm.vas),
+    quantidade: fvForm.qtd,
+    unidade_medida: fvForm.un,
+    motorista_id: Number(fvForm.mot),
+    veiculo_id: Number(fvForm.vei),
+  });
+  fvEnviando = false;
+  if(error){
+    fvRender();
+    const msg = document.getElementById('fv-msg');
+    const reinc = (error.message || '').includes('REINCIDENTE');
+    if(msg) msg.innerHTML = '<div class="error">' + fvEsc(reinc ? 'Motorista reincidente: gere o vale direto no WMS ou peça liberação ao gerencial.' : 'Erro ao enviar: ' + error.message) + '</div>';
+    if(reinc){ await fvCarregarTudo(); fvForm.contagem = fvConfig.limite_reincidencia; fvRender(); }
+    return;
+  }
+  fvForm = { vas: '', qtd: 1, un: 'caixa', mot: '', vei: '', contagem: null };
+  fvTab = 'meus';
+  await fvCarregarTudo();
+  fvAviso('Enviado! Aguardando aprovação do gerencial.');
+}
+
+function fvAviso(texto){
+  const corpo = document.getElementById('fv-corpo');
+  if(corpo) corpo.insertAdjacentHTML('afterbegin', '<div class="ok" style="margin-bottom:12px;margin-top:0;">' + fvEsc(texto) + '</div>');
+}
+
+/* ---------- modal simples ---------- */
+
+function fvAbrirModal(html){
+  let el = document.getElementById('fv-modal-root');
+  if(!el){ el = document.createElement('div'); el.id = 'fv-modal-root'; document.body.appendChild(el); }
+  el.innerHTML = '<div class="fv-overlay" onclick="if(event.target===this)fvFecharModal()"><div class="fv-modal">' + html + '</div></div>';
+}
+function fvFecharModal(){ const el = document.getElementById('fv-modal-root'); if(el) el.innerHTML = ''; }
+
+function fvPedirLiberacao(mid){
+  fvAbrirModal('<h3>Solicitar liberação</h3><div style="font-size:13px;color:var(--sub)">' + fvEsc(fvNomeMot(mid)) + ' é reincidente no mês. Explique por que precisa lançar mesmo assim.</div>' +
+    '<label>Justificativa</label><textarea id="fv-just" rows="3" placeholder="Ex.: motorista contesta a contagem, carga com pallets a mais..."></textarea>' +
+    '<div id="fv-modal-msg"></div>' +
+    '<div class="acts"><button class="btn btn-outline" onclick="fvFecharModal()">Cancelar</button><button class="btn btn-primary" onclick="fvConfirmarLiberacao(' + mid + ')">Enviar pedido</button></div>');
+}
+async function fvConfirmarLiberacao(mid){
+  const just = document.getElementById('fv-just').value.trim();
+  if(!just){ document.getElementById('fv-modal-msg').innerHTML = '<div class="error">Escreva a justificativa.</div>'; return; }
+  const { error } = await sb.rpc('fv_solicitar_liberacao', { p_motorista_id: mid, p_justificativa: just });
+  if(error){ document.getElementById('fv-modal-msg').innerHTML = '<div class="error">' + fvEsc(error.message) + '</div>'; return; }
+  fvFecharModal();
+  await fvCarregarTudo();
+  fvAviso('Pedido de liberação enviado ao gerencial.');
+}
+
+/* ---------- pendências ---------- */
+
+function fvHtmlPendencias(){
+  const pend = fvFaltas.filter(f => f.status === 'pendente').sort((a, b) => fvPrazoInfo(a).ord - fvPrazoInfo(b).ord);
+  const venc = pend.filter(f => fvPrazoInfo(f).venc).length;
+  const hoje = pend.filter(f => { const p = fvPrazoInfo(f); return !p.venc && p.ord === 0; }).length;
+  const ok = pend.length - venc - hoje;
+  let h = '<div class="fv-chips"><div class="fv-chip" style="background:var(--red-l);color:var(--red)"><b>' + venc + '</b>Vencidos</div>' +
+    '<div class="fv-chip" style="background:var(--amber-l);color:#8a5b13"><b>' + hoje + '</b>Vencem hoje</div>' +
+    '<div class="fv-chip" style="background:var(--teal-l);color:var(--teal)"><b>' + ok + '</b>No prazo</div></div>';
+  h += '<p style="font-size:12px;color:var(--sub);margin:0 0 10px;">Motoristas que ainda precisam trazer vasilhame de volta (prazo de ' + fvConfig.prazo_dias + ' dias após a aprovação).</p>';
+  if(!pend.length) h += '<div class="fv-vazio">🎉 Nenhum motorista devendo vasilhame nesta base.</div>';
+  h += pend.map(f => {
+    const p = fvPrazoInfo(f);
+    return '<div class="fv-item" style="' + (p.venc ? 'border-color:#E6B8B8' : '') + '"><div class="top"><div><b>' + fvEsc(fvNomeMot(f.motorista_id)) + '</b><div class="sub">Placa ' + fvEsc(fvNomePla(f.veiculo_id)) + '</div></div><span class="fv-pill ' + p.cls + '">' + p.txt + '</span></div>' +
+      '<div style="margin-top:10px;font-size:14px">' + fvEsc(fvNomeVas(f.vasilhame_id)) + ' — <b>' + fvQtdTxt(fvSaldo(f), f.unidade_medida) + '</b> faltando' + (f.quantidade_devolvida ? ' <span class="sub">(já devolveu ' + fvQtdTxt(f.quantidade_devolvida, f.unidade_medida) + ')</span>' : '') + '</div>' +
+      '<div class="sub">Prazo até ' + fvFmtData(f.prazo_ate) + '</div>' +
+      '<div class="fv-acts"><button class="btn btn-primary sm" style="flex:1" onclick="fvAbrirDevolucao(' + f.id + ')">✔ Registrar devolução</button>' +
+      (p.venc ? '<button class="btn btn-amber sm" style="flex:1" onclick="fvAbrirVale(' + f.id + ')">🧾 Gerei vale</button>' : '') + '</div></div>';
+  }).join('');
+  const conc = fvFaltas.filter(f => f.status === 'devolvido' || f.status === 'vale').slice(0, 5);
+  if(conc.length){
+    h += '<div class="section-title" style="margin-top:18px">Encerrados recentemente</div>' + conc.map(f =>
+      '<div class="fv-item" style="padding:11px"><div class="top"><div style="font-size:13.5px"><b>' + fvEsc(fvNomeMot(f.motorista_id)) + '</b> · ' + fvQtdTxt(f.quantidade, f.unidade_medida) + '<div class="sub">' + fvEsc(fvNomeVas(f.vasilhame_id)) + '</div></div>' + fvStatusPill(f) + '</div></div>').join('');
+  }
+  return h;
+}
+
+function fvAbrirDevolucao(id){
+  const f = fvFaltas.find(x => x.id === id);
+  fvAbrirModal('<h3>Registrar devolução</h3><div style="font-size:13px;color:var(--sub)">' + fvEsc(fvNomeMot(f.motorista_id)) + ' · ' + fvEsc(fvNomeVas(f.vasilhame_id)) + '<br>Faltando: <b>' + fvQtdTxt(fvSaldo(f), f.unidade_medida) + '</b></div>' +
+    '<label>Quanto o motorista trouxe? (' + (f.unidade_medida === 'caixa' ? 'caixas' : 'unidades') + ')</label><input id="fv-dev-q" type="number" min="1" max="' + fvSaldo(f) + '" value="' + fvSaldo(f) + '"/>' +
+    '<p style="font-size:12px;color:var(--sub);margin:6px 0 0;">Se trouxer só uma parte, o restante continua pendente.</p><div id="fv-modal-msg"></div>' +
+    '<div class="acts"><button class="btn btn-outline" onclick="fvFecharModal()">Cancelar</button><button class="btn btn-primary" onclick="fvConfirmarDevolucao(' + id + ')">Confirmar</button></div>');
+}
+async function fvConfirmarDevolucao(id){
+  const q = parseInt(document.getElementById('fv-dev-q').value) || 0;
+  const { error } = await sb.rpc('fv_registrar_devolucao', { p_falta_id: id, p_quantidade: q });
+  if(error){ document.getElementById('fv-modal-msg').innerHTML = '<div class="error">' + fvEsc(error.message) + '</div>'; return; }
+  fvFecharModal();
+  await fvCarregarTudo();
+  fvAviso('Devolução registrada.');
+}
+
+function fvAbrirVale(id){
+  const f = fvFaltas.find(x => x.id === id);
+  fvAbrirModal('<h3>Vale gerado</h3><div style="font-size:13.5px;margin-top:6px">Confirma que o <b>vale</b> de <b>' + fvQtdTxt(fvSaldo(f), f.unidade_medida) + '</b> (' + fvEsc(fvNomeVas(f.vasilhame_id)) + ') foi gerado para <b>' + fvEsc(fvNomeMot(f.motorista_id)) + '</b> no WMS?</div>' +
+    '<div class="fv-banner fv-b-amb">O prazo venceu em ' + fvFmtData(f.prazo_ate) + '. Ao confirmar, essa pendência é encerrada como "Vale gerado".</div><div id="fv-modal-msg"></div>' +
+    '<div class="acts"><button class="btn btn-outline" onclick="fvFecharModal()">Cancelar</button><button class="btn btn-amber" onclick="fvConfirmarVale(' + id + ')">Sim, vale gerado</button></div>');
+}
+async function fvConfirmarVale(id){
+  const { error } = await sb.rpc('fv_registrar_vale', { p_falta_id: id });
+  if(error){ document.getElementById('fv-modal-msg').innerHTML = '<div class="error">' + fvEsc(error.message) + '</div>'; return; }
+  fvFecharModal();
+  await fvCarregarTudo();
+  fvAviso('Vale sinalizado. Pendência encerrada.');
+}
+
+/* ---------- meus envios ---------- */
+
+function fvHtmlMeus(){
+  const l = fvFaltas.filter(f => f.status === 'aguardando' || f.status === 'reprovada').slice(0, 30);
+  let h = '<p style="font-size:12px;color:var(--sub);margin:0 0 10px;">Lançamentos que ainda dependem do gerencial (ou foram reprovados).</p>';
+  if(!l.length) h += '<div class="fv-vazio">Nada aguardando aprovação.</div>';
+  h += l.map(f => '<div class="fv-item"><div class="top"><div><b>' + fvEsc(fvNomeMot(f.motorista_id)) + '</b><div class="sub">Placa ' + fvEsc(fvNomePla(f.veiculo_id)) + ' · ' + fvFmtData(new Date(f.created_at).toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' })) + '</div></div>' + fvStatusPill(f) + '</div>' +
+    '<div style="margin-top:8px;font-size:14px">' + fvEsc(fvNomeVas(f.vasilhame_id)) + ' — <b>' + fvQtdTxt(f.quantidade, f.unidade_medida) + '</b></div>' +
+    (f.status === 'reprovada' ? '<div class="fv-banner fv-b-red" style="margin-top:8px">Motivo: ' + fvEsc(f.motivo_reprovacao || 'não informado') + '</div>' : '') + '</div>').join('');
+  const libs = fvLiberacoes.filter(x => x.status !== 'aprovada' || !x.usada).slice(0, 10);
+  if(libs.length){
+    h += '<div class="section-title" style="margin-top:18px">Pedidos de liberação</div>' + libs.map(x => '<div class="fv-item" style="padding:11px"><div class="top"><div style="font-size:13.5px"><b>' + fvEsc(fvNomeMot(x.motorista_id)) + '</b><div class="sub">' + fvEsc(x.justificativa) + '</div></div>' +
+      '<span class="fv-pill ' + (x.status === 'aprovada' ? 'fv-p-ok' : x.status === 'negada' ? 'fv-p-venc' : 'fv-p-azul') + '">' + (x.status === 'aprovada' ? 'Liberado' : x.status === 'negada' ? 'Negado' : 'Aguardando') + '</span></div></div>').join('');
+  }
+  return h;
+}
+
 </script>
 </body>
 </html>

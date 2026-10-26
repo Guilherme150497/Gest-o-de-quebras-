@@ -129,6 +129,21 @@
   .segmented{display:inline-flex; background:var(--card); border-radius:9px; padding:3px; gap:2px;}
   .seg-btn{border:none; background:transparent; padding:8px 16px; font-size:13px; font-weight:600; color:var(--sub); border-radius:7px; cursor:pointer;}
   .seg-btn.active{background:#fff; color:var(--teal); box-shadow:0 1px 2px rgba(0,0,0,.08);}
+
+  /* ---- módulo Falta de Vasilhame ---- */
+  .fv-p-azul{background:#DCEEFB; color:#1D6FA5;}
+  .fv-p-cinza{background:#ECEEF0; color:var(--sub);}
+  .note-fv{background:#FFF8E1; border:1px solid #F0DDA0; color:#6b5410; border-radius:8px; padding:8px 12px; font-size:12.5px; margin-top:10px;}
+  input.fv-edit{width:90px; padding:9px; border:2px solid #E8B84B; background:#FFF8E1; border-radius:8px; font-size:18px; font-weight:700; text-align:center;}
+  .fv-overlay{position:fixed; inset:0; background:rgba(15,25,35,.6); z-index:80; display:flex; align-items:center; justify-content:center; padding:16px;}
+  .fv-modal{background:#fff; border-radius:14px; padding:20px; width:100%; max-width:460px; max-height:90vh; overflow:auto;}
+  .fv-modal h3{margin:0 0 4px;}
+  .fv-tl{border-left:2px solid var(--line); margin-left:6px; padding-left:14px;}
+  .fv-tl .it{margin-bottom:12px; position:relative; font-size:13.5px;}
+  .fv-tl .it:before{content:""; position:absolute; left:-20px; top:4px; width:10px; height:10px; border-radius:50%; background:var(--teal);}
+  .fv-tl .it small{color:var(--sub); display:block;}
+  #fv-toast{display:none; position:fixed; bottom:22px; left:50%; transform:translateX(-50%); background:#16283A; color:#fff; padding:12px 18px; border-radius:10px; font-size:14px; z-index:300; box-shadow:0 6px 20px rgba(0,0,0,.3); max-width:90vw;}
+
   .meta-input{width:110px; padding:6px 8px; font-size:13px;}
 </style>
 </head>
@@ -181,6 +196,11 @@
         <div class="icone-modulo">🚰</div>
         <div class="titulo-modulo">Despejo</div>
         <div class="desc-modulo">Produtividade e painel de despejos</div>
+      </div>
+      <div class="card-modulo" style="--cor-modulo:#B7791F;--cor-modulo-fundo:#FBEFD8;" onclick="abrirModulo('fv-aprovacoes')">
+        <div class="icone-modulo">🍾</div>
+        <div class="titulo-modulo">Falta de Vasilhame</div>
+        <div class="desc-modulo">Retorno de rota: aprovação, prazo de devolução, vales e reincidência</div>
       </div>
       <div class="card-modulo" style="--cor-modulo:#475569;--cor-modulo-fundo:#E7EAEE;" onclick="abrirModulo('filiais')">
         <div class="icone-modulo">🗂️</div>
@@ -264,6 +284,16 @@
           <div class="tab" data-tab="despejo-produtividade">Produtividade</div>
           <div class="tab" data-tab="despejo-anomalias">Anomalias</div>
           <div class="tab" data-tab="despejo-metas">Metas</div>
+        </div>
+      </div>
+
+      <div class="nav-modulo hidden" data-modulo-nav="falta-vasilhame">
+        <div class="nav-group">
+          <div class="nav-group-title">Falta de Vasilhame</div>
+          <div class="tab" data-tab="fv-aprovacoes">Aprovações</div>
+          <div class="tab" data-tab="fv-painel">Painel</div>
+          <div class="tab" data-tab="fv-reincidencia">Reincidência e regras</div>
+          <div class="tab" data-tab="fv-analises">Análises</div>
         </div>
       </div>
 
@@ -1172,6 +1202,36 @@
         <table><thead><tr><th>Código</th><th>Descrição</th><th>EAN</th><th>Custo unitário</th><th>Fator caixa</th><th>Litros/unid.</th><th>Vasilhame</th><th>Vasilhame vinculado</th><th>Ativo</th></tr></thead><tbody id="tbl-produtos"></tbody></table>
       </div>
     </div>
+    <!-- FALTA DE VASILHAME: APROVAÇÕES -->
+    <div class="panel" id="panel-fv-aprovacoes">
+      <div class="fv-filtros-slot"></div>
+      <div id="fv-aprov-corpo"></div>
+    </div>
+
+    <!-- FALTA DE VASILHAME: PAINEL -->
+    <div class="panel" id="panel-fv-painel">
+      <div class="fv-filtros-slot"></div>
+      <div id="fv-painel-corpo"></div>
+    </div>
+
+    <!-- FALTA DE VASILHAME: REINCIDÊNCIA E REGRAS -->
+    <div class="panel" id="panel-fv-reincidencia">
+      <div class="fv-filtros-slot"></div>
+      <div id="fv-reinc-corpo"></div>
+    </div>
+
+    <!-- FALTA DE VASILHAME: ANÁLISES -->
+    <div class="panel" id="panel-fv-analises">
+      <div class="fv-filtros-slot"></div>
+      <div class="kpi-grid" id="fv-an-kpis"></div>
+      <div class="analise-grid">
+        <div class="card"><h3>Faltas por motorista</h3><p class="hint">Clique numa barra pra abrir os lançamentos.</p><div class="chart-wrap"><canvas id="chart-fv-motorista"></canvas></div></div>
+        <div class="card"><h3>Faltas por vasilhame</h3><p class="hint">Clique numa barra pra abrir os lançamentos.</p><div class="chart-wrap"><canvas id="chart-fv-vasilhame"></canvas></div></div>
+        <div class="card"><h3>Faltas por placa</h3><p class="hint">Clique numa barra pra abrir os lançamentos.</p><div class="chart-wrap"><canvas id="chart-fv-placa"></canvas></div></div>
+        <div class="card"><h3>Evolução das faltas</h3><p class="hint" id="fv-an-tend-hint">Clique numa barra pra abrir os lançamentos.</p><div class="chart-wrap"><canvas id="chart-fv-tendencia"></canvas></div></div>
+      </div>
+    </div>
+
   </main>
   </div>
 
@@ -1288,6 +1348,7 @@ const MODULO_DE_TAB = {
   'transferencias':'transferencias',
   'repack-painel':'repack', 'repack-produtividade':'repack', 'repack-anomalias':'repack', 'repack-metas':'repack',
   'despejo-painel':'despejo', 'despejo-produtividade':'despejo', 'despejo-anomalias':'despejo', 'despejo-metas':'despejo',
+  'fv-aprovacoes':'falta-vasilhame', 'fv-painel':'falta-vasilhame', 'fv-reincidencia':'falta-vasilhame', 'fv-analises':'falta-vasilhame',
   'filiais':'cadastros', 'departamentos':'cadastros', 'pessoas':'cadastros', 'areas':'cadastros',
   'equipamentos':'cadastros', 'motivos':'cadastros', 'turnos':'cadastros', 'veiculos':'cadastros',
   'motoristas':'cadastros', 'produtos':'cadastros', 'depositos':'cadastros', 'motivos_transferencia':'cadastros',
@@ -1298,6 +1359,7 @@ const TITULO_DE_MODULO = {
   'transferencias': '🔄 Transferências',
   'repack': '♻️ Repack',
   'despejo': '🚰 Despejo',
+  'falta-vasilhame': '🍾 Falta de Vasilhame',
   'cadastros': '🗂️ Cadastros',
 };
 
@@ -1367,6 +1429,7 @@ document.querySelectorAll('.tab').forEach(tab => {
     if(tab.dataset.tab === 'despejo-produtividade') renderProdutividadeDespejo();
     if(tab.dataset.tab === 'despejo-anomalias') renderAnomaliasDespejo();
     if(tab.dataset.tab === 'despejo-metas') carregarMetasDespejo();
+    if(tab.dataset.tab.startsWith('fv-')) renderFv();
     if(tab.dataset.tab === 'lancamentos') renderLancamentos();
     if(tab.dataset.tab === 'check-promax') renderCheckPromax();
   });
@@ -1389,6 +1452,7 @@ async function carregarTudo(){
   await carregarPromaxBaixas();
   await carregarRepack();
   await carregarDespejo();
+  await carregarFv();
 
   montarFiltroFilialGlobal();
   montarFiltroDepartamentoAprovacoes();
@@ -1422,6 +1486,7 @@ function renderTudo(){
   gerarPainelDespejo();
   renderProdutividadeDespejo();
   renderAnomaliasDespejo();
+  renderFv();
 }
 
 /* ---------------- HELPERS GENÉRICOS DE CRUD ---------------- */
@@ -5128,6 +5193,392 @@ async function salvarMetas(){
   document.getElementById('metas-msg').innerHTML = (e1 || e2)
     ? '<div class="error">Erro ao salvar as metas.</div>'
     : '<div class="ok">Metas salvas para ' + nomePor(filiais, filialId) + ' — ' + document.getElementById('metas-mes').value + '.</div>';
+}
+
+
+/* ============================================================
+   FALTA DE VASILHAME — RETORNO DE ROTA (gerencial)
+   Aprovações · Painel · Reincidência e regras · Análises
+   Filtros de período/data valem pra TODAS as abas (data do lançamento).
+   A filial usa o seletor do topo da página, igual aos outros módulos.
+   ============================================================ */
+
+let fvCache = [];            // faltas (todas as bases)
+let fvLibCache = [];         // pedidos de liberação
+let fvConfigAdm = { limite_reincidencia: 2, prazo_dias: 2 };
+let fvFiltro = { periodo: 'mes', de: '', ate: '' };
+let fvFiltroStatus = '';
+let fvFiltroBusca = '';
+let fvListaPainel = [];      // lista atual do painel (pra exportar CSV)
+
+const fvEsc = t => String(t ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fvHojeISO = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+const fvDataSP = ts => new Date(ts).toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+const fvHoraSP = ts => new Date(ts).toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' });
+const fvFmtData = iso => iso ? iso.slice(8,10) + '/' + iso.slice(5,7) + '/' + iso.slice(0,4) : '—';
+const fvDiffDias = (de, ate) => Math.round((new Date(ate + 'T12:00:00') - new Date(de + 'T12:00:00')) / 86400000);
+const fvQtdTxt = (q, un) => q + (un === 'caixa' ? ' cx' : ' un');
+function fvAddDias(iso, n){
+  const d = new Date(iso + 'T12:00:00'); d.setDate(d.getDate() + n);
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function fvUltimoDiaMes(ym){
+  const [a, m] = ym.split('-').map(Number);
+  return ym + '-' + String(new Date(a, m, 0).getDate()).padStart(2, '0');
+}
+
+const fvNomeVas = id => nomePor(produtos, id);
+const fvNomeMot = id => nomePor(motoristas, id);
+const fvNomePla = id => nomePor(veiculos, id);
+
+const FV_STATUS_ADM = {
+  aguardando: ['fv-p-azul', 'Aguardando aprovação'], reprovada: ['status-reprovada', 'Reprovada'], pendente: ['status-pendente', 'Aguardando devolução'],
+  devolvido: ['status-aprovada', 'Devolvido'], vale: ['fv-p-cinza', 'Vale gerado'],
+};
+function fvPrazoInfo(f){
+  if(f.status !== 'pendente' || !f.prazo_ate) return null;
+  const d = fvDiffDias(fvHojeISO(), f.prazo_ate);
+  if(d < 0) return { cls: 'status-reprovada', txt: 'Vencido há ' + (-d) + ' dia' + (-d > 1 ? 's' : ''), venc: true };
+  if(d === 0) return { cls: 'status-pendente', txt: 'Vence hoje', venc: false };
+  return { cls: 'status-aprovada', txt: 'No prazo · ' + d + ' dia' + (d > 1 ? 's' : ''), venc: false };
+}
+function fvStatusPill(f){
+  if(f.status === 'pendente'){ const p = fvPrazoInfo(f); return '<span class="status-pill ' + p.cls + '">' + p.txt + '</span>'; }
+  return '<span class="status-pill ' + FV_STATUS_ADM[f.status][0] + '">' + FV_STATUS_ADM[f.status][1] + '</span>';
+}
+
+async function carregarFv(){
+  const [f, l, c] = await Promise.all([
+    sb.from('faltas_vasilhame').select('*').order('id', { ascending: false }).limit(5000),
+    sb.from('faltas_vasilhame_liberacoes').select('*').order('id', { ascending: false }).limit(1000),
+    sb.from('falta_vasilhame_config').select('*').eq('id', 1).maybeSingle(),
+  ]);
+  // Se a migration do módulo ainda não foi rodada, só avisa no console — o resto do gerencial segue normal.
+  if(f.error) console.warn('Falta de Vasilhame: tabela ainda não disponível (rode migration_falta_vasilhame.sql).', f.error.message);
+  fvCache = (f.data || []).map(r => ({ ...r, dataISO: fvDataSP(r.created_at) }));
+  fvLibCache = (l.data || []).map(r => ({ ...r, dataISO: fvDataSP(r.created_at) }));
+  if(c.data) fvConfigAdm = c.data;
+}
+
+/* ---------- filtros (período + datas) ---------- */
+
+function fvIntervalo(){
+  const hoje = fvHojeISO(), ym = hoje.slice(0, 7);
+  switch(fvFiltro.periodo){
+    case 'hoje': return [hoje, hoje];
+    case '7': return [fvAddDias(hoje, -6), hoje];
+    case '30': return [fvAddDias(hoje, -29), hoje];
+    case 'mes': return [ym + '-01', fvUltimoDiaMes(ym)];
+    case 'mes_ant': {
+      const d = new Date(hoje.slice(0, 4), Number(hoje.slice(5, 7)) - 2, 1);
+      const ymA = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+      return [ymA + '-01', fvUltimoDiaMes(ymA)];
+    }
+    case 'ano': return [hoje.slice(0, 4) + '-01-01', hoje.slice(0, 4) + '-12-31'];
+    case 'custom': return [fvFiltro.de, fvFiltro.ate];
+    default: return ['', ''];
+  }
+}
+function fvMudarPeriodo(v){ fvFiltro.periodo = v; renderFv(); }
+function fvMudarData(campo, v){ fvFiltro.periodo = 'custom'; if(!fvFiltro.de && campo === 'ate') fvFiltro.de = ''; fvFiltro[campo] = v; renderFv(); }
+function fvLimparFiltro(){ fvFiltro = { periodo: 'mes', de: '', ate: '' }; fvFiltroStatus = ''; fvFiltroBusca = ''; renderFv(); }
+
+function fvEscopoFilial(lista){ return lista.filter(x => !filialGlobalId || x.filial_id == filialGlobalId); }
+function fvNoPeriodo(lista){
+  const [de, ate] = fvIntervalo();
+  return lista.filter(x => (!de || x.dataISO >= de) && (!ate || x.dataISO <= ate));
+}
+const fvBase = () => fvNoPeriodo(fvEscopoFilial(fvCache));
+const fvLibBase = () => fvNoPeriodo(fvEscopoFilial(fvLibCache));
+function fvContaMes(motId){
+  const ym = fvHojeISO().slice(0, 7);
+  return fvCache.filter(f => f.motorista_id === motId && f.status !== 'reprovada' && f.dataISO.slice(0, 7) === ym).length;
+}
+
+function fvRenderFiltros(){
+  const [de, ate] = fvIntervalo();
+  const opcoes = [['hoje','Hoje'],['7','Últimos 7 dias'],['30','Últimos 30 dias'],['mes','Mês atual'],['mes_ant','Mês anterior'],['ano','Ano atual'],['tudo','Todo o período'],['custom','Personalizado']];
+  const dentro = new Set(fvBase());
+  const fora = fvEscopoFilial(fvCache).filter(f => !dentro.has(f));
+  const foraAprov = fora.filter(f => f.status === 'aguardando').length;
+  const foraPend = fora.filter(f => f.status === 'pendente');
+  const foraVenc = foraPend.filter(f => fvPrazoInfo(f).venc).length;
+  const aviso = (foraAprov + foraPend.length) > 0
+    ? '<div class="note-fv">⚠️ Fora do período filtrado: <b>' + foraAprov + '</b> aguardando aprovação e <b>' + foraPend.length + '</b> com devolução pendente' + (foraVenc ? ' (<b>' + foraVenc + '</b> vencida' + (foraVenc > 1 ? 's' : '') + ')' : '') + '. Use "Todo o período" pra ver tudo.</div>' : '';
+  const html = '<div class="card" style="padding:14px 16px;"><div class="filtro-grid" style="grid-template-columns:repeat(4,1fr);align-items:end;">' +
+    '<div><label class="fl">Período</label><select onchange="fvMudarPeriodo(this.value)">' + opcoes.map(o => '<option value="' + o[0] + '"' + (fvFiltro.periodo === o[0] ? ' selected' : '') + '>' + o[1] + '</option>').join('') + '</select></div>' +
+    '<div><label class="fl">De</label><input type="date" value="' + de + '" onchange="fvMudarData(\'de\', this.value)" /></div>' +
+    '<div><label class="fl">Até</label><input type="date" value="' + ate + '" onchange="fvMudarData(\'ate\', this.value)" /></div>' +
+    '<div><button class="btn btn-outline" onclick="fvLimparFiltro()">Limpar filtros</button></div></div>' +
+    '<p class="muted" style="margin:8px 0 0;">O período vale para todas as abas deste módulo e considera a <b>data do lançamento</b>. Filial: use o seletor no topo da página.</p>' + aviso + '</div>';
+  document.querySelectorAll('.fv-filtros-slot').forEach(el => { el.innerHTML = html; });
+}
+
+/* ---------- modal ---------- */
+
+function fvAbrirModal(html, largo){
+  let el = document.getElementById('fv-modal-root');
+  if(!el){ el = document.createElement('div'); el.id = 'fv-modal-root'; document.body.appendChild(el); }
+  el.innerHTML = '<div class="fv-overlay" onclick="if(event.target===this)fvFecharModal()"><div class="fv-modal"' + (largo ? ' style="max-width:560px"' : '') + '>' + html + '</div></div>';
+}
+function fvFecharModal(){ const el = document.getElementById('fv-modal-root'); if(el) el.innerHTML = ''; }
+
+async function fvAposAcao(msg){
+  await carregarFv();
+  renderFv();
+  if(msg) fvToast(msg);
+}
+function fvToast(t){
+  let el = document.getElementById('fv-toast');
+  if(!el){ el = document.createElement('div'); el.id = 'fv-toast'; document.body.appendChild(el); }
+  el.textContent = t; el.style.display = 'block';
+  clearTimeout(fvToast._t); fvToast._t = setTimeout(() => { el.style.display = 'none'; }, 3200);
+}
+
+/* ---------- render geral ---------- */
+
+function renderFv(){
+  fvRenderFiltros();
+  fvRenderAprovacoes();
+  fvRenderPainel();
+  fvRenderReincidencia();
+  fvRenderAnalises();
+}
+
+/* ---------- APROVAÇÕES ---------- */
+
+function fvRenderAprovacoes(){
+  const el = document.getElementById('fv-aprov-corpo');
+  if(!el) return;
+  const lista = fvBase().filter(f => f.status === 'aguardando').sort((a, b) => a.id - b.id);
+  const libPend = fvLibBase().filter(l => l.status === 'pendente').length;
+  const reinc = lista.filter(f => fvContaMes(f.motorista_id) >= fvConfigAdm.limite_reincidencia).length;
+  let h = '<div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);">' +
+    '<div class="kpi-card"><div class="label">Aguardando aprovação</div><div class="value">' + lista.length + '</div></div>' +
+    '<div class="kpi-card ' + (reinc ? 'warn' : '') + '"><div class="label">De motoristas reincidentes no mês</div><div class="value">' + reinc + '</div></div>' +
+    '<div class="kpi-card ' + (libPend ? 'warn' : '') + '"><div class="label">Pedidos de liberação pendentes</div><div class="value">' + libPend + '</div></div></div>';
+  h += '<div class="card"><h3>Lançamentos aguardando aprovação</h3><p class="hint">Corrija vasilhame, quantidade, motorista ou placa se o conferente tiver errado, e aprove. Ao aprovar, começa a contar o prazo de ' + fvConfigAdm.prazo_dias + ' dia(s) pro motorista devolver e a pendência aparece no app do conferente.</p>';
+  if(!lista.length){
+    h += '<p class="muted">Nenhum lançamento aguardando aprovação neste período. ✅</p></div>';
+    el.innerHTML = h; return;
+  }
+  h += '<div style="overflow-x:auto;"><table><thead><tr><th>Lançado</th><th>Filial</th><th>Por</th><th>Vasilhame</th><th>Qtd</th><th>Motorista</th><th>Placa</th><th>Faltas do motorista no mês</th><th></th></tr></thead><tbody>' +
+    lista.map(f => {
+      const c = fvContaMes(f.motorista_id), lim = fvConfigAdm.limite_reincidencia;
+      return '<tr><td>' + fvFmtData(f.dataISO) + '<div class="muted">' + fvHoraSP(f.created_at) + '</div></td><td>' + nomePor(filiais, f.filial_id) + '</td><td>' + nomePor(pessoas, f.lancado_por_id) + '</td>' +
+        '<td>' + fvEsc(fvNomeVas(f.vasilhame_id)) + '</td><td><b>' + fvQtdTxt(f.quantidade, f.unidade_medida) + '</b></td><td>' + fvEsc(fvNomeMot(f.motorista_id)) + '</td><td>' + fvEsc(fvNomePla(f.veiculo_id)) + '</td>' +
+        '<td><span class="status-pill ' + (c >= lim ? 'status-reprovada' : c > 0 ? 'status-pendente' : 'status-aprovada') + '">' + c + ' falta' + (c === 1 ? '' : 's') + '</span></td>' +
+        '<td style="white-space:nowrap;"><button class="btn-sm btn-outline" onclick="fvAbrirCorrecao(' + f.id + ')">✏️ Corrigir</button> ' +
+        '<button class="btn-sm btn-aprovar" onclick="fvAprovar(' + f.id + ')">Aprovar</button> <button class="btn-sm btn-reprovar" onclick="fvAbrirReprovar(' + f.id + ')">Reprovar</button></td></tr>';
+    }).join('') + '</tbody></table></div></div>';
+  el.innerHTML = h;
+}
+
+async function fvAprovar(id){
+  const { error } = await sb.rpc('fv_aprovar', { p_falta_id: id });
+  if(error){ alert('Erro ao aprovar: ' + error.message); return; }
+  await fvAposAcao('Aprovado. A pendência já aparece no app do conferente.');
+}
+function fvAbrirReprovar(id){
+  fvAbrirModal('<h3>Reprovar lançamento</h3><label class="fl">Motivo (o conferente verá no app)</label><textarea id="fv-rep-motivo" rows="3" style="width:100%;" placeholder="Ex.: placa não condiz com a rota do dia"></textarea>' +
+    '<div class="row-inline" style="margin-top:16px;"><button class="btn btn-outline" onclick="fvFecharModal()">Cancelar</button><button class="btn btn-danger" onclick="fvConfirmarReprovar(' + id + ')">Reprovar</button></div>');
+}
+async function fvConfirmarReprovar(id){
+  const { error } = await sb.rpc('fv_reprovar', { p_falta_id: id, p_motivo: document.getElementById('fv-rep-motivo').value });
+  if(error){ alert('Erro ao reprovar: ' + error.message); return; }
+  fvFecharModal();
+  await fvAposAcao('Lançamento reprovado.');
+}
+function fvAbrirCorrecao(id){
+  const f = fvCache.find(x => x.id === id);
+  const vas = produtos.filter(p => p.eh_vasilhame && (p.ativo !== false || p.id === f.vasilhame_id));
+  const mots = motoristas.filter(m => m.filial_id == f.filial_id && (m.ativo !== false || m.id === f.motorista_id));
+  const vei = veiculos.filter(v => v.filial_id == f.filial_id && (v.ativo !== false || v.id === f.veiculo_id));
+  const op = (lista, sel, lab) => lista.map(x => '<option value="' + x.id + '"' + (x.id === sel ? ' selected' : '') + '>' + fvEsc(lab(x)) + '</option>').join('');
+  fvAbrirModal('<h3>Corrigir lançamento</h3><p class="muted">' + nomePor(filiais, f.filial_id) + ' · lançado em ' + fvFmtData(f.dataISO) + (f.status === 'pendente' ? ' · já aprovado (devolvido até agora: ' + f.quantidade_devolvida + ')' : '') + '</p>' +
+    '<label class="fl">Vasilhame</label><select id="fv-c-vas" style="width:100%;">' + op(vas, f.vasilhame_id, v => v.descricao) + '</select>' +
+    '<div class="filtro-grid" style="grid-template-columns:1fr 1fr;margin-top:10px;"><div><label class="fl">Quantidade</label><input id="fv-c-qtd" type="number" min="1" value="' + f.quantidade + '" style="width:100%;"/></div>' +
+    '<div><label class="fl">Unidade</label><select id="fv-c-un" style="width:100%;"><option value="caixa"' + (f.unidade_medida === 'caixa' ? ' selected' : '') + '>Caixa</option><option value="unidade"' + (f.unidade_medida === 'unidade' ? ' selected' : '') + '>Unidade</option></select></div></div>' +
+    '<label class="fl" style="margin-top:10px;">Motorista</label><select id="fv-c-mot" style="width:100%;">' + op(mots, f.motorista_id, m => m.nome) + '</select>' +
+    '<label class="fl" style="margin-top:10px;">Placa</label><select id="fv-c-vei" style="width:100%;">' + op(vei, f.veiculo_id, v => v.placa) + '</select>' +
+    '<p class="muted" style="margin-top:10px;">Tudo que for alterado fica registrado no histórico da falta.</p>' +
+    '<div class="row-inline" style="margin-top:14px;"><button class="btn btn-outline" onclick="fvFecharModal()">Cancelar</button><button class="btn btn-primary" onclick="fvSalvarCorrecao(' + id + ')">Salvar correção</button></div>');
+}
+async function fvSalvarCorrecao(id){
+  const { error } = await sb.rpc('fv_corrigir', {
+    p_falta_id: id,
+    p_vasilhame_id: Number(document.getElementById('fv-c-vas').value),
+    p_quantidade: parseInt(document.getElementById('fv-c-qtd').value) || 0,
+    p_unidade: document.getElementById('fv-c-un').value,
+    p_motorista_id: Number(document.getElementById('fv-c-mot').value),
+    p_veiculo_id: Number(document.getElementById('fv-c-vei').value),
+  });
+  if(error){ alert('Erro ao corrigir: ' + error.message); return; }
+  fvFecharModal();
+  await fvAposAcao('Correção salva (registrada no histórico).');
+}
+
+/* ---------- PAINEL ---------- */
+
+function fvRenderPainel(){
+  const el = document.getElementById('fv-painel-corpo');
+  if(!el) return;
+  const base = fvBase();
+  const cont = s => base.filter(f => f.status === s).length;
+  const venc = base.filter(f => f.status === 'pendente' && fvPrazoInfo(f).venc).length;
+  let lista = [...base].sort((a, b) => b.id - a.id);
+  if(fvFiltroStatus === 'vencido') lista = lista.filter(f => f.status === 'pendente' && fvPrazoInfo(f).venc);
+  else if(fvFiltroStatus) lista = lista.filter(f => f.status === fvFiltroStatus);
+  if(fvFiltroBusca){
+    const t = fvFiltroBusca.toLowerCase();
+    lista = lista.filter(f => fvNomeMot(f.motorista_id).toLowerCase().includes(t) || fvNomePla(f.veiculo_id).toLowerCase().includes(t) || fvNomeVas(f.vasilhame_id).toLowerCase().includes(t));
+  }
+  fvListaPainel = lista;
+  const stOpts = [['', 'Todos os status'], ['aguardando', 'Aguardando aprovação'], ['pendente', 'Aguardando devolução'], ['vencido', 'Somente prazo vencido'], ['devolvido', 'Devolvidos'], ['vale', 'Vale gerado'], ['reprovada', 'Reprovados']];
+  el.innerHTML = '<div class="kpi-grid" style="grid-template-columns:repeat(6,1fr);">' +
+    [['Lançamentos', base.length, ''], ['Aguardando devolução', cont('pendente'), ''], ['Prazo vencido', venc, venc ? 'warn' : ''], ['Devolvidos', cont('devolvido'), ''], ['Vales gerados', cont('vale'), ''], ['Reprovados', cont('reprovada'), '']]
+      .map(k => '<div class="kpi-card ' + k[2] + '"><div class="label">' + k[0] + '</div><div class="value">' + k[1] + '</div></div>').join('') + '</div>' +
+    '<div class="card"><h3>Todos os lançamentos</h3>' +
+    '<div class="filtro-grid" style="grid-template-columns:repeat(3,1fr);"><div><label class="fl">Situação</label><select onchange="fvFiltroStatus=this.value;fvRenderPainel()">' + stOpts.map(o => '<option value="' + o[0] + '"' + (fvFiltroStatus === o[0] ? ' selected' : '') + '>' + o[1] + '</option>').join('') + '</select></div>' +
+    '<div><label class="fl">Buscar motorista, placa ou vasilhame</label><input type="text" value="' + fvEsc(fvFiltroBusca) + '" onchange="fvFiltroBusca=this.value;fvRenderPainel()" placeholder="Digite e tecle Enter" /></div>' +
+    '<div style="align-self:end;"><button class="btn btn-outline" onclick="fvExportarCSV()">Exportar CSV</button></div></div>' +
+    '<p class="muted" style="margin-top:10px;">' + lista.length + ' lançamento(s) encontrado(s).</p>' +
+    '<div style="overflow-x:auto;"><table><thead><tr><th>Lançado</th><th>Filial</th><th>Por</th><th>Vasilhame</th><th>Qtd</th><th>Motorista</th><th>Placa</th><th>Prazo até</th><th>Situação</th><th></th></tr></thead><tbody>' +
+    (lista.slice(0, 500).map(f => '<tr><td>' + fvFmtData(f.dataISO) + '</td><td>' + nomePor(filiais, f.filial_id) + '</td><td>' + nomePor(pessoas, f.lancado_por_id) + '</td><td>' + fvEsc(fvNomeVas(f.vasilhame_id)) + '</td>' +
+      '<td><b>' + fvQtdTxt(f.quantidade, f.unidade_medida) + '</b>' + (f.status === 'pendente' && f.quantidade_devolvida ? '<div class="muted">resta ' + fvQtdTxt(f.quantidade - f.quantidade_devolvida, f.unidade_medida) + '</div>' : '') + (f.status === 'vale' ? '<div class="muted">vale: ' + fvQtdTxt(f.quantidade_vale, f.unidade_medida) + '</div>' : '') + '</td>' +
+      '<td>' + fvEsc(fvNomeMot(f.motorista_id)) + '</td><td>' + fvEsc(fvNomePla(f.veiculo_id)) + '</td><td>' + (f.prazo_ate ? fvFmtData(f.prazo_ate) : '—') + '</td><td>' + fvStatusPill(f) + '</td>' +
+      '<td style="white-space:nowrap;"><button class="btn-sm btn-outline" onclick="fvAbrirHistorico(' + f.id + ')">Histórico</button>' + ((f.status === 'aguardando' || f.status === 'pendente') ? ' <button class="btn-sm btn-outline" onclick="fvAbrirCorrecao(' + f.id + ')">✏️</button>' : '') + '</td></tr>').join('') ||
+      '<tr><td colspan="10" class="muted">Nenhum lançamento com esses filtros.</td></tr>') + '</tbody></table></div></div>';
+}
+
+async function fvAbrirHistorico(id){
+  const f = fvCache.find(x => x.id === id);
+  fvAbrirModal('<h3>' + fvEsc(fvNomeVas(f.vasilhame_id)) + ' — ' + fvQtdTxt(f.quantidade, f.unidade_medida) + '</h3><p class="muted">' + fvEsc(fvNomeMot(f.motorista_id)) + ' · placa ' + fvEsc(fvNomePla(f.veiculo_id)) + ' · ' + nomePor(filiais, f.filial_id) + '</p><p class="muted">Carregando histórico…</p>', true);
+  const { data, error } = await sb.from('faltas_vasilhame_historico').select('*').eq('falta_id', id).order('id');
+  const tl = error ? '<p class="muted">Erro ao carregar o histórico.</p>' : '<div class="fv-tl">' + (data || []).map(x => '<div class="it">' + fvEsc(x.texto) + '<small>' + fvFmtData(fvDataSP(x.created_at)) + ' ' + fvHoraSP(x.created_at) + (x.pessoa_id ? ' · ' + fvEsc(nomePor(pessoas, x.pessoa_id)) : '') + '</small></div>').join('') + '</div>';
+  fvAbrirModal('<h3>' + fvEsc(fvNomeVas(f.vasilhame_id)) + ' — ' + fvQtdTxt(f.quantidade, f.unidade_medida) + '</h3><p class="muted">' + fvEsc(fvNomeMot(f.motorista_id)) + ' · placa ' + fvEsc(fvNomePla(f.veiculo_id)) + ' · ' + nomePor(filiais, f.filial_id) + '</p><div style="margin:8px 0 12px;">' + fvStatusPill(f) + '</div>' + tl +
+    '<div class="row-inline" style="margin-top:14px;"><button class="btn btn-outline" onclick="fvFecharModal()">Fechar</button></div>', true);
+}
+
+function fvExportarCSV(){
+  if(!fvListaPainel.length){ alert('Nada para exportar com esses filtros.'); return; }
+  const cab = ['Data','Filial','Lancado_por','Vasilhame','Quantidade','Unidade','Motorista','Placa','Prazo_ate','Situacao','Devolvido','Vale'];
+  const linhas = fvListaPainel.map(f => [fvFmtData(f.dataISO), nomePor(filiais, f.filial_id), nomePor(pessoas, f.lancado_por_id), fvNomeVas(f.vasilhame_id), f.quantidade, f.unidade_medida, fvNomeMot(f.motorista_id), fvNomePla(f.veiculo_id), f.prazo_ate ? fvFmtData(f.prazo_ate) : '', FV_STATUS_ADM[f.status][1], f.quantidade_devolvida, f.quantidade_vale]
+    .map(v => '"' + String(v).replace(/"/g, '""') + '"').join(';'));
+  const blob = new Blob(['﻿' + cab.join(';') + '\n' + linhas.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = 'falta_vasilhame.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+
+/* ---------- REINCIDÊNCIA E REGRAS ---------- */
+
+function fvRenderReincidencia(){
+  const el = document.getElementById('fv-reinc-corpo');
+  if(!el) return;
+  const lim = fvConfigAdm.limite_reincidencia, prz = fvConfigAdm.prazo_dias;
+  const libs = fvLibBase();
+  const base = fvBase().filter(f => f.status !== 'reprovada');
+  const porMot = {};
+  base.forEach(f => { (porMot[f.motorista_id] = porMot[f.motorista_id] || []).push(f); });
+  const linhas = Object.entries(porMot).map(([id, l]) => ({ id: Number(id), l, mes: fvContaMes(Number(id)) })).sort((a, b) => b.l.length - a.l.length);
+  el.innerHTML = '<div class="card"><h3>⚙️ Regras (editáveis)</h3><p class="hint">Altere quando quiser — vale para os próximos lançamentos e aprovações.</p>' +
+    '<div class="filtro-grid" style="grid-template-columns:repeat(2,1fr);max-width:720px;">' +
+    '<div><label class="fl">Reincidência: bloquear o lançamento a partir de</label><div class="row-inline"><input id="fv-cfg-lim" class="fv-edit" type="number" min="1" value="' + lim + '" /> <span>falta(s) no mês</span></div>' +
+    '<p class="muted" style="margin-top:6px;">Com <b>' + lim + '</b>, o motorista que já teve ' + lim + ' falta' + (lim > 1 ? 's' : '') + ' de vasilhame no mês <b>não consegue mais ser lançado</b> no app — o conferente gera o vale direto no WMS (ou pede liberação aqui).</p></div>' +
+    '<div><label class="fl">Prazo pro motorista devolver</label><div class="row-inline"><input id="fv-cfg-prz" class="fv-edit" type="number" min="1" value="' + prz + '" /> <span>dia(s) após a aprovação</span></div>' +
+    '<p class="muted" style="margin-top:6px;">Vale para as próximas aprovações (as já aprovadas mantêm o prazo original).</p></div></div>' +
+    '<div class="row-inline" style="margin-top:14px;"><button class="btn btn-primary" onclick="fvSalvarRegras()">Salvar regras</button><span id="fv-cfg-msg" class="muted"></span></div></div>' +
+
+    '<div class="card"><h3>Pedidos de liberação</h3><p class="hint">O conferente tentou lançar falta de motorista reincidente e pediu autorização. Se negar, o vale deve ser gerado direto no WMS.</p>' +
+    (libs.length ? '<div style="overflow-x:auto;"><table><thead><tr><th>Data</th><th>Filial</th><th>Motorista</th><th>Faltas no mês</th><th>Solicitado por</th><th>Justificativa</th><th></th></tr></thead><tbody>' +
+      libs.map(x => '<tr><td>' + fvFmtData(x.dataISO) + '</td><td>' + nomePor(filiais, x.filial_id) + '</td><td>' + fvEsc(fvNomeMot(x.motorista_id)) + '</td><td>' + fvContaMes(x.motorista_id) + '</td><td>' + nomePor(pessoas, x.solicitado_por_id) + '</td><td style="max-width:320px;">' + fvEsc(x.justificativa) + '</td><td style="white-space:nowrap;">' +
+        (x.status === 'pendente' ? '<button class="btn-sm btn-aprovar" onclick="fvDecidirLiberacao(' + x.id + ', true)">Liberar</button> <button class="btn-sm btn-reprovar" onclick="fvDecidirLiberacao(' + x.id + ', false)">Negar</button>'
+          : '<span class="status-pill ' + (x.status === 'aprovada' ? 'status-aprovada' : 'status-reprovada') + '">' + (x.status === 'aprovada' ? (x.usada ? 'Liberado · já usado' : 'Liberado') : 'Negado') + '</span>') + '</td></tr>').join('') + '</tbody></table></div>'
+      : '<p class="muted">Nenhum pedido de liberação neste período.</p>') + '</div>' +
+
+    '<div class="card"><h3>Motoristas com falta no período</h3><p class="hint">"No mês" é sempre o mês atual (é o que o app usa pra bloquear); "No período" segue o filtro acima.</p>' +
+    (linhas.length ? '<div style="overflow-x:auto;"><table><thead><tr><th>Motorista</th><th>Filial</th><th>Faltas no período</th><th>Faltas no mês atual</th><th>Vales</th><th>Situação no app</th><th></th></tr></thead><tbody>' +
+      linhas.map(x => { const m = motoristas.find(mm => mm.id === x.id); const sit = x.mes >= lim ? 'bloq' : (lim > 1 && x.mes === lim - 1 && x.mes > 0 ? 'atencao' : 'ok');
+        return '<tr><td>' + fvEsc(fvNomeMot(x.id)) + '</td><td>' + (m ? nomePor(filiais, m.filial_id) : '—') + '</td><td><b>' + x.l.length + '</b></td><td>' + x.mes + '</td><td>' + x.l.filter(f => f.status === 'vale').length + '</td>' +
+          '<td><span class="status-pill ' + (sit === 'bloq' ? 'status-reprovada' : sit === 'atencao' ? 'status-pendente' : 'status-aprovada') + '">' + (sit === 'bloq' ? 'Reincidente — lançamento bloqueado' : sit === 'atencao' ? 'Atenção — próxima será bloqueada' : 'Normal') + '</span></td>' +
+          '<td><button class="btn-sm btn-outline" onclick="fvAbrirDrilldown(' + x.id + ')">Ver lançamentos</button></td></tr>'; }).join('') + '</tbody></table></div>'
+      : '<p class="muted">Nenhum motorista com falta neste período.</p>') + '</div>';
+}
+
+async function fvSalvarRegras(){
+  const limite = Math.max(1, parseInt(document.getElementById('fv-cfg-lim').value) || 1);
+  const prazo = Math.max(1, parseInt(document.getElementById('fv-cfg-prz').value) || 1);
+  const { error } = await sb.from('falta_vasilhame_config').update({ limite_reincidencia: limite, prazo_dias: prazo, atualizado_em: new Date().toISOString() }).eq('id', 1);
+  if(error){ document.getElementById('fv-cfg-msg').textContent = 'Erro ao salvar: ' + error.message; return; }
+  fvConfigAdm.limite_reincidencia = limite; fvConfigAdm.prazo_dias = prazo;
+  renderFv();
+  fvToast('Regras salvas: bloqueio a partir de ' + limite + ' falta(s) no mês · prazo de ' + prazo + ' dia(s).');
+}
+async function fvDecidirLiberacao(id, aprovar){
+  const { error } = await sb.rpc('fv_decidir_liberacao', { p_id: id, p_aprovar: aprovar });
+  if(error){ alert('Erro: ' + error.message); return; }
+  await fvAposAcao(aprovar ? 'Liberado. O conferente já pode lançar essa falta no app.' : 'Negado. O vale deve ser gerado direto no WMS.');
+}
+
+/* ---------- drill-down (usa o modal genérico do gerencial) ---------- */
+
+function fvAbrirDrilldown(motoristaId){
+  fvAbrirDrilldownLista(fvNomeMot(motoristaId), fvBase().filter(f => f.motorista_id === motoristaId));
+}
+function fvAbrirDrilldownLista(titulo, lista){
+  abrirDrilldownGenerico(titulo, lista.length + ' lançamento(s) no período.',
+    ['Data', 'Filial', 'Vasilhame', 'Qtd', 'Motorista', 'Placa', 'Prazo até', 'Situação'],
+    [...lista].sort((a, b) => b.id - a.id).map(f => [fvFmtData(f.dataISO), nomePor(filiais, f.filial_id), fvEsc(fvNomeVas(f.vasilhame_id)), '<b>' + fvQtdTxt(f.quantidade, f.unidade_medida) + '</b>', fvEsc(fvNomeMot(f.motorista_id)), fvEsc(fvNomePla(f.veiculo_id)), f.prazo_ate ? fvFmtData(f.prazo_ate) : '—', fvStatusPill(f)]));
+}
+
+/* ---------- ANÁLISES ---------- */
+
+function fvTop(lista, chaveFn, nomeFn, n){
+  const m = new Map();
+  lista.forEach(f => { const k = chaveFn(f); const e = m.get(k) || { nome: nomeFn(f), lista: [] }; e.lista.push(f); m.set(k, e); });
+  return [...m.values()].sort((a, b) => b.lista.length - a.lista.length).slice(0, n);
+}
+function fvOnClickEntradas(entradas, prefixo){
+  return idx => { const e = entradas[idx]; if(e) fvAbrirDrilldownLista((prefixo ? prefixo + ': ' : '') + e.nome, e.lista); };
+}
+
+function fvRenderAnalises(){
+  const kpis = document.getElementById('fv-an-kpis');
+  if(!kpis) return;
+  const base = fvBase().filter(f => f.status !== 'reprovada');
+  const devolvidos = base.filter(f => f.status === 'devolvido'), vales = base.filter(f => f.status === 'vale');
+  const encerrados = devolvidos.length + vales.length;
+  const taxa = encerrados ? Math.round(devolvidos.length / encerrados * 100) : null;
+  const comTempo = devolvidos.filter(f => f.aprovado_em && f.encerrado_em);
+  const tempoMedio = comTempo.length ? comTempo.reduce((a, f) => a + Math.max(0, fvDiffDias(fvDataSP(f.aprovado_em), fvDataSP(f.encerrado_em))), 0) / comTempo.length : null;
+  const venc = base.filter(f => f.status === 'pendente' && fvPrazoInfo(f).venc).length;
+  kpis.innerHTML = [
+    ['Faltas no período', base.length, ''],
+    ['Devolvidos no prazo', taxa === null ? '—' : taxa + '%', taxa !== null && taxa < 70 ? 'warn' : ''],
+    ['Tempo médio até devolver', tempoMedio === null ? '—' : tempoMedio.toFixed(1).replace('.', ',') + ' dia(s)', ''],
+    ['Pendências vencidas', venc, venc ? 'warn' : ''],
+  ].map(k => '<div class="kpi-card ' + k[2] + '"><div class="label">' + k[0] + '</div><div class="value">' + k[1] + '</div></div>').join('');
+
+  const porMot = fvTop(base, f => f.motorista_id, f => fvNomeMot(f.motorista_id), 10);
+  renderBarChart('chart-fv-motorista', porMot.map(x => x.nome), porMot.map(x => x.lista.length), '#C97A1A', { horizontal: true, label: 'Faltas', onClick: fvOnClickEntradas(porMot, '') });
+  const porVas = fvTop(base, f => f.vasilhame_id, f => fvNomeVas(f.vasilhame_id), 10);
+  renderBarChart('chart-fv-vasilhame', porVas.map(x => x.nome), porVas.map(x => x.lista.length), '#12796B', { horizontal: true, label: 'Faltas', onClick: fvOnClickEntradas(porVas, '') });
+  const porPla = fvTop(base, f => f.veiculo_id, f => fvNomePla(f.veiculo_id), 8);
+  renderBarChart('chart-fv-placa', porPla.map(x => x.nome), porPla.map(x => x.lista.length), '#1D6FA5', { horizontal: true, label: 'Faltas', onClick: fvOnClickEntradas(porPla, 'Placa') });
+
+  // Evolução: por dia quando o período é curto, por mês quando é longo
+  const datas = base.map(f => f.dataISO).sort();
+  const [de, ate] = fvIntervalo();
+  const ini = de || datas[0], fim = ate || datas[datas.length - 1];
+  const porMes = !!(ini && fim && fvDiffDias(ini, fim) > 62);
+  document.getElementById('fv-an-tend-hint').textContent = 'Por ' + (porMes ? 'mês' : 'dia') + ' — clique numa barra pra abrir os lançamentos.';
+  const grupos = new Map();
+  if(ini && fim && !porMes){ for(let d = ini; d <= fim && grupos.size < 70; d = fvAddDias(d, 1)) grupos.set(d, []); }
+  base.forEach(f => { const k = porMes ? f.dataISO.slice(0, 7) : f.dataISO; if(!grupos.has(k) && porMes) grupos.set(k, []); if(grupos.has(k)) grupos.get(k).push(f); });
+  const chaves = [...grupos.keys()].sort();
+  const entradas = chaves.map(k => ({ nome: porMes ? k.slice(5, 7) + '/' + k.slice(0, 4) : k.slice(8, 10) + '/' + k.slice(5, 7), lista: grupos.get(k) }));
+  renderBarChart('chart-fv-tendencia', entradas.map(x => x.nome), entradas.map(x => x.lista.length), '#C97A1A', { label: 'Faltas', onClick: fvOnClickEntradas(entradas, porMes ? 'Mês' : 'Dia') });
 }
 
 </script>

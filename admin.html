@@ -134,6 +134,7 @@
   .fv-p-azul{background:#DCEEFB; color:#1D6FA5;}
   .fv-p-cinza{background:#ECEEF0; color:var(--sub);}
   .note-fv{background:#FFF8E1; border:1px solid #F0DDA0; color:#6b5410; border-radius:8px; padding:8px 12px; font-size:12.5px; margin-top:10px;}
+    .fv-ci{display:flex; gap:6px; align-items:center; margin-top:6px;}
   input.fv-edit{width:90px; padding:9px; border:2px solid #E8B84B; background:#FFF8E1; border-radius:8px; font-size:18px; font-weight:700; text-align:center;}
   .fv-overlay{position:fixed; inset:0; background:rgba(15,25,35,.6); z-index:80; display:flex; align-items:center; justify-content:center; padding:16px;}
   .fv-modal{background:#fff; border-radius:14px; padding:20px; width:100%; max-width:460px; max-height:90vh; overflow:auto;}
@@ -5227,7 +5228,14 @@ function fvUltimoDiaMes(ym){
   return ym + '-' + String(new Date(a, m, 0).getDate()).padStart(2, '0');
 }
 
-const fvNomeVas = id => nomePor(produtos, id);
+const fvNomeVas = id => { const p = produtos.find(x => x.id === id); return p ? (p.codigo ? p.codigo + ' – ' : '') + p.descricao : '—'; };
+const fvItens = f => f.itens || [];
+const fvSaldoItem = i => i.quantidade - i.quantidade_devolvida;
+const fvResumoItens = f => fvItens(f).map(i => fvNomeVas(i.vasilhame_id) + ' ' + fvQtdTxt(i.quantidade, i.unidade_medida)).join(' + ') || '—';
+// várias linhas (uma por item) pra tabelas; com saldo quando já teve devolução parcial
+const fvItensHtml = (f, comSaldo) => fvItens(f).map(i => '<div>' + fvEsc(fvNomeVas(i.vasilhame_id)) + ' — <b>' + fvQtdTxt(i.quantidade, i.unidade_medida) + '</b>' +
+  (comSaldo && f.status === 'pendente' && i.quantidade_devolvida ? ' <span class="muted">(resta ' + fvQtdTxt(fvSaldoItem(i), i.unidade_medida) + ')</span>' : '') +
+  (comSaldo && f.status === 'vale' && i.quantidade_vale ? ' <span class="muted">(vale ' + fvQtdTxt(i.quantidade_vale, i.unidade_medida) + ')</span>' : '') + '</div>').join('') || '—';
 const fvNomeMot = id => nomePor(motoristas, id);
 const fvNomePla = id => nomePor(veiculos, id);
 
@@ -5249,13 +5257,13 @@ function fvStatusPill(f){
 
 async function carregarFv(){
   const [f, l, c] = await Promise.all([
-    sb.from('faltas_vasilhame').select('*').order('id', { ascending: false }).limit(5000),
+    sb.from('faltas_vasilhame').select('*, itens:faltas_vasilhame_itens(*)').order('id', { ascending: false }).limit(5000),
     sb.from('faltas_vasilhame_liberacoes').select('*').order('id', { ascending: false }).limit(1000),
     sb.from('falta_vasilhame_config').select('*').eq('id', 1).maybeSingle(),
   ]);
   // Se a migration do módulo ainda não foi rodada, só avisa no console — o resto do gerencial segue normal.
   if(f.error) console.warn('Falta de Vasilhame: tabela ainda não disponível (rode migration_falta_vasilhame.sql).', f.error.message);
-  fvCache = (f.data || []).map(r => ({ ...r, dataISO: fvDataSP(r.created_at) }));
+  fvCache = (f.data || []).map(r => ({ ...r, itens: (r.itens || []).sort((a, b) => a.id - b.id), dataISO: fvDataSP(r.created_at) }));
   fvLibCache = (l.data || []).map(r => ({ ...r, dataISO: fvDataSP(r.created_at) }));
   if(c.data) fvConfigAdm = c.data;
 }
@@ -5298,8 +5306,7 @@ function fvContaMes(motId){
 function fvRenderFiltros(){
   const [de, ate] = fvIntervalo();
   const opcoes = [['hoje','Hoje'],['7','Últimos 7 dias'],['30','Últimos 30 dias'],['mes','Mês atual'],['mes_ant','Mês anterior'],['ano','Ano atual'],['tudo','Todo o período'],['custom','Personalizado']];
-  const dentro = new Set(fvBase());
-  const fora = fvEscopoFilial(fvCache).filter(f => !dentro.has(f));
+  const fora = fvEscopoFilial(fvCache).filter(f => !fvBase().includes(f));
   const foraAprov = fora.filter(f => f.status === 'aguardando').length;
   const foraPend = fora.filter(f => f.status === 'pendente');
   const foraVenc = foraPend.filter(f => fvPrazoInfo(f).venc).length;
@@ -5357,19 +5364,19 @@ function fvRenderAprovacoes(){
     '<div class="kpi-card"><div class="label">Aguardando aprovação</div><div class="value">' + lista.length + '</div></div>' +
     '<div class="kpi-card ' + (reinc ? 'warn' : '') + '"><div class="label">De motoristas reincidentes no mês</div><div class="value">' + reinc + '</div></div>' +
     '<div class="kpi-card ' + (libPend ? 'warn' : '') + '"><div class="label">Pedidos de liberação pendentes</div><div class="value">' + libPend + '</div></div></div>';
-  h += '<div class="card"><h3>Lançamentos aguardando aprovação</h3><p class="hint">Corrija vasilhame, quantidade, motorista ou placa se o conferente tiver errado, e aprove. Ao aprovar, começa a contar o prazo de ' + fvConfigAdm.prazo_dias + ' dia(s) pro motorista devolver e a pendência aparece no app do conferente.</p>';
+  h += '<div class="card"><h3>Lançamentos aguardando aprovação</h3><p class="hint">Corrija os itens (vasilhame/quantidade), o motorista ou a placa se o conferente tiver errado, e aprove. Ao aprovar, começa a contar o prazo de ' + fvConfigAdm.prazo_dias + ' dia(s) pro motorista devolver e a pendência aparece no app do conferente.</p>';
   if(!lista.length){
     h += '<p class="muted">Nenhum lançamento aguardando aprovação neste período. ✅</p></div>';
     el.innerHTML = h; return;
   }
-  h += '<div style="overflow-x:auto;"><table><thead><tr><th>Lançado</th><th>Filial</th><th>Por</th><th>Vasilhame</th><th>Qtd</th><th>Motorista</th><th>Placa</th><th>Faltas do motorista no mês</th><th></th></tr></thead><tbody>' +
+  h += '<div style="overflow-x:auto;"><table><thead><tr><th>Lançado</th><th>Filial</th><th>Por</th><th>Itens faltantes</th><th>Motorista</th><th>Placa</th><th>Faltas do motorista no mês</th><th></th></tr></thead><tbody>' +
     lista.map(f => {
       const c = fvContaMes(f.motorista_id), lim = fvConfigAdm.limite_reincidencia;
       return '<tr><td>' + fvFmtData(f.dataISO) + '<div class="muted">' + fvHoraSP(f.created_at) + '</div></td><td>' + nomePor(filiais, f.filial_id) + '</td><td>' + nomePor(pessoas, f.lancado_por_id) + '</td>' +
-        '<td>' + fvEsc(fvNomeVas(f.vasilhame_id)) + '</td><td><b>' + fvQtdTxt(f.quantidade, f.unidade_medida) + '</b></td><td>' + fvEsc(fvNomeMot(f.motorista_id)) + '</td><td>' + fvEsc(fvNomePla(f.veiculo_id)) + '</td>' +
+        '<td>' + fvItensHtml(f) + '</td><td>' + fvEsc(fvNomeMot(f.motorista_id)) + '</td><td>' + fvEsc(fvNomePla(f.veiculo_id)) + '</td>' +
         '<td><span class="status-pill ' + (c >= lim ? 'status-reprovada' : c > 0 ? 'status-pendente' : 'status-aprovada') + '">' + c + ' falta' + (c === 1 ? '' : 's') + '</span></td>' +
         '<td style="white-space:nowrap;"><button class="btn-sm btn-outline" onclick="fvAbrirCorrecao(' + f.id + ')">✏️ Corrigir</button> ' +
-        '<button class="btn-sm btn-aprovar" onclick="fvAprovar(' + f.id + ')">Aprovar</button> <button class="btn-sm btn-reprovar" onclick="fvAbrirReprovar(' + f.id + ')">Reprovar</button></td></tr>';
+        '<button class="btn-sm btn-aprovar" onclick="fvAprovar(' + f.id + ')">Aprovar</button> <button class="btn-sm btn-reprovar" onclick="fvAbrirReprovar(' + f.id + ')">Reprovar</button> <button class="btn-sm btn-outline" title="Excluir lançamento" onclick="fvAbrirExcluir(' + f.id + ')">🗑️</button></td></tr>';
     }).join('') + '</tbody></table></div></div>';
   el.innerHTML = h;
 }
@@ -5389,33 +5396,67 @@ async function fvConfirmarReprovar(id){
   fvFecharModal();
   await fvAposAcao('Lançamento reprovado.');
 }
+let fvCorr = null;   // { id, f, itens:[{id?, vas, qtd, un, dev}] }
 function fvAbrirCorrecao(id){
   const f = fvCache.find(x => x.id === id);
-  const vas = produtos.filter(p => p.eh_vasilhame && (p.ativo !== false || p.id === f.vasilhame_id));
+  fvCorr = { id, f, itens: fvItens(f).map(i => ({ id: i.id, vas: String(i.vasilhame_id), qtd: i.quantidade, un: i.unidade_medida, dev: i.quantidade_devolvida })) };
+  fvDesenharCorrecao();
+}
+function fvDesenharCorrecao(){
+  const { id, f, itens } = fvCorr;
   const mots = motoristas.filter(m => m.filial_id == f.filial_id && (m.ativo !== false || m.id === f.motorista_id));
   const vei = veiculos.filter(v => v.filial_id == f.filial_id && (v.ativo !== false || v.id === f.veiculo_id));
-  const op = (lista, sel, lab) => lista.map(x => '<option value="' + x.id + '"' + (x.id === sel ? ' selected' : '') + '>' + fvEsc(lab(x)) + '</option>').join('');
-  fvAbrirModal('<h3>Corrigir lançamento</h3><p class="muted">' + nomePor(filiais, f.filial_id) + ' · lançado em ' + fvFmtData(f.dataISO) + (f.status === 'pendente' ? ' · já aprovado (devolvido até agora: ' + f.quantidade_devolvida + ')' : '') + '</p>' +
-    '<label class="fl">Vasilhame</label><select id="fv-c-vas" style="width:100%;">' + op(vas, f.vasilhame_id, v => v.descricao) + '</select>' +
-    '<div class="filtro-grid" style="grid-template-columns:1fr 1fr;margin-top:10px;"><div><label class="fl">Quantidade</label><input id="fv-c-qtd" type="number" min="1" value="' + f.quantidade + '" style="width:100%;"/></div>' +
-    '<div><label class="fl">Unidade</label><select id="fv-c-un" style="width:100%;"><option value="caixa"' + (f.unidade_medida === 'caixa' ? ' selected' : '') + '>Caixa</option><option value="unidade"' + (f.unidade_medida === 'unidade' ? ' selected' : '') + '>Unidade</option></select></div></div>' +
-    '<label class="fl" style="margin-top:10px;">Motorista</label><select id="fv-c-mot" style="width:100%;">' + op(mots, f.motorista_id, m => m.nome) + '</select>' +
+  const op = (lista, sel, lab) => lista.map(x => '<option value="' + x.id + '"' + (String(x.id) === String(sel) ? ' selected' : '') + '>' + fvEsc(lab(x)) + '</option>').join('');
+  const vasOp = sel => '<option value="">Selecione…</option>' + produtos.filter(p => p.eh_vasilhame && (p.ativo !== false || String(p.id) === String(sel)))
+    .sort((a, b) => String(a.codigo || '').localeCompare(String(b.codigo || ''), 'pt-BR', { numeric: true }))
+    .map(p => '<option value="' + p.id + '"' + (String(p.id) === String(sel) ? ' selected' : '') + '>' + fvEsc((p.codigo ? p.codigo + ' – ' : '') + p.descricao) + '</option>').join('');
+  const linhas = itens.map((i, ix) => '<div class="fv-ci"><select onchange="fvCorr.itens[' + ix + '].vas=this.value" style="flex:1;min-width:0;">' + vasOp(i.vas) + '</select>' +
+    '<input type="number" min="' + Math.max(1, i.dev || 1) + '" value="' + i.qtd + '" onchange="fvCorr.itens[' + ix + '].qtd=parseInt(this.value)||1" style="width:74px;"/>' +
+    '<select onchange="fvCorr.itens[' + ix + '].un=this.value" style="width:100px;"><option value="caixa"' + (i.un === 'caixa' ? ' selected' : '') + '>Caixa</option><option value="unidade"' + (i.un === 'unidade' ? ' selected' : '') + '>Unidade</option></select>' +
+    '<button class="btn-sm btn-reprovar" title="' + (i.dev ? 'Item com devolução não pode ser removido' : 'Remover item') + '" ' + (i.dev ? 'disabled' : '') + ' onclick="fvCorrRemover(' + ix + ')">✕</button></div>').join('');
+  fvAbrirModal('<h3>Corrigir lançamento</h3><p class="muted">' + nomePor(filiais, f.filial_id) + ' · lançado em ' + fvFmtData(f.dataISO) + (f.status === 'pendente' ? ' · já aprovado' : '') + '</p>' +
+    '<label class="fl">Itens (vasilhame · quantidade · unidade)</label>' + linhas +
+    '<button class="btn-sm btn-outline" style="margin-top:8px;" onclick="fvCorrAdicionar()">➕ Adicionar item</button>' +
+    '<label class="fl" style="margin-top:12px;">Motorista</label><select id="fv-c-mot" style="width:100%;">' + op(mots, f.motorista_id, m => m.nome) + '</select>' +
     '<label class="fl" style="margin-top:10px;">Placa</label><select id="fv-c-vei" style="width:100%;">' + op(vei, f.veiculo_id, v => v.placa) + '</select>' +
     '<p class="muted" style="margin-top:10px;">Tudo que for alterado fica registrado no histórico da falta.</p>' +
-    '<div class="row-inline" style="margin-top:14px;"><button class="btn btn-outline" onclick="fvFecharModal()">Cancelar</button><button class="btn btn-primary" onclick="fvSalvarCorrecao(' + id + ')">Salvar correção</button></div>');
+    '<div class="row-inline" style="margin-top:14px;"><button class="btn btn-outline" onclick="fvFecharModal()">Cancelar</button><button class="btn btn-primary" onclick="fvSalvarCorrecao()">Salvar correção</button></div>', true);
 }
-async function fvSalvarCorrecao(id){
+function fvCorrAdicionar(){ fvCorr.motSel = document.getElementById('fv-c-mot').value; fvCorr.veiSel = document.getElementById('fv-c-vei').value; fvCorr.itens.push({ vas: '', qtd: 1, un: 'unidade', dev: 0 }); fvRedesenhaCorr(); }
+function fvCorrRemover(ix){ if(fvCorr.itens.length <= 1){ alert('O lançamento precisa ter pelo menos um item.'); return; } fvCorr.motSel = document.getElementById('fv-c-mot').value; fvCorr.veiSel = document.getElementById('fv-c-vei').value; fvCorr.itens.splice(ix, 1); fvRedesenhaCorr(); }
+function fvRedesenhaCorr(){
+  const m = fvCorr.motSel, v = fvCorr.veiSel;
+  if(m) fvCorr.f = { ...fvCorr.f, motorista_id: Number(m) };
+  if(v) fvCorr.f = { ...fvCorr.f, veiculo_id: Number(v) };
+  fvDesenharCorrecao();
+}
+async function fvSalvarCorrecao(){
+  const { id, itens } = fvCorr;
+  if(itens.some(i => !i.vas)){ alert('Escolha o vasilhame em todos os itens.'); return; }
   const { error } = await sb.rpc('fv_corrigir', {
     p_falta_id: id,
-    p_vasilhame_id: Number(document.getElementById('fv-c-vas').value),
-    p_quantidade: parseInt(document.getElementById('fv-c-qtd').value) || 0,
-    p_unidade: document.getElementById('fv-c-un').value,
     p_motorista_id: Number(document.getElementById('fv-c-mot').value),
     p_veiculo_id: Number(document.getElementById('fv-c-vei').value),
+    p_itens: itens.map(i => ({ id: i.id || null, vasilhame_id: Number(i.vas), quantidade: i.qtd, unidade: i.un })),
   });
   if(error){ alert('Erro ao corrigir: ' + error.message); return; }
   fvFecharModal();
   await fvAposAcao('Correção salva (registrada no histórico).');
+}
+
+/* ---- excluir lançamento ---- */
+function fvAbrirExcluir(id){
+  const f = fvCache.find(x => x.id === id);
+  fvAbrirModal('<h3>Excluir lançamento</h3><p class="muted">' + fvFmtData(f.dataISO) + ' · ' + nomePor(filiais, f.filial_id) + ' · ' + fvEsc(fvNomeMot(f.motorista_id)) + ' · placa ' + fvEsc(fvNomePla(f.veiculo_id)) + '</p>' +
+    '<div style="font-size:14px;margin:8px 0;">' + fvItensHtml(f) + '</div>' +
+    '<div class="note-fv">⚠️ O lançamento, os itens e o histórico serão <b>apagados de vez</b> (não dá pra desfazer). Ele também deixa de contar na reincidência do motorista no mês.</div>' +
+    '<div class="row-inline" style="margin-top:16px;"><button class="btn btn-outline" onclick="fvFecharModal()">Cancelar</button><button class="btn btn-danger" onclick="fvConfirmarExcluir(' + id + ')">Excluir definitivamente</button></div>');
+}
+async function fvConfirmarExcluir(id){
+  const { error } = await sb.rpc('fv_excluir', { p_falta_id: id });
+  if(error){ alert('Erro ao excluir: ' + error.message); return; }
+  fvFecharModal();
+  await fvAposAcao('Lançamento excluído.');
 }
 
 /* ---------- PAINEL ---------- */
@@ -5431,7 +5472,7 @@ function fvRenderPainel(){
   else if(fvFiltroStatus) lista = lista.filter(f => f.status === fvFiltroStatus);
   if(fvFiltroBusca){
     const t = fvFiltroBusca.toLowerCase();
-    lista = lista.filter(f => fvNomeMot(f.motorista_id).toLowerCase().includes(t) || fvNomePla(f.veiculo_id).toLowerCase().includes(t) || fvNomeVas(f.vasilhame_id).toLowerCase().includes(t));
+    lista = lista.filter(f => fvNomeMot(f.motorista_id).toLowerCase().includes(t) || fvNomePla(f.veiculo_id).toLowerCase().includes(t) || fvResumoItens(f).toLowerCase().includes(t));
   }
   fvListaPainel = lista;
   const stOpts = [['', 'Todos os status'], ['aguardando', 'Aguardando aprovação'], ['pendente', 'Aguardando devolução'], ['vencido', 'Somente prazo vencido'], ['devolvido', 'Devolvidos'], ['vale', 'Vale gerado'], ['reprovada', 'Reprovados']];
@@ -5443,28 +5484,29 @@ function fvRenderPainel(){
     '<div><label class="fl">Buscar motorista, placa ou vasilhame</label><input type="text" value="' + fvEsc(fvFiltroBusca) + '" onchange="fvFiltroBusca=this.value;fvRenderPainel()" placeholder="Digite e tecle Enter" /></div>' +
     '<div style="align-self:end;"><button class="btn btn-outline" onclick="fvExportarCSV()">Exportar CSV</button></div></div>' +
     '<p class="muted" style="margin-top:10px;">' + lista.length + ' lançamento(s) encontrado(s).</p>' +
-    '<div style="overflow-x:auto;"><table><thead><tr><th>Lançado</th><th>Filial</th><th>Por</th><th>Vasilhame</th><th>Qtd</th><th>Motorista</th><th>Placa</th><th>Prazo até</th><th>Situação</th><th></th></tr></thead><tbody>' +
-    (lista.slice(0, 500).map(f => '<tr><td>' + fvFmtData(f.dataISO) + '</td><td>' + nomePor(filiais, f.filial_id) + '</td><td>' + nomePor(pessoas, f.lancado_por_id) + '</td><td>' + fvEsc(fvNomeVas(f.vasilhame_id)) + '</td>' +
-      '<td><b>' + fvQtdTxt(f.quantidade, f.unidade_medida) + '</b>' + (f.status === 'pendente' && f.quantidade_devolvida ? '<div class="muted">resta ' + fvQtdTxt(f.quantidade - f.quantidade_devolvida, f.unidade_medida) + '</div>' : '') + (f.status === 'vale' ? '<div class="muted">vale: ' + fvQtdTxt(f.quantidade_vale, f.unidade_medida) + '</div>' : '') + '</td>' +
+    '<div style="overflow-x:auto;"><table><thead><tr><th>Lançado</th><th>Filial</th><th>Por</th><th>Itens faltantes</th><th>Motorista</th><th>Placa</th><th>Prazo até</th><th>Situação</th><th></th></tr></thead><tbody>' +
+    (lista.slice(0, 500).map(f => '<tr><td>' + fvFmtData(f.dataISO) + '</td><td>' + nomePor(filiais, f.filial_id) + '</td><td>' + nomePor(pessoas, f.lancado_por_id) + '</td><td>' + fvItensHtml(f, true) + '</td>' +
       '<td>' + fvEsc(fvNomeMot(f.motorista_id)) + '</td><td>' + fvEsc(fvNomePla(f.veiculo_id)) + '</td><td>' + (f.prazo_ate ? fvFmtData(f.prazo_ate) : '—') + '</td><td>' + fvStatusPill(f) + '</td>' +
-      '<td style="white-space:nowrap;"><button class="btn-sm btn-outline" onclick="fvAbrirHistorico(' + f.id + ')">Histórico</button>' + ((f.status === 'aguardando' || f.status === 'pendente') ? ' <button class="btn-sm btn-outline" onclick="fvAbrirCorrecao(' + f.id + ')">✏️</button>' : '') + '</td></tr>').join('') ||
-      '<tr><td colspan="10" class="muted">Nenhum lançamento com esses filtros.</td></tr>') + '</tbody></table></div></div>';
+      '<td style="white-space:nowrap;"><button class="btn-sm btn-outline" onclick="fvAbrirHistorico(' + f.id + ')">Histórico</button>' + ((f.status === 'aguardando' || f.status === 'pendente') ? ' <button class="btn-sm btn-outline" onclick="fvAbrirCorrecao(' + f.id + ')">✏️</button>' : '') + ' <button class="btn-sm btn-outline" title="Excluir lançamento" onclick="fvAbrirExcluir(' + f.id + ')">🗑️</button></td></tr>').join('') ||
+      '<tr><td colspan="9" class="muted">Nenhum lançamento com esses filtros.</td></tr>') + '</tbody></table></div></div>';
 }
 
 async function fvAbrirHistorico(id){
   const f = fvCache.find(x => x.id === id);
-  fvAbrirModal('<h3>' + fvEsc(fvNomeVas(f.vasilhame_id)) + ' — ' + fvQtdTxt(f.quantidade, f.unidade_medida) + '</h3><p class="muted">' + fvEsc(fvNomeMot(f.motorista_id)) + ' · placa ' + fvEsc(fvNomePla(f.veiculo_id)) + ' · ' + nomePor(filiais, f.filial_id) + '</p><p class="muted">Carregando histórico…</p>', true);
+  fvAbrirModal('<h3>Histórico do lançamento</h3><div style="font-size:13.5px;margin:4px 0 8px;">' + fvItensHtml(f, true) + '</div><p class="muted">' + fvEsc(fvNomeMot(f.motorista_id)) + ' · placa ' + fvEsc(fvNomePla(f.veiculo_id)) + ' · ' + nomePor(filiais, f.filial_id) + '</p><p class="muted">Carregando histórico…</p>', true);
   const { data, error } = await sb.from('faltas_vasilhame_historico').select('*').eq('falta_id', id).order('id');
   const tl = error ? '<p class="muted">Erro ao carregar o histórico.</p>' : '<div class="fv-tl">' + (data || []).map(x => '<div class="it">' + fvEsc(x.texto) + '<small>' + fvFmtData(fvDataSP(x.created_at)) + ' ' + fvHoraSP(x.created_at) + (x.pessoa_id ? ' · ' + fvEsc(nomePor(pessoas, x.pessoa_id)) : '') + '</small></div>').join('') + '</div>';
-  fvAbrirModal('<h3>' + fvEsc(fvNomeVas(f.vasilhame_id)) + ' — ' + fvQtdTxt(f.quantidade, f.unidade_medida) + '</h3><p class="muted">' + fvEsc(fvNomeMot(f.motorista_id)) + ' · placa ' + fvEsc(fvNomePla(f.veiculo_id)) + ' · ' + nomePor(filiais, f.filial_id) + '</p><div style="margin:8px 0 12px;">' + fvStatusPill(f) + '</div>' + tl +
+  fvAbrirModal('<h3>Histórico do lançamento</h3><div style="font-size:13.5px;margin:4px 0 8px;">' + fvItensHtml(f, true) + '</div><p class="muted">' + fvEsc(fvNomeMot(f.motorista_id)) + ' · placa ' + fvEsc(fvNomePla(f.veiculo_id)) + ' · ' + nomePor(filiais, f.filial_id) + '</p><div style="margin:8px 0 12px;">' + fvStatusPill(f) + '</div>' + tl +
     '<div class="row-inline" style="margin-top:14px;"><button class="btn btn-outline" onclick="fvFecharModal()">Fechar</button></div>', true);
 }
 
 function fvExportarCSV(){
   if(!fvListaPainel.length){ alert('Nada para exportar com esses filtros.'); return; }
-  const cab = ['Data','Filial','Lancado_por','Vasilhame','Quantidade','Unidade','Motorista','Placa','Prazo_ate','Situacao','Devolvido','Vale'];
-  const linhas = fvListaPainel.map(f => [fvFmtData(f.dataISO), nomePor(filiais, f.filial_id), nomePor(pessoas, f.lancado_por_id), fvNomeVas(f.vasilhame_id), f.quantidade, f.unidade_medida, fvNomeMot(f.motorista_id), fvNomePla(f.veiculo_id), f.prazo_ate ? fvFmtData(f.prazo_ate) : '', FV_STATUS_ADM[f.status][1], f.quantidade_devolvida, f.quantidade_vale]
-    .map(v => '"' + String(v).replace(/"/g, '""') + '"').join(';'));
+  const cab = ['Lancamento','Data','Filial','Lancado_por','Cod_vasilhame','Vasilhame','Quantidade','Unidade','Devolvido','Vale','Motorista','Placa','Prazo_ate','Situacao'];
+  const linhas = [];
+  fvListaPainel.forEach(f => fvItens(f).forEach(i => { const p = produtos.find(x => x.id === i.vasilhame_id);
+    linhas.push([f.id, fvFmtData(f.dataISO), nomePor(filiais, f.filial_id), nomePor(pessoas, f.lancado_por_id), p ? (p.codigo || '') : '', p ? p.descricao : '', i.quantidade, i.unidade_medida, i.quantidade_devolvida, i.quantidade_vale, fvNomeMot(f.motorista_id), fvNomePla(f.veiculo_id), f.prazo_ate ? fvFmtData(f.prazo_ate) : '', FV_STATUS_ADM[f.status][1]]
+      .map(v => '"' + String(v).replace(/"/g, '""') + '"').join(';')); }));
   const blob = new Blob(['﻿' + cab.join(';') + '\n' + linhas.join('\n')], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a'); a.href = url; a.download = 'falta_vasilhame.csv';
@@ -5502,7 +5544,7 @@ function fvRenderReincidencia(){
       linhas.map(x => { const m = motoristas.find(mm => mm.id === x.id); const sit = x.mes >= lim ? 'bloq' : (lim > 1 && x.mes === lim - 1 && x.mes > 0 ? 'atencao' : 'ok');
         return '<tr><td>' + fvEsc(fvNomeMot(x.id)) + '</td><td>' + (m ? nomePor(filiais, m.filial_id) : '—') + '</td><td><b>' + x.l.length + '</b></td><td>' + x.mes + '</td><td>' + x.l.filter(f => f.status === 'vale').length + '</td>' +
           '<td><span class="status-pill ' + (sit === 'bloq' ? 'status-reprovada' : sit === 'atencao' ? 'status-pendente' : 'status-aprovada') + '">' + (sit === 'bloq' ? 'Reincidente — lançamento bloqueado' : sit === 'atencao' ? 'Atenção — próxima será bloqueada' : 'Normal') + '</span></td>' +
-          '<td><button class="btn-sm btn-outline" onclick="fvAbrirDrilldown(' + x.id + ')">Ver lançamentos</button></td></tr>'; }).join('') + '</tbody></table></div>'
+          '<td><button class="btn-sm btn-outline" onclick="fvAbrirDrilldown(' + jsonAttr(fvNomeMot(x.id)) + ', ' + x.id + ')">Ver lançamentos</button></td></tr>'; }).join('') + '</tbody></table></div>'
       : '<p class="muted">Nenhum motorista com falta neste período.</p>') + '</div>';
 }
 
@@ -5523,13 +5565,14 @@ async function fvDecidirLiberacao(id, aprovar){
 
 /* ---------- drill-down (usa o modal genérico do gerencial) ---------- */
 
-function fvAbrirDrilldown(motoristaId){
-  fvAbrirDrilldownLista(fvNomeMot(motoristaId), fvBase().filter(f => f.motorista_id === motoristaId));
+function fvAbrirDrilldown(titulo, motoristaId){
+  const lista = fvBase().filter(f => f.motorista_id === motoristaId);
+  fvAbrirDrilldownLista(titulo, lista);
 }
 function fvAbrirDrilldownLista(titulo, lista){
   abrirDrilldownGenerico(titulo, lista.length + ' lançamento(s) no período.',
-    ['Data', 'Filial', 'Vasilhame', 'Qtd', 'Motorista', 'Placa', 'Prazo até', 'Situação'],
-    [...lista].sort((a, b) => b.id - a.id).map(f => [fvFmtData(f.dataISO), nomePor(filiais, f.filial_id), fvEsc(fvNomeVas(f.vasilhame_id)), '<b>' + fvQtdTxt(f.quantidade, f.unidade_medida) + '</b>', fvEsc(fvNomeMot(f.motorista_id)), fvEsc(fvNomePla(f.veiculo_id)), f.prazo_ate ? fvFmtData(f.prazo_ate) : '—', fvStatusPill(f)]));
+    ['Data', 'Filial', 'Itens faltantes', 'Motorista', 'Placa', 'Prazo até', 'Situação'],
+    [...lista].sort((a, b) => b.id - a.id).map(f => [fvFmtData(f.dataISO), nomePor(filiais, f.filial_id), fvItensHtml(f, true), fvEsc(fvNomeMot(f.motorista_id)), fvEsc(fvNomePla(f.veiculo_id)), f.prazo_ate ? fvFmtData(f.prazo_ate) : '—', fvStatusPill(f)]));
 }
 
 /* ---------- ANÁLISES ---------- */
@@ -5562,7 +5605,9 @@ function fvRenderAnalises(){
 
   const porMot = fvTop(base, f => f.motorista_id, f => fvNomeMot(f.motorista_id), 10);
   renderBarChart('chart-fv-motorista', porMot.map(x => x.nome), porMot.map(x => x.lista.length), '#C97A1A', { horizontal: true, label: 'Faltas', onClick: fvOnClickEntradas(porMot, '') });
-  const porVas = fvTop(base, f => f.vasilhame_id, f => fvNomeVas(f.vasilhame_id), 10);
+  const mapVas = new Map();
+  base.forEach(f => fvItens(f).forEach(i => { const e = mapVas.get(i.vasilhame_id) || { nome: fvNomeVas(i.vasilhame_id), lista: [] }; if(!e.lista.includes(f)) e.lista.push(f); mapVas.set(i.vasilhame_id, e); }));
+  const porVas = [...mapVas.values()].sort((a, b) => b.lista.length - a.lista.length).slice(0, 10);
   renderBarChart('chart-fv-vasilhame', porVas.map(x => x.nome), porVas.map(x => x.lista.length), '#12796B', { horizontal: true, label: 'Faltas', onClick: fvOnClickEntradas(porVas, '') });
   const porPla = fvTop(base, f => f.veiculo_id, f => fvNomePla(f.veiculo_id), 8);
   renderBarChart('chart-fv-placa', porPla.map(x => x.nome), porPla.map(x => x.lista.length), '#1D6FA5', { horizontal: true, label: 'Faltas', onClick: fvOnClickEntradas(porPla, 'Placa') });

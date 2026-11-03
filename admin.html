@@ -1024,13 +1024,13 @@
       </div>
 
       <div class="card">
-        <h3>Acompanhamento diário — turno</h3>
+        <h3 id="metas-dia-turno-titulo">Acompanhamento diário — turno</h3>
         <div class="filtro-grid" style="grid-template-columns:repeat(2,1fr);max-width:480px;">
           <div><label class="fl">Turno</label><select id="metas-dia-turno" onchange="renderAcompanhamentoDiarioMetas()"></select></div>
         </div>
         <div class="kpi-grid" id="metas-dia-turno-kpi" style="grid-template-columns:repeat(2,1fr);margin-top:12px;"></div>
         <div class="chart-wrap"><canvas id="chart-metas-turno-diario"></canvas></div>
-        <p class="hint" style="margin-top:14px;">Todos os turnos juntos, pra visualizar na reunião:</p>
+        <p class="hint" style="margin-top:14px;">Todos os turnos juntos (do departamento selecionado acima), pra visualizar na reunião:</p>
         <table>
           <thead><tr><th>Turno</th><th>Meta até hoje</th><th>Realizado até hoje</th><th>Diferença</th></tr></thead>
           <tbody id="tbl-meta-real-turno"></tbody>
@@ -5168,8 +5168,12 @@ function renderAcompanhamentoDiarioMetas(){
     <div class="kpi-card ${serieDep.realAteReferencia > serieDep.metaAteReferencia ? 'warn' : ''}"><div class="label">Realizado até dia ${diaReferencia}</div><div class="value">${brl(serieDep.realAteReferencia)}</div></div>
   `;
 
+  // Os turnos obedecem ao filtro de departamento escolhido acima.
+  const lancamentosDoDep = lancamentosDoMes.filter(q => q.departamentoId == depId);
+  const tituloTurno = document.getElementById('metas-dia-turno-titulo');
+  if(tituloTurno) tituloTurno.textContent = 'Acompanhamento diário — turno (' + nomePor(departamentos, Number(depId)) + ')';
   const turnoId = document.getElementById('metas-dia-turno').value;
-  const serieTurno = montarSerieDiariaMetas(lancamentosDoMes, 'turnoId', turnoId, (metasTurno[turnoId] || {}).custo || 0, ano, mes, diaReferencia);
+  const serieTurno = montarSerieDiariaMetas(lancamentosDoDep, 'turnoId', turnoId, (metasTurno[turnoId] || {}).custo || 0, ano, mes, diaReferencia);
   renderAcumuladoVsMeta('chart-metas-turno-diario', serieTurno.dias, serieTurno.realAcumulado, serieTurno.metaAcumulada);
   document.getElementById('metas-dia-turno-kpi').innerHTML = `
     <div class="kpi-card"><div class="label">Meta até dia ${diaReferencia}</div><div class="value">${brl(serieTurno.metaAteReferencia)}</div></div>
@@ -5181,7 +5185,7 @@ function renderAcompanhamentoDiarioMetas(){
   const tblTurnos = document.getElementById('tbl-meta-real-turno');
   if(tblTurnos){
     tblTurnos.innerHTML = turnos.map(t => {
-      const serie = montarSerieDiariaMetas(lancamentosDoMes, 'turnoId', t.id, (metasTurno[t.id] || {}).custo || 0, ano, mes, diaReferencia);
+      const serie = montarSerieDiariaMetas(lancamentosDoDep, 'turnoId', t.id, (metasTurno[t.id] || {}).custo || 0, ano, mes, diaReferencia);
       const diff = serie.realAteReferencia - serie.metaAteReferencia;
       const estourou = diff > 0.01;
       return `<tr>

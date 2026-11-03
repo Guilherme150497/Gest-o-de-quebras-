@@ -1691,7 +1691,7 @@ async function adicionarSimples(tabela){
 /* ---------------- PESSOAS ---------------- */
 
 async function carregarPessoas(){
-  const { data } = await sb.from('pessoas').select('*').order('nome');
+  const { data } = await buscarTudo(() => sb.from('pessoas').select('*').order('nome').order('id'));
   pessoas = data || [];
   document.getElementById('tbl-pessoas').innerHTML = pessoas.map(p => `
     <tr>
@@ -1827,7 +1827,7 @@ async function adicionarPessoa(){
 /* ---------------- VEÍCULOS / MOTORISTAS ---------------- */
 
 async function carregarVeiculos(){
-  const { data } = await sb.from('veiculos').select('*').order('placa');
+  const { data } = await buscarTudo(() => sb.from('veiculos').select('*').order('placa').order('id'));
   veiculos = data || [];
   const selFilial = document.getElementById('novo-veiculo-filial');
   if(selFilial.options.length <= 1){
@@ -1920,7 +1920,7 @@ async function importarVeiculosExcel(input){
 }
 
 async function carregarMotoristas(){
-  const { data } = await sb.from('motoristas').select('*').order('nome');
+  const { data } = await buscarTudo(() => sb.from('motoristas').select('*').order('nome').order('id'));
   motoristas = data || [];
   const selFilial = document.getElementById('novo-motorista-filial');
   if(selFilial.options.length <= 1){
@@ -2013,7 +2013,7 @@ async function importarMotoristasExcel(input){
 /* ---------------- PRODUTOS ---------------- */
 
 async function carregarProdutos(){
-  const { data } = await sb.from('produtos').select('*').order('descricao');
+  const { data } = await buscarTudo(() => sb.from('produtos').select('*').order('descricao').order('id'));
   produtos = data || [];
   todosProdutos = produtos;
   renderProdutos(produtos);
@@ -2434,14 +2434,29 @@ function dataHora(criadoEm, dataISO){
 
 /* ---------------- CARREGAMENTO DAS QUEBRAS ---------------- */
 
+/* Busca paginada: o Supabase corta cada consulta em 1000 linhas (max-rows),
+   ignorando .limit() maior. Aqui pedimos de 1000 em 1000 até acabar. Só leitura. */
+async function buscarTudo(montar, tamanho = 1000){
+  let tudo = [];
+  for(let ini = 0; ; ini += tamanho){
+    const { data, error } = await montar().range(ini, ini + tamanho - 1);
+    if(error) return { data: null, error };
+    tudo = tudo.concat(data || []);
+    if(!data || data.length < tamanho) break;
+    if(ini > 500000) break; // trava de segurança
+  }
+  return { data: tudo, error: null };
+}
+
+
 // Busca os lançamentos reais do Supabase e converte pro formato que as funções
 // de análise abaixo esperam (mesmo shape usado durante o protótipo).
 async function carregarQuebras(){
-  const { data, error } = await sb
+  const { data, error } = await buscarTudo(() => sb
     .from('quebras')
     .select('*')
     .order('created_at', { ascending: false })
-    .limit(5000); // teto de segurança — reveja isso se o histórico crescer muito
+    .order('id', { ascending: false }));
 
   if(error){ console.error(error); quebrasCache = []; return; }
 
@@ -3256,7 +3271,7 @@ function motivosPorDepartamentoTexto(nomeDep){
 }
 
 async function carregarPromaxBaixas(){
-  const { data, error } = await sb.from('promax_baixas').select('*').order('data_operacao', { ascending: false }).limit(20000);
+  const { data, error } = await buscarTudo(() => sb.from('promax_baixas').select('*').order('data_operacao', { ascending: false }).order('id', { ascending: false }));
   if(error){ console.error(error); promaxBaixasCache = []; return; }
   promaxBaixasCache = (data || []).map(row => ({
     id: row.id,
@@ -3573,11 +3588,11 @@ function verificarDivergenciasPromax(nomeDep){
 /* ---------------- TRANSFERÊNCIAS ENTRE DEPÓSITOS ---------------- */
 
 async function carregarTransferencias(){
-  const { data, error } = await sb
+  const { data, error } = await buscarTudo(() => sb
     .from('transferencias')
     .select('*')
     .order('created_at', { ascending: false })
-    .limit(5000);
+    .order('id', { ascending: false }));
 
   if(error){ console.error(error); transferenciasCache = []; return; }
 
@@ -3754,12 +3769,12 @@ let repackCache = [];
 let repackPainelFiltrado = [];
 
 async function carregarRepack(){
-  const { data, error } = await sb
+  const { data, error } = await buscarTudo(() => sb
     .from('repack_lancamentos')
     .select('*')
     .eq('status', 'concluido')
     .order('created_at', { ascending: false })
-    .limit(5000);
+    .order('id', { ascending: false }));
 
   if(error){ console.error(error); repackCache = []; return; }
 
@@ -4212,12 +4227,12 @@ let despejoCache = [];
 let despejoPainelFiltrado = [];
 
 async function carregarDespejo(){
-  const { data, error } = await sb
+  const { data, error } = await buscarTudo(() => sb
     .from('despejo_lancamentos')
     .select('*')
     .eq('status', 'concluido')
     .order('created_at', { ascending: false })
-    .limit(5000);
+    .order('id', { ascending: false }));
 
   if(error){ console.error(error); despejoCache = []; return; }
 
@@ -5257,7 +5272,7 @@ function fvStatusPill(f){
 
 async function carregarFv(){
   const [f, l, c] = await Promise.all([
-    sb.from('faltas_vasilhame').select('*, itens:faltas_vasilhame_itens(*)').order('id', { ascending: false }).limit(5000),
+    buscarTudo(() => sb.from('faltas_vasilhame').select('*, itens:faltas_vasilhame_itens(*)').order('id', { ascending: false })),
     sb.from('faltas_vasilhame_liberacoes').select('*').order('id', { ascending: false }).limit(1000),
     sb.from('falta_vasilhame_config').select('*').eq('id', 1).maybeSingle(),
   ]);

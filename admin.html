@@ -143,6 +143,14 @@
   .fv-tl .it{margin-bottom:12px; position:relative; font-size:13.5px;}
   .fv-tl .it:before{content:""; position:absolute; left:-20px; top:4px; width:10px; height:10px; border-radius:50%; background:var(--teal);}
   .fv-tl .it small{color:var(--sub); display:block;}
+  .sr-pill-azul{background:#DCE8FA; color:#2556A8;} .sr-pill-cinza{background:#ECEEF0; color:#5B5F63;}
+  .btn-sm.sr-b-car{background:#FBEAEA; color:#A32D2D; border:none;} .btn-sm.sr-b-ent{background:#E6EEFA; color:#2556A8; border:none;} .btn-sm.sr-b-nid{background:#E3E3E3; color:#444; border:none;}
+  .sr-bar{display:flex; height:20px; border-radius:6px; overflow:hidden; background:#EEF0EE; min-width:40px;} .sr-bar i{display:block; height:100%;}
+  .sr-hb{display:grid; grid-template-columns:200px 1fr 56px; gap:10px; align-items:center; font-size:12.5px; margin:6px 0;} .sr-hb .nm{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;} .sr-hb b{text-align:right;}
+  .sr-big{display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin:6px 0;} .sr-big div{border-radius:12px; padding:16px 18px; color:#fff;} .sr-big b{display:block; font-size:34px; line-height:1.1;} .sr-big span{font-size:12.5px; opacity:.95;}
+  .sr-sw{margin:4px 0 12px; font-size:13px; font-weight:600;} .sr-sw button{border:1px solid var(--line); background:#fff; padding:6px 12px; border-radius:8px; font-weight:700; cursor:pointer; margin-left:6px;} .sr-sw button.on{background:var(--navy); color:#fff; border-color:var(--navy);}
+  .sr-leg i{display:inline-block; width:10px; height:10px; border-radius:2px; margin:0 4px 0 12px;}
+  .sr-evo{display:flex; align-items:flex-end; gap:3px; height:130px;} .sr-evo div{flex:1; display:flex; flex-direction:column; justify-content:flex-end;} .sr-evo i{display:block; width:100%;}
   #fv-toast{display:none; position:fixed; bottom:22px; left:50%; transform:translateX(-50%); background:#16283A; color:#fff; padding:12px 18px; border-radius:10px; font-size:14px; z-index:300; box-shadow:0 6px 20px rgba(0,0,0,.3); max-width:90vw;}
 
   .meta-input{width:110px; padding:6px 8px; font-size:13px;}
@@ -202,6 +210,11 @@
         <div class="icone-modulo">🍾</div>
         <div class="titulo-modulo">Falta de Vasilhame</div>
         <div class="desc-modulo">Retorno de rota: aprovação, prazo de devolução, vales e reincidência</div>
+      </div>
+      <div class="card-modulo" style="--cor-modulo:#7C3AED;--cor-modulo-fundo:#EEE6FD;" onclick="abrirModulo('sr-classificar')">
+        <div class="icone-modulo">🔄</div>
+        <div class="titulo-modulo">Sobras de Rota</div>
+        <div class="desc-modulo">Produtos que voltaram da rota: classificação, Op. 39 / Op. 5 e análises</div>
       </div>
       <div class="card-modulo" style="--cor-modulo:#475569;--cor-modulo-fundo:#E7EAEE;" onclick="abrirModulo('filiais')">
         <div class="icone-modulo">🗂️</div>
@@ -298,6 +311,15 @@
         </div>
       </div>
 
+      <div class="nav-modulo hidden" data-modulo-nav="sobras-rota">
+        <div class="nav-group">
+          <div class="nav-group-title">Sobras de Rota</div>
+          <div class="tab" data-tab="sr-classificar">Classificar</div>
+          <div class="tab" data-tab="sr-lancamentos">Todos os lançamentos / Extrair</div>
+          <div class="tab" data-tab="sr-analises">Análises</div>
+        </div>
+      </div>
+
       <div class="nav-modulo hidden" data-modulo-nav="cadastros">
         <div class="nav-group">
           <div class="nav-group-title">Cadastros</div>
@@ -360,7 +382,7 @@
           esquecer a senha, use "Redefinir senha" na mesma linha.
         </p>
         <table>
-          <thead><tr><th>Nome</th><th>Cargo</th><th>Filial</th><th>Ativo</th><th>Pode lançar</th><th>Admin</th><th>E-mail</th><th>Acesso</th><th></th></tr></thead>
+          <thead><tr><th>Nome</th><th>Cargo</th><th>Filial</th><th>Ativo</th><th>Pode lançar</th><th>Admin</th><th>Aprova quebras de</th><th>E-mail</th><th>Acesso</th><th></th></tr></thead>
           <tbody id="tbl-pessoas"></tbody>
         </table>
         <div class="add-row">
@@ -406,6 +428,7 @@
     <div class="panel" id="panel-aprovacoes">
       <div class="card">
         <h3>Quebras aguardando aprovação</h3>
+        <div id="aprov-restricao"></div>
         <p class="hint">Aprove pra liberar a baixa de estoque, ou reprove se o lançamento não deveria ter sido feito.</p>
         <div class="filtro-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:12px;">
           <div><label class="fl">Departamento</label><select id="filtro-aprov-departamento" onchange="renderAprovacoes()"></select></div>
@@ -1203,6 +1226,20 @@
         <table><thead><tr><th>Código</th><th>Descrição</th><th>EAN</th><th>Custo unitário</th><th>Fator caixa</th><th>Litros/unid.</th><th>Vasilhame</th><th>Vasilhame vinculado</th><th>Ativo</th></tr></thead><tbody id="tbl-produtos"></tbody></table>
       </div>
     </div>
+    <!-- SOBRAS DE ROTA -->
+    <div class="panel" id="panel-sr-classificar">
+      <div class="sr-filtros-slot"></div>
+      <div id="sr-classificar-corpo"></div>
+    </div>
+    <div class="panel" id="panel-sr-lancamentos">
+      <div class="sr-filtros-slot"></div>
+      <div id="sr-lanc-corpo"></div>
+    </div>
+    <div class="panel" id="panel-sr-analises">
+      <div class="sr-filtros-slot"></div>
+      <div id="sr-analises-corpo"></div>
+    </div>
+
     <!-- FALTA DE VASILHAME: APROVAÇÕES -->
     <div class="panel" id="panel-fv-aprovacoes">
       <div class="fv-filtros-slot"></div>
@@ -1350,6 +1387,7 @@ const MODULO_DE_TAB = {
   'repack-painel':'repack', 'repack-produtividade':'repack', 'repack-anomalias':'repack', 'repack-metas':'repack',
   'despejo-painel':'despejo', 'despejo-produtividade':'despejo', 'despejo-anomalias':'despejo', 'despejo-metas':'despejo',
   'fv-aprovacoes':'falta-vasilhame', 'fv-painel':'falta-vasilhame', 'fv-reincidencia':'falta-vasilhame', 'fv-analises':'falta-vasilhame',
+  'sr-classificar':'sobras-rota', 'sr-lancamentos':'sobras-rota', 'sr-analises':'sobras-rota',
   'filiais':'cadastros', 'departamentos':'cadastros', 'pessoas':'cadastros', 'areas':'cadastros',
   'equipamentos':'cadastros', 'motivos':'cadastros', 'turnos':'cadastros', 'veiculos':'cadastros',
   'motoristas':'cadastros', 'produtos':'cadastros', 'depositos':'cadastros', 'motivos_transferencia':'cadastros',
@@ -1361,6 +1399,7 @@ const TITULO_DE_MODULO = {
   'repack': '♻️ Repack',
   'despejo': '🚰 Despejo',
   'falta-vasilhame': '🍾 Falta de Vasilhame',
+  'sobras-rota': '🔄 Sobras de Rota',
   'cadastros': '🗂️ Cadastros',
 };
 
@@ -1431,6 +1470,7 @@ document.querySelectorAll('.tab').forEach(tab => {
     if(tab.dataset.tab === 'despejo-anomalias') renderAnomaliasDespejo();
     if(tab.dataset.tab === 'despejo-metas') carregarMetasDespejo();
     if(tab.dataset.tab.startsWith('fv-')) renderFv();
+    if(tab.dataset.tab.startsWith('sr-')) renderSr();
     if(tab.dataset.tab === 'lancamentos') renderLancamentos();
     if(tab.dataset.tab === 'check-promax') renderCheckPromax();
   });
@@ -1454,6 +1494,7 @@ async function carregarTudo(){
   await carregarRepack();
   await carregarDespejo();
   await carregarFv();
+  await carregarSr();
 
   montarFiltroFilialGlobal();
   montarFiltroDepartamentoAprovacoes();
@@ -1488,6 +1529,7 @@ function renderTudo(){
   renderProdutividadeDespejo();
   renderAnomaliasDespejo();
   renderFv();
+  renderSr();
 }
 
 /* ---------------- HELPERS GENÉRICOS DE CRUD ---------------- */
@@ -1706,11 +1748,60 @@ async function carregarPessoas(){
       <td><button class="toggle ${p.ativo ? 'on' : ''}" onclick="atualizarPessoa(${p.id}, {ativo: ${!p.ativo}})"><span class="dot"></span></button></td>
       <td><button class="toggle ${p.pode_logar ? 'on' : ''}" onclick="atualizarPessoa(${p.id}, {pode_logar: ${!p.pode_logar}})"><span class="dot"></span></button></td>
       <td><button class="toggle ${p.is_admin ? 'on' : ''}" onclick="atualizarPessoa(${p.id}, {is_admin: ${!p.is_admin}})"><span class="dot"></span></button></td>
+      <td>${celulaDeptosAprovacao(p)}</td>
       <td><input class="small-input" value="${p.email || ''}" onchange="atualizarPessoa(${p.id}, {email: this.value.trim() || null})" placeholder="email@cobeb.app" /></td>
       <td><button class="btn-sm btn-outline" onclick="${p.auth_id ? 'redefinirSenhaPessoa' : 'criarLoginPessoa'}(${p.id})">${p.auth_id ? '🔑 Redefinir senha' : '➕ Criar login'}</button></td>
       <td><button class="btn btn-danger" onclick="removerRegistro('pessoas', ${p.id}, carregarPessoas)">Excluir</button></td>
     </tr>`).join('');
 }
+
+/* ---------------- PERMISSÃO POR DEPARTAMENTO (aprovação/edição de quebras) ----------------
+   pessoas.departamentos_aprovacao: null = todos os departamentos (padrão) | [ids] = só esses | [] = nenhum.
+   A trava de verdade está no banco (migration_sobras_rota.sql); aqui a tela só reflete e avisa. */
+function deptosPermitidosIds(p){
+  const a = p && p.departamentos_aprovacao;
+  return Array.isArray(a) ? a.map(Number) : null;
+}
+function podeEditarDep(depId){
+  const a = deptosPermitidosIds(pessoaAtual);
+  return a === null || a.includes(Number(depId));
+}
+function resumoDeptosAprovacao(p){
+  const a = deptosPermitidosIds(p);
+  if(a === null) return '<span class="status-pill status-aprovada">Todos</span>';
+  if(!a.length) return '<span class="status-pill status-reprovada">Nenhum</span>';
+  return a.map(id => '<span class="status-pill status-pendente" style="margin:1px;">' + nomePor(departamentos, id) + '</span>').join(' ');
+}
+function celulaDeptosAprovacao(p){
+  if(!p.is_admin) return '<span class="muted">—</span>';
+  const bloqueado = deptosPermitidosIds(pessoaAtual) !== null; // quem tem restrição não altera permissões
+  return resumoDeptosAprovacao(p) + '<div><button class="btn-sm btn-outline" style="margin-top:4px;" ' + (bloqueado ? 'disabled title="Só um administrador sem restrição pode alterar"' : '') + ' onclick="abrirPermissaoDeptos(' + p.id + ')">Editar</button></div>';
+}
+function abrirPermissaoDeptos(id){
+  const p = pessoas.find(x => x.id === id);
+  if(!p) return;
+  const a = deptosPermitidosIds(p);
+  const todos = a === null;
+  fvAbrirModal('<h3>Aprovação de quebras — ' + p.nome + '</h3>' +
+    '<p class="muted">Define em quais departamentos esta pessoa pode <b>aprovar, reprovar, corrigir e excluir</b> quebras na aba Aprovações. Nos demais ela só visualiza.</p>' +
+    '<label style="display:flex;gap:8px;align-items:center;font-weight:700;margin:10px 0;"><input type="checkbox" id="perm-todos" ' + (todos ? 'checked' : '') + ' onchange="document.querySelectorAll(\'.perm-dep\').forEach(c => { c.disabled = this.checked; if(this.checked) c.checked = true; })" /> Todos os departamentos</label>' +
+    '<div style="border:1px solid var(--line);border-radius:8px;padding:8px 12px;">' +
+    departamentos.map(d => '<label style="display:flex;gap:8px;align-items:center;padding:5px 0;"><input type="checkbox" class="perm-dep" value="' + d.id + '" ' + (todos || a.includes(d.id) ? 'checked' : '') + (todos ? ' disabled' : '') + ' /> ' + d.nome + (d.ativo ? '' : ' <span class="muted">(inativo)</span>') + '</label>').join('') + '</div>' +
+    '<div class="row-inline" style="margin-top:16px;"><button class="btn btn-outline" onclick="fvFecharModal()">Cancelar</button><button class="btn btn-aprovar" onclick="salvarPermissaoDeptos(' + id + ')">Salvar</button></div>');
+}
+async function salvarPermissaoDeptos(id){
+  const todos = document.getElementById('perm-todos').checked;
+  const marcados = [...document.querySelectorAll('.perm-dep')].filter(c => c.checked).map(c => Number(c.value));
+  const valor = (todos || marcados.length === departamentos.length) ? null : marcados;
+  if(valor !== null && !valor.length && !confirm('Nenhum departamento marcado: essa pessoa não poderá editar nenhuma quebra. Confirmar?')) return;
+  const { error } = await sb.from('pessoas').update({ departamentos_aprovacao: valor }).eq('id', id);
+  if(error){ alert('Erro ao salvar: ' + error.message + '\n\nSe a mensagem falar em coluna inexistente, rode a migration_sobras_rota.sql no Supabase.'); return; }
+  if(pessoaAtual && pessoaAtual.id === id) pessoaAtual.departamentos_aprovacao = valor;
+  fvFecharModal();
+  await carregarPessoas();
+  renderAprovacoes();
+}
+function avisoSemPermissaoDep(){ alert('Você não tem permissão para alterar quebras desse departamento. (Permissão definida no seu cadastro de usuário.)'); }
 
 async function atualizarPessoa(id, campos){
   const { error } = await sb.from('pessoas').update(campos).eq('id', id);
@@ -2914,31 +3005,42 @@ function renderAprovacoes(){
     (!dataFiltro || q.dataISO === dataFiltro)
   );
 
-  document.getElementById('tbl-aprovacoes').innerHTML = pendentes.map(q => `
-    <tr>
+  const permIds = deptosPermitidosIds(pessoaAtual);
+  const restr = document.getElementById('aprov-restricao');
+  if(restr){
+    restr.innerHTML = permIds === null ? '' :
+      '<div class="note-fv" style="margin-bottom:10px;">🔒 Seu usuário edita apenas: <b>' + (permIds.length ? permIds.map(id => nomePor(departamentos, id)).join(', ') : 'nenhum departamento') + '</b>. Nos demais departamentos você só visualiza.</div>';
+  }
+
+  document.getElementById('tbl-aprovacoes').innerHTML = pendentes.map(q => {
+    const ok = podeEditarDep(q.departamentoId);
+    const dis = ok ? '' : ' disabled title="Sem permissão neste departamento"';
+    return `
+    <tr${ok ? '' : ' style="opacity:.6;"'}>
       <td>${q.dataISO}</td>
       <td><button class="btn-sm btn-outline" onclick="abrirFotoModalPorId(${q.id})">Ver foto</button></td>
       <td>
-        <select class="small-input" onchange="corrigirCampoQuebra(${q.id}, 'produto_id', Number(this.value))">
+        <select class="small-input"${dis} onchange="corrigirCampoQuebra(${q.id}, 'produto_id', Number(this.value))">
           ${produtos.filter(p => p.ativo).map(p => `<option value="${p.id}" ${p.id===q.produtoId?'selected':''}>${p.descricao}</option>`).join('')}
         </select>
       </td>
-      <td><input class="small-input" type="number" min="1" value="${q.quantidade}" style="width:70px;" onchange="corrigirCampoQuebra(${q.id}, 'quantidade', Number(this.value))" /></td>
+      <td><input class="small-input" type="number" min="1" value="${q.quantidade}" style="width:70px;"${dis} onchange="corrigirCampoQuebra(${q.id}, 'quantidade', Number(this.value))" /></td>
       <td>${q.unidadeMedida === 'caixa' ? 'Caixa' : 'Unidade'}</td>
       <td>${nomePor(filiais, q.filialId)}</td>
       <td>
-        <select class="small-input" onchange="corrigirCampoQuebra(${q.id}, 'departamento_id', Number(this.value))">
-          ${departamentos.filter(d => d.ativo).map(d => `<option value="${d.id}" ${d.id===q.departamentoId?'selected':''}>${d.nome}</option>`).join('')}
+        <select class="small-input"${dis} onchange="corrigirCampoQuebra(${q.id}, 'departamento_id', Number(this.value))">
+          ${departamentos.filter(d => d.ativo && (podeEditarDep(d.id) || d.id === q.departamentoId)).map(d => `<option value="${d.id}" ${d.id===q.departamentoId?'selected':''}>${d.nome}</option>`).join('')}
         </select>
       </td>
       <td>${nomePor(motivos, q.motivoId)}</td>
       <td>${nomePor(pessoas, q.lancadoPorId)}</td>
       <td class="row-inline">
-        <button class="btn-sm btn-aprovar" onclick="decidirQuebra(${q.id}, 'aprovada')">Aprovar</button>
-        <button class="btn-sm btn-reprovar" onclick="decidirQuebra(${q.id}, 'reprovada')">Reprovar</button>
-        <button class="btn-sm btn-reprovar" onclick="excluirQuebra(${q.id})">Excluir</button>
+        ${ok ? '' : '<span class="muted" title="Sem permissão neste departamento">🔒</span>'}
+        <button class="btn-sm btn-aprovar"${dis} onclick="decidirQuebra(${q.id}, 'aprovada')">Aprovar</button>
+        <button class="btn-sm btn-reprovar"${dis} onclick="decidirQuebra(${q.id}, 'reprovada')">Reprovar</button>
+        <button class="btn-sm btn-reprovar"${dis} onclick="excluirQuebra(${q.id})">Excluir</button>
       </td>
-    </tr>`).join('') || '<tr><td colspan="10" class="muted">Nenhuma quebra pendente com esses filtros.</td></tr>';
+    </tr>`;}).join('') || '<tr><td colspan="10" class="muted">Nenhuma quebra pendente com esses filtros.</td></tr>';
 }
 
 function limparFiltrosAprovacoes(){
@@ -2965,6 +3067,7 @@ function fecharFotoModal(){
 }
 
 async function decidirQuebra(id, novoStatus){
+  { const qq = quebrasCache.find(x => x.id === id); if(qq && !podeEditarDep(qq.departamentoId)){ avisoSemPermissaoDep(); return; } }
   // Grava o momento da aprovação (só quando o novo status é "aprovada") —
   // é essa data que a Conferência de Lançamento x Promax usa pra comparar
   // com o dia em que o controle baixa no Promax.
@@ -2987,6 +3090,7 @@ async function decidirQuebra(id, novoStatus){
 // volta o lançamento pra "pendente", de onde pode ser corrigido ou reprovado
 // normalmente na aba Aprovações. Usado a partir do Relatório de Baixa.
 async function voltarParaAprovacao(id){
+  { const qq = quebrasCache.find(x => x.id === id); if(qq && !podeEditarDep(qq.departamentoId)){ avisoSemPermissaoDep(); return; } }
   if(!confirm('Voltar esse lançamento pra aprovação? Ele deixa de contar como aprovado e volta a aparecer como pendente na aba Aprovações, pra corrigir ou decidir de novo.')) return;
   const { error } = await sb.from('quebras').update({ status: 'pendente' }).eq('id', id);
   if(error){ alert('Erro ao atualizar: ' + error.message); return; }
@@ -3000,6 +3104,8 @@ async function voltarParaAprovacao(id){
 
 // Corrige quantidade ou produto (SKU) de um lançamento ainda pendente.
 async function corrigirCampoQuebra(id, campoDb, valor){
+  { const qq = quebrasCache.find(x => x.id === id);
+    if(qq && (!podeEditarDep(qq.departamentoId) || (campoDb === 'departamento_id' && !podeEditarDep(valor)))){ avisoSemPermissaoDep(); renderAprovacoes(); return; } }
   const { error } = await sb.from('quebras').update({ [campoDb]: valor }).eq('id', id);
   if(error){ alert('Erro ao corrigir: ' + error.message); return; }
 
@@ -3026,6 +3132,7 @@ async function corrigirCampoQuebra(id, campoDb, valor){
 }
 
 async function excluirQuebra(id){
+  { const qq = quebrasCache.find(x => x.id === id); if(qq && !podeEditarDep(qq.departamentoId)){ avisoSemPermissaoDep(); return; } }
   if(!confirm('Excluir este lançamento por completo? Essa ação não pode ser desfeita.')) return;
   const { error } = await sb.from('quebras').delete().eq('id', id);
   if(error){ alert('Erro ao excluir: ' + error.message); return; }
@@ -5005,6 +5112,7 @@ async function alternarPermitirScan(){
 async function apagarTodosLancamentosTeste(){
   const msg = document.getElementById('zona-risco-msg');
   msg.innerHTML = '';
+  if(deptosPermitidosIds(pessoaAtual) !== null){ msg.innerHTML = '<div class="error">Seu usuário tem restrição de departamento e não pode apagar todos os lançamentos.</div>'; return; }
   const confirmacao = prompt('Isso vai apagar TODOS os lançamentos de quebras e transferências (não afeta cadastros). Para confirmar, digite APAGAR (tudo em maiúsculas):');
   if(confirmacao === null) return;
   if(confirmacao !== 'APAGAR'){ msg.innerHTML = '<div class="error">Cancelado — o texto digitado não bateu com "APAGAR".</div>'; return; }
@@ -5215,6 +5323,416 @@ async function salvarMetas(){
     : '<div class="ok">Metas salvas para ' + nomePor(filiais, filialId) + ' — ' + document.getElementById('metas-mes').value + '.</div>';
 }
 
+
+/* ============================================================
+   SOBRAS DE ROTA (gerencial)
+   Classificar · Todos os lançamentos / Extrair · Análises
+   Sobra de Rota  -> controle classifica: falta no estoque (erro de carregamento),
+                     falta para o cliente (erro de entrega) ou não identificado
+   Sobra p/ Análise -> controle informa Op. 39 (repor ao cliente) e Op. 5 (saída),
+                     SEMPRE EM UNIDADES
+   A filial usa o seletor do topo da página, igual aos outros módulos.
+   ============================================================ */
+
+let srCache = [];                 // lançamentos (todas as bases) com itens
+let srFiltro = { periodo: 'mes', de: '', ate: '', tipo: '', cls: '', q: '' };
+let srMedir = 'oc';               // 'oc' = ocorrências | 'vol' = volume em unidades
+let srListaExport = [];           // linhas atuais da aba Lançamentos (pra CSV)
+
+const SR_TIPO_NOME = { sobra_rota: 'Sobra de Rota', sobra_analise: 'Sobra para Análise' };
+const SR_CLS = {
+  falta_estoque:    { nome: 'Falta no estoque',  sub: 'Erro de carregamento', pill: 'status-reprovada', cor: '#A32D2D' },
+  falta_cliente:    { nome: 'Falta p/ cliente',  sub: 'Erro de entrega',      pill: 'sr-pill-azul',     cor: '#2556A8' },
+  nao_identificado: { nome: 'Não identificado',  sub: '',                     pill: 'sr-pill-cinza',    cor: '#8A8F94' },
+};
+const SR_AVISO_UNIDADE = '⚠️ Op. 39 e Op. 5 devem ser digitadas <b>SEMPRE EM UNIDADES</b> — mesmo quando o conferente lançou em caixas.';
+
+const srQtdTxt = (q, un) => q + (un === 'caixa' ? ' cx' : ' un');
+const srNomeProd = id => { const p = produtos.find(x => x.id === id); return p ? (p.codigo ? p.codigo + ' – ' : '') + p.descricao : '—'; };
+const srFator = id => { const p = produtos.find(x => x.id === id); return Math.max(1, Number(p && p.fator_caixa) || 1); };
+const srEmUnidades = (i) => i.unidade_medida === 'caixa' ? i.quantidade * srFator(i.produto_id) : i.quantidade;
+
+async function carregarSr(){
+  const r = await buscarTudo(() => sb.from('sobras_rota').select('*, itens:sobras_rota_itens(*)').order('id', { ascending: false }));
+  if(r.error) console.warn('Sobras de Rota: tabela ainda não disponível (rode migration_sobras_rota.sql).', r.error.message);
+  srCache = (r.data || []).map(s => ({ ...s, itens: (s.itens || []).sort((a, b) => a.id - b.id), dataISO: fvDataSP(s.created_at) }));
+}
+
+/* status de cada item: pendente | falta_estoque | falta_cliente | nao_identificado | analise_ok */
+function srStatusItem(i){
+  if(i.tipo === 'sobra_rota') return i.classificacao || 'pendente';
+  return (i.qtd_repor_op39 != null && i.qtd_saida_op5 != null) ? 'analise_ok' : 'pendente';
+}
+
+/* linhas (1 por item), já no escopo de filial + período + filtros */
+function srIntervalo(){
+  const hoje = fvHojeISO(), ym = hoje.slice(0, 7);
+  switch(srFiltro.periodo){
+    case 'hoje': return [hoje, hoje];
+    case '7': return [fvAddDias(hoje, -6), hoje];
+    case '30': return [fvAddDias(hoje, -29), hoje];
+    case 'mes': return [ym + '-01', fvUltimoDiaMes(ym)];
+    case 'mes_ant': {
+      const d = new Date(hoje.slice(0, 4), Number(hoje.slice(5, 7)) - 2, 1);
+      const ymA = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+      return [ymA + '-01', fvUltimoDiaMes(ymA)];
+    }
+    case 'ano': return [hoje.slice(0, 4) + '-01-01', hoje.slice(0, 4) + '-12-31'];
+    case 'custom': return [srFiltro.de, srFiltro.ate];
+    default: return ['', ''];
+  }
+}
+function srLinhasBase(comFiltrosExtras){
+  const [de, ate] = srIntervalo();
+  const q = (srFiltro.q || '').toLowerCase().trim();
+  const out = [];
+  srCache.forEach(s => {
+    if(filialGlobalId && s.filial_id != filialGlobalId) return;
+    if(de && s.dataISO < de) return;
+    if(ate && s.dataISO > ate) return;
+    s.itens.forEach(i => {
+      const st = srStatusItem(i);
+      if(comFiltrosExtras){
+        if(srFiltro.tipo && i.tipo !== srFiltro.tipo) return;
+        if(srFiltro.cls && st !== srFiltro.cls) return;
+        if(q){
+          const alvo = (nomePor(veiculos, s.veiculo_id) + ' ' + nomePor(motoristas, s.motorista_id) + ' ' + srNomeProd(i.produto_id) + ' ' + s.numero_mapa).toLowerCase();
+          if(!alvo.includes(q)) return;
+        }
+      }
+      out.push({ s, i, st });
+    });
+  });
+  return out;
+}
+
+/* ---------- filtros ---------- */
+
+function srMudar(campo, v){ srFiltro[campo] = v; if(campo === 'de' || campo === 'ate') srFiltro.periodo = 'custom'; renderSr(); }
+function srLimparFiltro(){ srFiltro = { periodo: 'mes', de: '', ate: '', tipo: '', cls: '', q: '' }; renderSr(); }
+function srRenderFiltros(){
+  const [de, ate] = srIntervalo();
+  const per = [['hoje','Hoje'],['7','Últimos 7 dias'],['30','Últimos 30 dias'],['mes','Mês atual'],['mes_ant','Mês anterior'],['ano','Ano atual'],['tudo','Todo o período'],['custom','Personalizado']];
+  const clsOp = [['','Todas'],['pendente','Pendente'],['falta_estoque','Falta no estoque (carregamento)'],['falta_cliente','Falta p/ cliente (entrega)'],['nao_identificado','Não identificado'],['analise_ok','Análise tratada (Op. 39/5)']];
+  const sel = (arr, atual, fn) => arr.map(o => '<option value="' + o[0] + '"' + (atual === o[0] ? ' selected' : '') + '>' + o[1] + '</option>').join('');
+  const html = '<div class="card" style="padding:14px 16px;"><div class="filtro-grid" style="grid-template-columns:repeat(6,1fr);align-items:end;">' +
+    '<div><label class="fl">Período</label><select onchange="srMudar(\'periodo\', this.value)">' + sel(per, srFiltro.periodo) + '</select></div>' +
+    '<div><label class="fl">De</label><input type="date" value="' + de + '" onchange="srMudar(\'de\', this.value)" /></div>' +
+    '<div><label class="fl">Até</label><input type="date" value="' + ate + '" onchange="srMudar(\'ate\', this.value)" /></div>' +
+    '<div><label class="fl">Tipo</label><select onchange="srMudar(\'tipo\', this.value)">' + sel([['','Todos'],['sobra_rota','Sobra de Rota'],['sobra_analise','Sobra para Análise']], srFiltro.tipo) + '</select></div>' +
+    '<div><label class="fl">Classificação</label><select onchange="srMudar(\'cls\', this.value)">' + sel(clsOp, srFiltro.cls) + '</select></div>' +
+    '<div><label class="fl">Placa / motorista / produto / mapa</label><input type="text" value="' + fvEsc(srFiltro.q) + '" placeholder="Buscar" onchange="srMudar(\'q\', this.value)" /></div></div>' +
+    '<div class="row-inline" style="margin-top:10px;"><button class="btn btn-outline" onclick="srLimparFiltro()">Limpar filtros</button></div>' +
+    '<p class="muted" style="margin:8px 0 0;">Os filtros valem para as 3 abas deste módulo e usam a <b>data do lançamento</b>. Filial: use o seletor no topo da página.</p></div>';
+  document.querySelectorAll('.sr-filtros-slot').forEach(el => { el.innerHTML = html; });
+}
+
+function renderSr(){
+  srRenderFiltros();
+  srRenderClassificar();
+  srRenderLancamentos();
+  srRenderAnalises();
+}
+async function srAposAcao(msg){
+  await carregarSr();
+  renderSr();
+  if(msg) fvToast(msg);
+}
+
+/* ---------- KPIs ---------- */
+
+function srKpis(linhas){
+  const c = k => linhas.filter(x => x.st === k).length;
+  const pend = linhas.filter(x => x.st === 'pendente').length;
+  const o39 = linhas.reduce((a, x) => a + (x.i.qtd_repor_op39 || 0), 0);
+  const o5 = linhas.reduce((a, x) => a + (x.i.qtd_saida_op5 || 0), 0);
+  return '<div class="kpi-grid" style="grid-template-columns:repeat(7,1fr);">' +
+    '<div class="kpi-card"><div class="label">Itens no filtro</div><div class="value">' + linhas.length + '</div></div>' +
+    '<div class="kpi-card ' + (pend ? 'warn' : '') + '"><div class="label">Aguardando controle</div><div class="value">' + pend + '</div></div>' +
+    '<div class="kpi-card"><div class="label">Erros de carregamento</div><div class="value" style="color:#A32D2D">' + c('falta_estoque') + '</div></div>' +
+    '<div class="kpi-card"><div class="label">Erros de entrega</div><div class="value" style="color:#2556A8">' + c('falta_cliente') + '</div></div>' +
+    '<div class="kpi-card"><div class="label">Não identificado</div><div class="value" style="color:#6b7075">' + c('nao_identificado') + '</div></div>' +
+    '<div class="kpi-card"><div class="label">Repor cliente · Op. 39 (un)</div><div class="value">' + o39 + '</div></div>' +
+    '<div class="kpi-card"><div class="label">Saída · Op. 5 (un)</div><div class="value">' + o5 + '</div></div></div>';
+}
+
+/* ---------- ABA CLASSIFICAR ---------- */
+
+function srDicaUnidade(i){
+  if(i.unidade_medida !== 'caixa') return '';
+  const f = srFator(i.produto_id);
+  return f > 1 ? '<div class="muted" style="margin-top:3px;">' + i.quantidade + ' cx = <b>' + (i.quantidade * f) + ' un</b></div>' : '';
+}
+
+function srRenderClassificar(){
+  const el = document.getElementById('sr-classificar-corpo');
+  if(!el) return;
+  const base = srLinhasBase(false);
+  const fila = base.filter(x => x.st === 'pendente').sort((a, b) => a.s.id - b.s.id || a.i.id - b.i.id);
+  let h = srKpis(base);
+  h += '<div class="card"><h3>Itens aguardando o controle</h3>' +
+    '<p class="hint"><b>Sobra de Rota:</b> escolha a causa — <b>Falta no estoque</b> vira erro de carregamento, <b>Falta p/ cliente</b> vira erro de entrega, ou <b>Não identificado</b>. ' +
+    '<b>Sobra para Análise:</b> informe o que será reposto ao cliente (<b>Op. 39</b>) e o que deve sair (<b>Op. 5</b>).</p>' +
+    '<div class="note-fv">' + SR_AVISO_UNIDADE + '</div>';
+  if(!fila.length){
+    h += '<p class="muted" style="margin-top:12px;">Nada aguardando o controle neste período. ✅</p></div>';
+    el.innerHTML = h; return;
+  }
+  h += '<div style="overflow-x:auto;margin-top:10px;"><table><thead><tr><th>Lançado</th><th>Placa</th><th>Mapa</th><th>Motorista</th><th>Produto</th><th>Qtd</th><th>Tipo</th><th>Tratar</th><th></th></tr></thead><tbody>' +
+    fila.map(({ s, i }) => {
+      const acao = i.tipo === 'sobra_rota'
+        ? '<div style="display:flex;gap:6px;flex-wrap:wrap;">' +
+          '<button class="btn-sm sr-b-car" onclick="srClassificar(' + i.id + ',\'falta_estoque\')">📦 Falta no estoque</button>' +
+          '<button class="btn-sm sr-b-ent" onclick="srClassificar(' + i.id + ',\'falta_cliente\')">🚚 Falta p/ cliente</button>' +
+          '<button class="btn-sm sr-b-nid" onclick="srClassificar(' + i.id + ',\'nao_identificado\')">❔ Não identificado</button></div>'
+        : '<div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">' +
+          '<div><label class="fl" style="margin:0;font-size:10px;">REPOR CLIENTE · OP. 39 (UN)</label><input class="small-input" type="number" min="0" step="1" id="sr-a-' + i.id + '" style="width:92px;" placeholder="0" /></div>' +
+          '<div><label class="fl" style="margin:0;font-size:10px;">SAÍDA · OP. 5 (UN)</label><input class="small-input" type="number" min="0" step="1" id="sr-b-' + i.id + '" style="width:92px;" placeholder="0" /></div>' +
+          '<button class="btn-sm btn-aprovar" onclick="srSalvarOps(' + i.id + ')">Salvar</button></div>';
+      return '<tr><td>' + fvFmtData(s.dataISO) + '<div class="muted">' + fvHoraSP(s.created_at) + '</div></td><td>' + fvEsc(nomePor(veiculos, s.veiculo_id)) + '</td><td>' + fvEsc(s.numero_mapa) + '</td>' +
+        '<td>' + fvEsc(nomePor(motoristas, s.motorista_id)) + '</td><td>' + fvEsc(srNomeProd(i.produto_id)) + '</td>' +
+        '<td><b>' + srQtdTxt(i.quantidade, i.unidade_medida) + '</b>' + srDicaUnidade(i) + '</td>' +
+        '<td><span class="status-pill ' + (i.tipo === 'sobra_rota' ? 'status-aprovada' : 'status-pendente') + '">' + SR_TIPO_NOME[i.tipo] + '</span></td><td>' + acao + '</td>' +
+        '<td style="white-space:nowrap;"><button class="btn-sm btn-outline" title="Corrigir lançamento" onclick="srAbrirCorrecao(' + s.id + ')">✏️</button> <button class="btn-sm btn-outline" title="Excluir lançamento" onclick="srAbrirExcluir(' + s.id + ')">🗑️</button></td></tr>';
+    }).join('') + '</tbody></table></div></div>';
+  el.innerHTML = h;
+}
+
+async function srClassificar(itemId, cls){
+  const { error } = await sb.rpc('sr_classificar', { p_item_id: itemId, p_classificacao: cls });
+  if(error){ alert('Erro ao classificar: ' + error.message); return; }
+  await srAposAcao(cls ? 'Classificado.' : 'Voltou para pendente.');
+}
+async function srSalvarOps(itemId){
+  const a = document.getElementById('sr-a-' + itemId).value, b = document.getElementById('sr-b-' + itemId).value;
+  if(a === '' || b === ''){ alert('Preencha as duas quantidades, em UNIDADES (use 0 quando não houver).'); return; }
+  const n39 = Number(a), n5 = Number(b);
+  if(!Number.isInteger(n39) || !Number.isInteger(n5) || n39 < 0 || n5 < 0){ alert('Use números inteiros, em unidades.'); return; }
+  const { error } = await sb.rpc('sr_informar_operacoes', { p_item_id: itemId, p_op39: n39, p_op5: n5 });
+  if(error){ alert('Erro ao salvar: ' + error.message); return; }
+  await srAposAcao('Op. 39 e Op. 5 salvas.');
+}
+
+/* modal pra ajustar Op. 39 / Op. 5 depois de salvas (aba Lançamentos) */
+function srAbrirOps(itemId){
+  let item = null, sobra = null;
+  srCache.forEach(s => s.itens.forEach(i => { if(i.id === itemId){ item = i; sobra = s; } }));
+  if(!item) return;
+  fvAbrirModal('<h3>Op. 39 e Op. 5</h3><div class="muted">' + fvEsc(srNomeProd(item.produto_id)) + ' — lançado: <b>' + srQtdTxt(item.quantidade, item.unidade_medida) + '</b>' +
+    (item.unidade_medida === 'caixa' && srFator(item.produto_id) > 1 ? ' (= ' + (item.quantidade * srFator(item.produto_id)) + ' un)' : '') + '</div>' +
+    '<div class="note-fv" style="margin-top:10px;">' + SR_AVISO_UNIDADE + '</div>' +
+    '<label class="fl" style="margin-top:12px;">Repor ao cliente · Operação 39 (unidades)</label><input type="number" min="0" step="1" id="sr-m-a" value="' + (item.qtd_repor_op39 ?? '') + '" style="width:100%;" />' +
+    '<label class="fl" style="margin-top:10px;">Saída · Operação 5 (unidades)</label><input type="number" min="0" step="1" id="sr-m-b" value="' + (item.qtd_saida_op5 ?? '') + '" style="width:100%;" />' +
+    '<div class="row-inline" style="margin-top:16px;"><button class="btn btn-outline" onclick="fvFecharModal()">Cancelar</button><button class="btn btn-aprovar" onclick="srConfirmarOps(' + itemId + ')">Salvar</button></div>');
+}
+async function srConfirmarOps(itemId){
+  const a = document.getElementById('sr-m-a').value, b = document.getElementById('sr-m-b').value;
+  if(a === '' || b === ''){ alert('Preencha as duas quantidades, em UNIDADES (use 0 quando não houver).'); return; }
+  const { error } = await sb.rpc('sr_informar_operacoes', { p_item_id: itemId, p_op39: Number(a), p_op5: Number(b) });
+  if(error){ alert('Erro ao salvar: ' + error.message); return; }
+  fvFecharModal();
+  await srAposAcao('Op. 39 e Op. 5 salvas.');
+}
+
+/* ---------- ABA TODOS OS LANÇAMENTOS / EXTRAIR ---------- */
+
+function srResultadoHtml(x){
+  const { i, st } = x;
+  if(i.tipo === 'sobra_rota'){
+    if(st === 'pendente') return '<span class="status-pill sr-pill-cinza">Pendente</span>';
+    const c = SR_CLS[st];
+    return '<span class="status-pill ' + c.pill + '">' + c.nome + '</span>' + (c.sub ? '<div class="muted">' + c.sub + '</div>' : '');
+  }
+  if(st !== 'analise_ok') return '<span class="status-pill sr-pill-cinza">Pendente</span>';
+  return '<div>Op. 39: <b>' + i.qtd_repor_op39 + ' un</b></div><div>Op. 5: <b>' + i.qtd_saida_op5 + ' un</b></div>';
+}
+
+function srRenderLancamentos(){
+  const el = document.getElementById('sr-lanc-corpo');
+  if(!el) return;
+  const linhas = srLinhasBase(true).sort((a, b) => b.s.id - a.s.id || a.i.id - b.i.id);
+  srListaExport = linhas;
+  let h = srKpis(srLinhasBase(false));
+  h += '<div class="card"><div class="row-inline" style="justify-content:space-between;align-items:center;"><h3 style="margin:0;">Lançamentos (' + linhas.length + ' itens)</h3>' +
+    '<button class="btn btn-outline" onclick="srExportarCsv()">⬇ Exportar CSV</button></div>' +
+    '<p class="hint">Corrija o que o conferente lançou errado em ✏️. A tabela respeita todos os filtros acima.</p>';
+  if(!linhas.length){ el.innerHTML = h + '<p class="muted">Nenhum lançamento com esses filtros.</p></div>'; return; }
+  h += '<div style="overflow-x:auto;"><table><thead><tr><th>Data</th><th>Filial</th><th>Placa</th><th>Mapa</th><th>Motorista</th><th>Produto</th><th>Qtd</th><th>Tipo</th><th>Resultado</th><th>Por</th><th></th></tr></thead><tbody>' +
+    linhas.map(x => {
+      const { s, i, st } = x;
+      let acoes = '<button class="btn-sm btn-outline" title="Corrigir lançamento" onclick="srAbrirCorrecao(' + s.id + ')">✏️</button> ';
+      if(i.tipo === 'sobra_rota' && st !== 'pendente') acoes += '<button class="btn-sm btn-outline" title="Voltar para pendente" onclick="srClassificar(' + i.id + ',null)">↩</button> ';
+      if(i.tipo === 'sobra_analise') acoes += '<button class="btn-sm btn-outline" title="Informar / ajustar Op. 39 e Op. 5" onclick="srAbrirOps(' + i.id + ')">Op. 39/5</button> ';
+      acoes += '<button class="btn-sm btn-outline" title="Excluir lançamento" onclick="srAbrirExcluir(' + s.id + ')">🗑️</button>';
+      return '<tr><td>' + fvFmtData(s.dataISO) + '<div class="muted">' + fvHoraSP(s.created_at) + '</div></td><td>' + fvEsc(nomePor(filiais, s.filial_id)) + '</td><td>' + fvEsc(nomePor(veiculos, s.veiculo_id)) + '</td><td>' + fvEsc(s.numero_mapa) + '</td>' +
+        '<td>' + fvEsc(nomePor(motoristas, s.motorista_id)) + '</td><td>' + fvEsc(srNomeProd(i.produto_id)) + '</td><td><b>' + srQtdTxt(i.quantidade, i.unidade_medida) + '</b></td>' +
+        '<td><span class="status-pill ' + (i.tipo === 'sobra_rota' ? 'status-aprovada' : 'status-pendente') + '">' + SR_TIPO_NOME[i.tipo] + '</span></td><td>' + srResultadoHtml(x) + '</td>' +
+        '<td>' + fvEsc(nomePor(pessoas, s.lancado_por_id)) + '</td><td style="white-space:nowrap;">' + acoes + '</td></tr>';
+    }).join('') + '</tbody></table></div></div>';
+  el.innerHTML = h;
+}
+
+function srExportarCsv(){
+  const cab = ['Data', 'Hora', 'Filial', 'Placa', 'Mapa', 'Motorista', 'Código', 'Produto', 'Qtd', 'Unidade', 'Qtd em unidades', 'Tipo', 'Classificação', 'Origem do erro', 'Repor cliente Op. 39 (un)', 'Saída Op. 5 (un)', 'Lançado por'];
+  const linhas = srListaExport.map(({ s, i, st }) => {
+    const p = produtos.find(x => x.id === i.produto_id) || {};
+    const cls = i.tipo === 'sobra_rota' ? (st === 'pendente' ? 'Pendente' : SR_CLS[st].nome) : (st === 'analise_ok' ? 'Análise tratada' : 'Pendente');
+    const origem = st === 'falta_estoque' ? 'Carregamento' : st === 'falta_cliente' ? 'Entrega' : '';
+    return [fvFmtData(s.dataISO), fvHoraSP(s.created_at), nomePor(filiais, s.filial_id), nomePor(veiculos, s.veiculo_id), s.numero_mapa, nomePor(motoristas, s.motorista_id),
+      p.codigo || '', p.descricao || '', i.quantidade, i.unidade_medida === 'caixa' ? 'Caixa' : 'Unidade', srEmUnidades(i), SR_TIPO_NOME[i.tipo], cls, origem,
+      i.qtd_repor_op39 ?? '', i.qtd_saida_op5 ?? '', nomePor(pessoas, s.lancado_por_id)];
+  });
+  const q = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
+  const csv = '﻿' + [cab, ...linhas].map(l => l.map(q).join(';')).join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  a.download = 'sobras_de_rota_' + fvHojeISO() + '.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+}
+
+/* ---------- ABA ANÁLISES ---------- */
+
+function srVol(i){ return srMedir === 'oc' ? 1 : srEmUnidades(i); }
+function srBarraEmpilhada(v){
+  const t = v.fe + v.fc + v.ni + v.an || 1;
+  const seg = (n, cor) => '<i style="width:' + (n / t * 100) + '%;background:' + cor + '"></i>';
+  return '<div class="sr-bar">' + seg(v.fe, SR_CLS.falta_estoque.cor) + seg(v.fc, SR_CLS.falta_cliente.cor) + seg(v.ni, SR_CLS.nao_identificado.cor) + seg(v.an, '#C97A1A') + '</div>';
+}
+function srRanking(linhas, chave, topN){
+  const m = {};
+  linhas.forEach(({ s, i, st }) => {
+    const k = chave(s, i);
+    m[k] = m[k] || { fe: 0, fc: 0, ni: 0, an: 0, t: 0 };
+    const v = srVol(i);
+    if(st === 'falta_estoque') m[k].fe += v; else if(st === 'falta_cliente') m[k].fc += v; else if(st === 'nao_identificado') m[k].ni += v;
+    else if(i.tipo === 'sobra_analise') m[k].an += v; else return;
+    m[k].t += v;
+  });
+  const r = Object.entries(m).sort((a, b) => b[1].t - a[1].t).slice(0, topN);
+  const mx = r.length ? r[0][1].t : 1;
+  return r.map(([k, v]) => '<div class="sr-hb"><div class="nm" title="' + fvEsc(k) + '">' + fvEsc(k) + '</div><div style="width:' + Math.max(8, v.t / mx * 100) + '%">' + srBarraEmpilhada(v) + '</div><b>' + Math.round(v.t) + '</b></div>').join('')
+    || '<p class="muted">Sem dados no filtro.</p>';
+}
+
+function srRenderAnalises(){
+  const el = document.getElementById('sr-analises-corpo');
+  if(!el) return;
+  const linhas = srLinhasBase(true);
+  const V = f => linhas.filter(f).reduce((a, x) => a + srVol(x.i), 0);
+  const fe = V(x => x.st === 'falta_estoque'), fc = V(x => x.st === 'falta_cliente'), ni = V(x => x.st === 'nao_identificado');
+  const an = V(x => x.i.tipo === 'sobra_analise'), totClass = fe + fc + ni || 1;
+  const pendentes = linhas.filter(x => x.st === 'pendente').length;
+  const un = srMedir === 'oc' ? 'ocorrências' : 'unidades';
+  const pct = n => (n / totClass * 100).toFixed(1).replace('.', ',') + '%';
+
+  // evolução por dia
+  const dias = {};
+  linhas.forEach(({ s, i, st }) => {
+    const d = dias[s.dataISO] = dias[s.dataISO] || { fe: 0, fc: 0, ni: 0, an: 0 };
+    const v = srVol(i);
+    if(st === 'falta_estoque') d.fe += v; else if(st === 'falta_cliente') d.fc += v; else if(st === 'nao_identificado') d.ni += v; else if(i.tipo === 'sobra_analise') d.an += v;
+  });
+  const dk = Object.keys(dias).sort(), dm = Math.max(1, ...dk.map(k => dias[k].fe + dias[k].fc + dias[k].ni + dias[k].an));
+  const hh = n => (n / dm * 120).toFixed(1);
+  const evo = dk.length ? '<div class="sr-evo">' + dk.map(k => { const d = dias[k];
+    return '<div title="' + fvFmtData(k) + ' — carregamento ' + Math.round(d.fe) + ' · entrega ' + Math.round(d.fc) + ' · não ident. ' + Math.round(d.ni) + ' · análise ' + Math.round(d.an) + '">' +
+      '<i style="height:' + hh(d.an) + 'px;background:#C97A1A"></i><i style="height:' + hh(d.ni) + 'px;background:' + SR_CLS.nao_identificado.cor + '"></i><i style="height:' + hh(d.fc) + 'px;background:' + SR_CLS.falta_cliente.cor + '"></i><i style="height:' + hh(d.fe) + 'px;background:' + SR_CLS.falta_estoque.cor + '"></i></div>'; }).join('') + '</div>' +
+    '<div class="muted">' + fvFmtData(dk[0]) + ' → ' + fvFmtData(dk[dk.length - 1]) + ' (passe o mouse nas barras)</div>' : '<p class="muted">Sem dados no filtro.</p>';
+
+  const o39 = linhas.reduce((a, x) => a + (x.i.qtd_repor_op39 || 0), 0), o5 = linhas.reduce((a, x) => a + (x.i.qtd_saida_op5 || 0), 0);
+  const mxo = Math.max(o39, o5, 1);
+  const motivoLinha = (nome, cor, v) => '<div class="sr-hb"><div class="nm">' + nome + '</div><div class="sr-bar"><i style="width:' + (v / Math.max(fe, fc, ni, an, 1) * 100) + '%;background:' + cor + '"></i></div><b>' + Math.round(v) + '</b></div>';
+
+  let h = srKpis(srLinhasBase(false));
+  h += '<div class="sr-sw">Medir por: <button class="' + (srMedir === 'oc' ? 'on' : '') + '" onclick="srMedir=\'oc\';renderSr()">Ocorrências</button><button class="' + (srMedir === 'vol' ? 'on' : '') + '" onclick="srMedir=\'vol\';renderSr()">Volume (em unidades)</button>' +
+    '<span class="muted" style="margin-left:10px;">' + (srMedir === 'vol' ? 'Caixa convertida pelo fator de caixa do produto.' : 'Cada produto lançado conta 1.') + '</span></div>' +
+    '<div class="sr-big">' +
+    '<div style="background:' + SR_CLS.falta_estoque.cor + '"><b>' + pct(fe) + '</b><span>FALTA NO ESTOQUE → erro de carregamento (' + Math.round(fe) + ' ' + un + ')</span></div>' +
+    '<div style="background:' + SR_CLS.falta_cliente.cor + '"><b>' + pct(fc) + '</b><span>FALTA P/ CLIENTE → erro de entrega (' + Math.round(fc) + ' ' + un + ')</span></div>' +
+    '<div style="background:#6b7075"><b>' + pct(ni) + '</b><span>NÃO IDENTIFICADO (' + Math.round(ni) + ' ' + un + ')</span></div></div>' +
+    '<p class="muted" style="margin:6px 0 14px;">Percentuais sobre o total de Sobras de Rota já classificadas (carregamento + entrega + não identificado). Pendentes de classificação: <b>' + pendentes + '</b> (ficam de fora até serem tratadas). ' +
+    '<span class="sr-leg"><i style="background:' + SR_CLS.falta_estoque.cor + '"></i>Carregamento <i style="background:' + SR_CLS.falta_cliente.cor + '"></i>Entrega <i style="background:' + SR_CLS.nao_identificado.cor + '"></i>Não identificado <i style="background:#C97A1A"></i>Sobra p/ análise</span></p>' +
+    '<div class="analise-grid">' +
+    '<div class="card"><h3>Por motivo</h3>' + motivoLinha('Falta no estoque (carregamento)', SR_CLS.falta_estoque.cor, fe) + motivoLinha('Falta p/ cliente (entrega)', SR_CLS.falta_cliente.cor, fc) + motivoLinha('Não identificado', SR_CLS.nao_identificado.cor, ni) + motivoLinha('Sobra para análise (qualidade)', '#C97A1A', an) + '</div>' +
+    '<div class="card"><h3>Evolução por dia</h3>' + evo + '</div>' +
+    '<div class="card"><h3>Por motorista (top 10)</h3>' + srRanking(linhas, (s) => nomePor(motoristas, s.motorista_id), 10) + '</div>' +
+    '<div class="card"><h3>Por produto (top 10)</h3>' + srRanking(linhas, (s, i) => srNomeProd(i.produto_id), 10) + '</div>' +
+    '<div class="card"><h3>Por placa (top 10)</h3>' + srRanking(linhas, (s) => nomePor(veiculos, s.veiculo_id), 10) + '</div>' +
+    '<div class="card"><h3>Sobra para análise — Op. 39 x Op. 5 (unidades)</h3>' +
+    '<div class="sr-hb"><div class="nm">Repor cliente · Op. 39</div><div class="sr-bar"><i style="width:' + (o39 / mxo * 100) + '%;background:#C97A1A"></i></div><b>' + o39 + '</b></div>' +
+    '<div class="sr-hb"><div class="nm">Saída · Op. 5</div><div class="sr-bar"><i style="width:' + (o5 / mxo * 100) + '%;background:#555"></i></div><b>' + o5 + '</b></div>' +
+    '<p class="muted">Diferença (Op. 39 − Op. 5): <b>' + (o39 - o5) + ' un</b></p></div></div>';
+  el.innerHTML = h;
+}
+
+/* ---------- corrigir / excluir ---------- */
+
+let srCorr = null;
+function srAbrirCorrecao(id){
+  const s = srCache.find(x => x.id === id);
+  if(!s) return;
+  srCorr = { id, itens: s.itens.map(i => ({ id: i.id, txt: srNomeProd(i.produto_id), qtd: i.quantidade, un: i.unidade_medida, tipo: i.tipo })) };
+  srDesenharCorr(s.veiculo_id, s.motorista_id, s.numero_mapa);
+}
+function srDesenharCorr(veiSel, motSel, mapa){
+  const s = srCache.find(x => x.id === srCorr.id);
+  const vei = veiculos.filter(v => v.filial_id == s.filial_id && (v.ativo !== false || v.id === veiSel));
+  const mot = motoristas.filter(m => m.filial_id == s.filial_id && (m.ativo !== false || m.id === motSel));
+  const op = (lista, sel, lab) => lista.map(x => '<option value="' + x.id + '"' + (x.id === sel ? ' selected' : '') + '>' + fvEsc(lab(x)) + '</option>').join('');
+  const dl = '<datalist id="sr-dl">' + produtos.filter(p => p.ativo !== false).map(p => '<option value="' + fvEsc((p.codigo ? p.codigo + ' – ' : '') + p.descricao) + '"></option>').join('') + '</datalist>';
+  const linhas = srCorr.itens.map((i, ix) => '<div class="fv-ci" style="flex-wrap:wrap;border-top:1px solid var(--line);padding-top:8px;">' +
+    '<input list="sr-dl" value="' + fvEsc(i.txt) + '" placeholder="Produto (código ou descrição)" oninput="srCorr.itens[' + ix + '].txt=this.value" style="flex:1 1 100%;min-width:0;" />' +
+    '<input type="number" min="1" value="' + i.qtd + '" onchange="srCorr.itens[' + ix + '].qtd=Number(this.value)" style="width:72px;padding:9px;" />' +
+    '<select onchange="srCorr.itens[' + ix + '].un=this.value" style="width:100px;"><option value="caixa"' + (i.un === 'caixa' ? ' selected' : '') + '>Caixa</option><option value="unidade"' + (i.un === 'unidade' ? ' selected' : '') + '>Unidade</option></select>' +
+    '<select onchange="srCorr.itens[' + ix + '].tipo=this.value" style="flex:1;min-width:0;"><option value="sobra_rota"' + (i.tipo === 'sobra_rota' ? ' selected' : '') + '>Sobra de Rota</option><option value="sobra_analise"' + (i.tipo === 'sobra_analise' ? ' selected' : '') + '>Sobra para Análise</option></select>' +
+    '<button class="btn-sm btn-outline" onclick="srCorrRemover(' + ix + ')">✕</button></div>').join('');
+  fvAbrirModal('<h3>✏️ Corrigir lançamento</h3><p class="muted">Corrige o que o conferente lançou. Se mudar o <b>produto</b> ou o <b>tipo</b> de um item, a classificação / Op. 39 / Op. 5 dele volta para pendente. A alteração fica no histórico.</p>' +
+    '<div class="row-inline" style="gap:10px;"><div style="flex:1"><label class="fl">Placa</label><select id="sr-c-vei" style="width:100%;">' + op(vei, veiSel, v => v.placa) + '</select></div>' +
+    '<div style="flex:1"><label class="fl">Nº do mapa</label><input id="sr-c-mapa" value="' + fvEsc(mapa) + '" style="width:100%;" /></div></div>' +
+    '<label class="fl" style="margin-top:10px;">Motorista</label><select id="sr-c-mot" style="width:100%;">' + op(mot, motSel, m => m.nome) + '</select>' +
+    '<label class="fl" style="margin-top:12px;">Produtos</label>' + dl + linhas +
+    '<button class="btn-sm btn-outline" style="margin-top:8px;" onclick="srCorrAdicionar()">➕ Adicionar produto</button><div id="sr-c-msg"></div>' +
+    '<div class="row-inline" style="margin-top:16px;"><button class="btn btn-outline" onclick="fvFecharModal()">Cancelar</button><button class="btn btn-aprovar" onclick="srSalvarCorr()">Salvar correção</button></div>', true);
+}
+function srCorrLerCabecalho(){ return { v: Number(document.getElementById('sr-c-vei').value), m: Number(document.getElementById('sr-c-mot').value), mapa: document.getElementById('sr-c-mapa').value }; }
+function srCorrAdicionar(){ const c = srCorrLerCabecalho(); srCorr.itens.push({ id: null, txt: '', qtd: 1, un: 'caixa', tipo: 'sobra_rota' }); srDesenharCorr(c.v, c.m, c.mapa); }
+function srCorrRemover(ix){
+  if(srCorr.itens.length <= 1){ alert('O lançamento precisa ter pelo menos um produto.'); return; }
+  const c = srCorrLerCabecalho(); srCorr.itens.splice(ix, 1); srDesenharCorr(c.v, c.m, c.mapa);
+}
+async function srSalvarCorr(){
+  const c = srCorrLerCabecalho(), msg = document.getElementById('sr-c-msg');
+  const erro = t => { msg.innerHTML = '<div class="error">' + fvEsc(t) + '</div>'; };
+  if(!c.mapa.trim()) return erro('Informe o número do mapa.');
+  const itens = [];
+  for(const i of srCorr.itens){
+    const p = produtos.find(x => ((x.codigo ? x.codigo + ' – ' : '') + x.descricao).toLowerCase() === (i.txt || '').trim().toLowerCase());
+    if(!p) return erro('Escolha cada produto da lista (digite e selecione): "' + (i.txt || '') + '" não foi reconhecido.');
+    if(!(i.qtd > 0)) return erro('Quantidade inválida.');
+    itens.push({ id: i.id, produto_id: p.id, quantidade: i.qtd, unidade: i.un, tipo: i.tipo });
+  }
+  const { error } = await sb.rpc('sr_corrigir', { p_sobra_id: srCorr.id, p_veiculo_id: c.v, p_motorista_id: c.m, p_mapa: c.mapa.trim(), p_itens: itens });
+  if(error) return erro('Erro ao corrigir: ' + error.message);
+  fvFecharModal();
+  await srAposAcao('Lançamento corrigido.');
+}
+
+async function srAbrirExcluir(id){
+  const s = srCache.find(x => x.id === id);
+  if(!s) return;
+  const { data: hist } = await sb.from('sobras_rota_historico').select('*').eq('sobra_id', id).order('id');
+  fvAbrirModal('<h3>🗑️ Excluir lançamento</h3><p>Placa <b>' + fvEsc(nomePor(veiculos, s.veiculo_id)) + '</b> · mapa <b>' + fvEsc(s.numero_mapa) + '</b> · ' + fvEsc(nomePor(motoristas, s.motorista_id)) + '<br>' +
+    s.itens.map(i => fvEsc(srNomeProd(i.produto_id)) + ' ' + srQtdTxt(i.quantidade, i.unidade_medida)).join('<br>') + '</p>' +
+    '<div class="note-fv">Apaga o lançamento inteiro (todos os produtos e o histórico). Não dá para desfazer. Use para lançamentos de teste ou duplicados.</div>' +
+    ((hist || []).length ? '<details style="margin-top:10px;"><summary class="muted">Histórico (' + hist.length + ')</summary>' + hist.map(h => '<div class="muted">' + fvFmtData(fvDataSP(h.created_at)) + ' ' + fvHoraSP(h.created_at) + ' — ' + fvEsc(h.texto) + '</div>').join('') + '</details>' : '') +
+    '<div class="row-inline" style="margin-top:16px;"><button class="btn btn-outline" onclick="fvFecharModal()">Cancelar</button><button class="btn btn-danger" onclick="srConfirmarExcluir(' + id + ')">Excluir</button></div>');
+}
+async function srConfirmarExcluir(id){
+  const { error } = await sb.rpc('sr_excluir', { p_sobra_id: id });
+  if(error){ alert('Erro ao excluir: ' + error.message); return; }
+  fvFecharModal();
+  await srAposAcao('Lançamento excluído.');
+}
 
 /* ============================================================
    FALTA DE VASILHAME — RETORNO DE ROTA (gerencial)

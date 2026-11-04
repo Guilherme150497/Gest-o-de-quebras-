@@ -115,6 +115,11 @@
   .fv-chips{display:flex; gap:8px; margin-bottom:12px;}
   .fv-chip{flex:1; border-radius:10px; padding:10px; text-align:center; font-size:12px; font-weight:600;}
   .fv-chip b{display:block; font-size:20px;}
+  .sr-ac{position:relative;} .sr-ac input{padding-right:34px;}
+  .sr-ok{position:absolute; right:12px; top:12px; color:var(--teal); font-weight:800;}
+  .sr-list{display:none; position:absolute; left:0; right:0; top:100%; margin-top:2px; background:#fff; border:1px solid var(--line); border-radius:10px; z-index:30; max-height:220px; overflow:auto; box-shadow:0 8px 20px rgba(0,0,0,.15);}
+  .sr-opt{padding:11px 12px; font-size:14px; border-bottom:1px solid var(--line); cursor:pointer;} .sr-opt:hover{background:var(--teal-l);}
+  .fv-unit button.on.sr-an{background:var(--amber-l); border-color:var(--amber); color:#8a5b13;}
   .fv-vazio{text-align:center; color:var(--sub); font-size:13px; padding:26px 8px;}
   .fv-overlay{position:fixed; inset:0; background:rgba(15,25,35,.6); z-index:70; display:flex; align-items:center; justify-content:center; padding:16px;}
   .fv-modal{background:#fff; border-radius:14px; padding:20px; width:100%; max-width:420px; max-height:90vh; overflow:auto;}
@@ -195,6 +200,7 @@
     <button class="seg-btn" data-modo="transferencia" onclick="mudarModo('transferencia')">🔄 Transferência</button>
     <button class="seg-btn" data-modo="repack" onclick="mudarModo('repack')">♻️ Repack</button>
     <button class="seg-btn" data-modo="despejo" onclick="mudarModo('despejo')">🚰 Despejo</button>
+    <button class="seg-btn" data-modo="sobras" onclick="mudarModo('sobras')">🔄 Sobras de Rota</button>
     <button class="seg-btn" data-modo="falta-vasilhame" onclick="mudarModo('falta-vasilhame')">🍾 Falta de Vasilhame<span id="fv-badge" class="hidden" style="margin-left:6px;background:var(--red);color:#fff;border-radius:10px;font-size:11px;padding:1px 7px;"></span></button>
   </div>
 
@@ -494,6 +500,14 @@
       </div>
     </div>
 
+    <div id="modo-sobras" class="hidden">
+      <div class="section">
+        <div class="section-title">Sobras de Rota — retorno de produtos</div>
+        <div class="fv-tabs" id="sr-tabs"></div>
+        <div id="sr-corpo"></div>
+      </div>
+    </div>
+
     <div id="modo-falta-vasilhame" class="hidden">
       <div class="section">
         <div class="section-title">Falta de Vasilhame — Retorno de Rota</div>
@@ -679,7 +693,9 @@ function mudarModo(modo){
   document.getElementById('modo-repack').classList.toggle('hidden', modo !== 'repack');
   document.getElementById('modo-despejo').classList.toggle('hidden', modo !== 'despejo');
   document.getElementById('modo-falta-vasilhame').classList.toggle('hidden', modo !== 'falta-vasilhame');
+  document.getElementById('modo-sobras').classList.toggle('hidden', modo !== 'sobras');
   if(modo === 'falta-vasilhame') fvCarregarTudo();
+  if(modo === 'sobras') srCarregarTudo();
 }
 
 function mudarDepartamento(){
@@ -1817,6 +1833,201 @@ async function carregarFeed(){
       <div class="meta">${new Date(q.created_at).toLocaleString('pt-BR', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</div>
     </div>
   `).join('');
+}
+
+/* ============================================================
+   MÓDULO SOBRAS DE ROTA (app do conferente)
+   O conferente lança, por placa x mapa, os produtos que voltaram da rota:
+   "Sobra de Rota" ou "Sobra para Análise" (problema de qualidade).
+   O controle (gerencial) classifica depois.
+   ============================================================ */
+
+let srProdutos = [];       // produtos ativos (carrega 1x)
+let srMotoristas = [];     // motoristas da base
+let srVeiculos = [];       // placas da base
+let srSobras = [];         // lançamentos recentes da base
+let srTab = 'lancar';
+let srEnviando = false;
+let srCarregado = false;
+const SR_FORM_VAZIO = () => ({ placaId: '', placaTxt: '', mapa: '', motId: '', motTxt: '', prodId: '', prodTxt: '', qtd: 1, un: 'caixa', tipo: 'sobra_rota', itens: [] });
+let srForm = SR_FORM_VAZIO();
+
+const srEsc = t => String(t ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const srQtdTxt = (q, un) => q + (un === 'caixa' ? ' cx' : ' un');
+const srLabelProd = p => (p.codigo ? p.codigo + ' – ' : '') + p.descricao;
+const srNomeProd = id => { const p = srProdutos.find(x => x.id === Number(id)); return p ? srLabelProd(p) : '—'; };
+const srNomeMot = id => { const m = srMotoristas.find(x => x.id === id); return m ? m.nome : '—'; };
+const srNomePla = id => { const v = srVeiculos.find(x => x.id === id); return v ? v.placa : '—'; };
+const SR_TIPO = { sobra_rota: 'Sobra de Rota', sobra_analise: 'Sobra para Análise' };
+
+async function srCarregarTudo(){
+  if(!pessoaAtual || !pessoaAtual.filial_id) return;
+  const filialId = pessoaAtual.filial_id;
+  const buscarProdutos = async () => {
+    let tudo = [];
+    for(let ini = 0; ; ini += 1000){
+      const { data, error } = await sb.from('produtos').select('id,descricao,codigo,ativo').eq('ativo', true).order('descricao').order('id').range(ini, ini + 999);
+      if(error){ console.error('Sobras — produtos:', error); break; }
+      tudo = tudo.concat(data || []);
+      if(!data || data.length < 1000) break;
+    }
+    return tudo;
+  };
+  const [prods, mot, vei, sob] = await Promise.all([
+    srProdutos.length ? Promise.resolve(srProdutos) : buscarProdutos(),
+    sb.from('motoristas').select('id,nome,ativo').eq('filial_id', filialId).order('nome'),
+    sb.from('veiculos').select('id,placa,ativo').eq('filial_id', filialId).order('placa'),
+    sb.from('sobras_rota').select('*, itens:sobras_rota_itens(*)').eq('filial_id', filialId).order('id', { ascending: false }).limit(60),
+  ]);
+  if(sob.error) console.error('Sobras de Rota — erro ao carregar (rodou a migration_sobras_rota.sql?):', sob.error);
+  srProdutos = prods;
+  srMotoristas = (mot.data || []).filter(m => m.ativo !== false);
+  srVeiculos = (vei.data || []).filter(v => v.ativo !== false);
+  srSobras = (sob.data || []).map(s => ({ ...s, itens: (s.itens || []).sort((a, b) => a.id - b.id) }));
+  srCarregado = true;
+  srRender();
+}
+
+function srRender(){
+  const abas = [['lancar', '➕ Lançar'], ['meus', '📋 Meus lançamentos']];
+  document.getElementById('sr-tabs').innerHTML = abas.map(([k, l]) =>
+    '<button class="' + (srTab === k ? 'on' : '') + '" onclick="srTab=\'' + k + '\';srRender()">' + l + '</button>').join('');
+  document.getElementById('sr-corpo').innerHTML = srTab === 'lancar' ? srHtmlLancar() : srHtmlMeus();
+}
+
+/* ---------- autocomplete com validação (só vale o que está na lista) ---------- */
+
+function srFonte(campo){
+  if(campo === 'placa') return srVeiculos.map(v => ({ id: v.id, label: v.placa }));
+  if(campo === 'mot') return srMotoristas.map(m => ({ id: m.id, label: m.nome }));
+  return srProdutos.map(p => ({ id: p.id, label: srLabelProd(p) }));
+}
+const SR_CAMPO = { placa: ['placaId', 'placaTxt'], mot: ['motId', 'motTxt'], prod: ['prodId', 'prodTxt'] };
+
+function srDigitou(campo, valor){
+  const [cId, cTxt] = SR_CAMPO[campo];
+  srForm[cTxt] = valor;
+  const exato = srFonte(campo).find(x => x.label.toLowerCase() === valor.trim().toLowerCase());
+  srForm[cId] = exato ? String(exato.id) : '';
+  const lista = document.getElementById('sr-l-' + campo);
+  const t = valor.trim().toLowerCase();
+  const itens = t ? srFonte(campo).filter(x => x.label.toLowerCase().includes(t)).slice(0, 30) : [];
+  lista.innerHTML = itens.map(x => '<div class="sr-opt" onmousedown="event.preventDefault()" onclick="srEscolher(\'' + campo + '\',' + x.id + ')">' + srEsc(x.label) + '</div>').join('') ||
+    (t ? '<div class="sr-opt" style="color:var(--sub)">Nada encontrado na lista</div>' : '');
+  lista.style.display = (t && !exato) ? 'block' : 'none';
+  const ind = document.getElementById('sr-ok-' + campo);
+  if(ind) ind.innerHTML = srForm[cId] ? '✓' : '';
+  srAtualizarBotoes();
+}
+function srEscolher(campo, id){
+  const x = srFonte(campo).find(y => y.id === id);
+  const [cId, cTxt] = SR_CAMPO[campo];
+  srForm[cId] = String(id); srForm[cTxt] = x.label;
+  const inp = document.getElementById('sr-i-' + campo);
+  if(inp) inp.value = x.label;
+  document.getElementById('sr-l-' + campo).style.display = 'none';
+  const ind = document.getElementById('sr-ok-' + campo);
+  if(ind) ind.innerHTML = '✓';
+  srAtualizarBotoes();
+}
+function srCampoHtml(campo, rotulo, placeholder){
+  const [cId, cTxt] = SR_CAMPO[campo];
+  return '<label>' + rotulo + '</label><div class="sr-ac"><input id="sr-i-' + campo + '" type="text" autocomplete="off" placeholder="' + placeholder + '" value="' + srEsc(srForm[cTxt]) + '" oninput="srDigitou(\'' + campo + '\',this.value)" onblur="setTimeout(()=>{const l=document.getElementById(\'sr-l-' + campo + '\');if(l)l.style.display=\'none\'},150)"/>' +
+    '<span class="sr-ok" id="sr-ok-' + campo + '">' + (srForm[cId] ? '✓' : '') + '</span><div class="sr-list" id="sr-l-' + campo + '"></div></div>';
+}
+
+/* ---------- lançar ---------- */
+
+const srRascunhoValido = () => !!srForm.prodId && srForm.qtd > 0;
+function srItensParaEnviar(){
+  const l = [...srForm.itens];
+  if(srRascunhoValido()) l.push({ prod: srForm.prodId, qtd: srForm.qtd, un: srForm.un, tipo: srForm.tipo });
+  return l;
+}
+function srAdicionarItem(){
+  if(!srRascunhoValido()) return;
+  srForm.itens.push({ prod: srForm.prodId, qtd: srForm.qtd, un: srForm.un, tipo: srForm.tipo });
+  srForm.prodId = ''; srForm.prodTxt = ''; srForm.qtd = 1;
+  srRender();
+}
+function srRemoverItem(i){ srForm.itens.splice(i, 1); srRender(); }
+function srPodeEnviar(){
+  return !!srForm.placaId && !!srForm.motId && srForm.mapa.trim() !== '' && srItensParaEnviar().length > 0 && !srEnviando;
+}
+function srAtualizarBotoes(){
+  const add = document.getElementById('sr-btn-add'); if(add) add.disabled = !srRascunhoValido();
+  const env = document.getElementById('sr-btn-env'); if(env) env.disabled = !srPodeEnviar();
+}
+
+function srHtmlLancar(){
+  if(!srCarregado) return '<div class="fv-vazio">Carregando…</div>';
+  const base = pessoaAtual.filiais ? pessoaAtual.filiais.nome : 'sua base';
+  const semCad = (!srMotoristas.length || !srVeiculos.length)
+    ? '<div class="fv-banner fv-b-amb">Nenhum ' + (!srMotoristas.length ? 'motorista' : 'veículo') + ' cadastrado para a base ' + srEsc(base) + '. Peça ao gerencial para definir a filial no cadastro de Motoristas/Veículos.</div>' : '';
+  const lista = srForm.itens.length
+    ? '<div class="fv-lista"><div class="t">Produtos deste lançamento</div>' + srForm.itens.map((i, idx) =>
+        '<div class="r"><div><b>' + srEsc(srNomeProd(i.prod)) + '</b><div class="sub">' + srQtdTxt(i.qtd, i.un) + ' · <span class="fv-pill ' + (i.tipo === 'sobra_rota' ? 'fv-p-ok' : 'fv-p-hoje') + '">' + SR_TIPO[i.tipo] + '</span></div></div><button class="x" onclick="srRemoverItem(' + idx + ')">✕</button></div>').join('') + '</div>' : '';
+  const n = srItensParaEnviar().length;
+  return '<div class="card">' +
+    '<div style="font-size:12.5px;color:var(--sub);margin-bottom:2px">Um lançamento = <b>uma placa + um mapa</b>. Pode ter vários produtos.</div>' +
+    srCampoHtml('placa', 'Placa', 'Digite a placa') +
+    '<label>Número do mapa</label><input id="sr-i-mapa" type="text" inputmode="numeric" autocomplete="off" placeholder="Ex.: 48213" maxlength="30" value="' + srEsc(srForm.mapa) + '" oninput="srForm.mapa=this.value;srAtualizarBotoes()"/>' +
+    srCampoHtml('mot', 'Motorista', 'Digite o nome do motorista') +
+    '<div style="height:1px;background:var(--line);margin:16px 0 4px"></div>' +
+    srCampoHtml('prod', 'Produto', 'Digite o código ou a descrição') +
+    '<label>Quantidade</label>' +
+    '<div class="fv-qty"><button onclick="srForm.qtd=Math.max(1,srForm.qtd-1);srRender()">−</button>' +
+    '<input type="number" min="1" value="' + srForm.qtd + '" onchange="srForm.qtd=Math.max(1,parseInt(this.value)||1);srRender()"/>' +
+    '<button onclick="srForm.qtd++;srRender()">+</button></div>' +
+    '<div class="fv-unit"><button class="' + (srForm.un === 'caixa' ? 'on' : '') + '" onclick="srForm.un=\'caixa\';srRender()">📦 Caixa</button>' +
+    '<button class="' + (srForm.un === 'unidade' ? 'on' : '') + '" onclick="srForm.un=\'unidade\';srRender()">🍾 Unidade</button></div>' +
+    '<label>Tipo da sobra</label>' +
+    '<div class="fv-unit"><button class="' + (srForm.tipo === 'sobra_rota' ? 'on' : '') + '" onclick="srForm.tipo=\'sobra_rota\';srRender()">Sobra de Rota</button>' +
+    '<button class="' + (srForm.tipo === 'sobra_analise' ? 'on sr-an' : '') + '" onclick="srForm.tipo=\'sobra_analise\';srRender()">Sobra para Análise</button></div>' +
+    '<p style="font-size:12px;color:var(--sub);margin:6px 0 0;">' + (srForm.tipo === 'sobra_rota' ? 'O produto voltou da rota sem problema de qualidade.' : '<b>Sobra para Análise</b> = o produto voltou com algum problema de qualidade.') + '</p>' +
+    '<button id="sr-btn-add" class="btn btn-outline" style="margin-top:12px" ' + (srRascunhoValido() ? '' : 'disabled') + ' onclick="srAdicionarItem()">➕ Adicionar este produto ao lançamento</button>' +
+    lista + semCad +
+    '<button id="sr-btn-env" class="btn btn-primary" ' + (srPodeEnviar() ? '' : 'disabled') + ' onclick="srEnviar()">' + (srEnviando ? 'Enviando…' : 'Registrar lançamento' + (n > 1 ? ' (' + n + ' produtos)' : '')) + '</button>' +
+    '<p style="font-size:12px;color:var(--sub);margin:6px 0 0;">Lista filtrada: placas e motoristas da base ' + srEsc(base) + ' (' + srVeiculos.length + ' placas · ' + srMotoristas.length + ' motoristas). Só vale o que está na lista.</p>' +
+    '<div id="sr-msg"></div></div>';
+}
+
+async function srEnviar(){
+  if(!srPodeEnviar()) return;
+  const itens = srItensParaEnviar();
+  srEnviando = true; srRender();
+  const { error } = await sb.rpc('sr_lancar', {
+    p_veiculo_id: Number(srForm.placaId),
+    p_motorista_id: Number(srForm.motId),
+    p_mapa: srForm.mapa.trim(),
+    p_itens: itens.map(i => ({ produto_id: Number(i.prod), quantidade: i.qtd, unidade: i.un, tipo: i.tipo })),
+  });
+  srEnviando = false;
+  if(error){
+    srRender();
+    document.getElementById('sr-msg').innerHTML = '<div class="error">' + srEsc('Erro ao registrar: ' + error.message) + '</div>';
+    return;
+  }
+  srForm = SR_FORM_VAZIO();
+  srTab = 'meus';
+  await srCarregarTudo();
+  document.getElementById('sr-corpo').insertAdjacentHTML('afterbegin', '<div class="ok" style="margin-bottom:12px;margin-top:0;">Lançamento registrado e enviado ao controle.</div>');
+}
+
+/* ---------- meus lançamentos ---------- */
+
+function srHtmlMeus(){
+  if(!srCarregado) return '<div class="fv-vazio">Carregando…</div>';
+  if(!srSobras.length) return '<div class="fv-vazio">Nenhum lançamento de sobra nesta base ainda.</div>';
+  return '<p style="font-size:12px;color:var(--sub);margin:0 0 10px;">Últimos lançamentos da sua base.</p>' + srSobras.map(s => {
+    const d = new Date(s.created_at).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit' });
+    return '<div class="fv-item"><div class="top"><div><b>' + srEsc(srNomePla(s.veiculo_id)) + ' · mapa ' + srEsc(s.numero_mapa) + '</b><div class="sub">' + srEsc(srNomeMot(s.motorista_id)) + ' · ' + d + '</div></div></div>' +
+      '<div style="margin-top:8px;font-size:14px">' + s.itens.map(i => {
+        const tratado = i.tipo === 'sobra_rota' ? !!i.classificacao : i.qtd_repor_op39 != null;
+        return '<div style="padding:5px 0;border-top:1px solid var(--line)">' + srEsc(srNomeProd(i.produto_id)) + ' — <b>' + srQtdTxt(i.quantidade, i.unidade_medida) + '</b><div class="sub">' + SR_TIPO[i.tipo] + ' · ' +
+          (tratado ? '<span style="color:var(--teal)">✔ tratado pelo controle</span>' : 'aguardando o controle') + '</div></div>';
+      }).join('') + '</div></div>';
+  }).join('');
 }
 
 /* ============================================================

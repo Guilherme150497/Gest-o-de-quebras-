@@ -1849,7 +1849,7 @@ let srSobras = [];         // lançamentos recentes da base
 let srTab = 'lancar';
 let srEnviando = false;
 let srCarregado = false;
-const SR_FORM_VAZIO = () => ({ placaId: '', placaTxt: '', mapa: '', motId: '', motTxt: '', prodId: '', prodTxt: '', qtd: 1, un: 'caixa', tipo: 'sobra_rota', itens: [] });
+const SR_FORM_VAZIO = () => ({ placaId: '', placaTxt: '', mapa: '', motId: '', motTxt: '', prodId: '', prodTxt: '', qtd: 1, un: 'caixa', tipo: 'sobra_rota', op39: '', op5: '', itens: [] });
 let srForm = SR_FORM_VAZIO();
 
 const srEsc = t => String(t ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -1938,18 +1938,30 @@ function srCampoHtml(campo, rotulo, placeholder){
 
 /* ---------- lançar ---------- */
 
-const srRascunhoValido = () => !!srForm.prodId && srForm.qtd > 0;
+const srInt = v => { const n = parseInt(v, 10); return Number.isFinite(n) && n > 0 ? n : 0; };
+const srRascunhoValido = () => !!srForm.prodId && (srForm.tipo === 'sobra_analise' ? srInt(srForm.op39) + srInt(srForm.op5) > 0 : srForm.qtd > 0);
+// monta o item do rascunho. Sobra para Análise: Op. 39 (bom estado) + Op. 5 (avariados), sempre em UNIDADES
+function srItemDoRascunho(){
+  if(srForm.tipo === 'sobra_analise'){
+    const o39 = srInt(srForm.op39), o5 = srInt(srForm.op5);
+    return { prod: srForm.prodId, tipo: 'sobra_analise', op39: o39, op5: o5, qtd: o39 + o5, un: 'unidade' };
+  }
+  return { prod: srForm.prodId, qtd: srForm.qtd, un: srForm.un, tipo: 'sobra_rota' };
+}
 function srItensParaEnviar(){
   const l = [...srForm.itens];
-  if(srRascunhoValido()) l.push({ prod: srForm.prodId, qtd: srForm.qtd, un: srForm.un, tipo: srForm.tipo });
+  if(srRascunhoValido()) l.push(srItemDoRascunho());
   return l;
 }
 function srAdicionarItem(){
   if(!srRascunhoValido()) return;
-  srForm.itens.push({ prod: srForm.prodId, qtd: srForm.qtd, un: srForm.un, tipo: srForm.tipo });
-  srForm.prodId = ''; srForm.prodTxt = ''; srForm.qtd = 1;
+  srForm.itens.push(srItemDoRascunho());
+  srForm.prodId = ''; srForm.prodTxt = ''; srForm.qtd = 1; srForm.op39 = ''; srForm.op5 = '';
   srRender();
 }
+const srDetalheItem = i => i.tipo === 'sobra_analise'
+  ? 'Op. 39 (bom estado): <b>' + i.op39 + ' un</b> · Op. 5 (avariados): <b>' + i.op5 + ' un</b>'
+  : srQtdTxt(i.qtd, i.un);
 function srRemoverItem(i){ srForm.itens.splice(i, 1); srRender(); }
 function srPodeEnviar(){
   return !!srForm.placaId && !!srForm.motId && srForm.mapa.trim() !== '' && srItensParaEnviar().length > 0 && !srEnviando;
@@ -1966,7 +1978,7 @@ function srHtmlLancar(){
     ? '<div class="fv-banner fv-b-amb">Nenhum ' + (!srMotoristas.length ? 'motorista' : 'veículo') + ' cadastrado para a base ' + srEsc(base) + '. Peça ao gerencial para definir a filial no cadastro de Motoristas/Veículos.</div>' : '';
   const lista = srForm.itens.length
     ? '<div class="fv-lista"><div class="t">Produtos deste lançamento</div>' + srForm.itens.map((i, idx) =>
-        '<div class="r"><div><b>' + srEsc(srNomeProd(i.prod)) + '</b><div class="sub">' + srQtdTxt(i.qtd, i.un) + ' · <span class="fv-pill ' + (i.tipo === 'sobra_rota' ? 'fv-p-ok' : 'fv-p-hoje') + '">' + SR_TIPO[i.tipo] + '</span></div></div><button class="x" onclick="srRemoverItem(' + idx + ')">✕</button></div>').join('') + '</div>' : '';
+        '<div class="r"><div><b>' + srEsc(srNomeProd(i.prod)) + '</b><div class="sub">' + srDetalheItem(i) + ' · <span class="fv-pill ' + (i.tipo === 'sobra_rota' ? 'fv-p-ok' : 'fv-p-hoje') + '">' + SR_TIPO[i.tipo] + '</span></div></div><button class="x" onclick="srRemoverItem(' + idx + ')">✕</button></div>').join('') + '</div>' : '';
   const n = srItensParaEnviar().length;
   return '<div class="card">' +
     '<div style="font-size:12.5px;color:var(--sub);margin-bottom:2px">Um lançamento = <b>uma placa + um mapa</b>. Pode ter vários produtos.</div>' +
@@ -1975,16 +1987,22 @@ function srHtmlLancar(){
     srCampoHtml('mot', 'Motorista', 'Digite o nome do motorista') +
     '<div style="height:1px;background:var(--line);margin:16px 0 4px"></div>' +
     srCampoHtml('prod', 'Produto', 'Digite o código ou a descrição') +
-    '<label>Quantidade</label>' +
-    '<div class="fv-qty"><button onclick="srForm.qtd=Math.max(1,srForm.qtd-1);srRender()">−</button>' +
-    '<input type="number" min="1" value="' + srForm.qtd + '" onchange="srForm.qtd=Math.max(1,parseInt(this.value)||1);srRender()"/>' +
-    '<button onclick="srForm.qtd++;srRender()">+</button></div>' +
-    '<div class="fv-unit"><button class="' + (srForm.un === 'caixa' ? 'on' : '') + '" onclick="srForm.un=\'caixa\';srRender()">📦 Caixa</button>' +
-    '<button class="' + (srForm.un === 'unidade' ? 'on' : '') + '" onclick="srForm.un=\'unidade\';srRender()">🍾 Unidade</button></div>' +
     '<label>Tipo da sobra</label>' +
     '<div class="fv-unit"><button class="' + (srForm.tipo === 'sobra_rota' ? 'on' : '') + '" onclick="srForm.tipo=\'sobra_rota\';srRender()">Sobra de Rota</button>' +
     '<button class="' + (srForm.tipo === 'sobra_analise' ? 'on sr-an' : '') + '" onclick="srForm.tipo=\'sobra_analise\';srRender()">Sobra para Análise</button></div>' +
     '<p style="font-size:12px;color:var(--sub);margin:6px 0 0;">' + (srForm.tipo === 'sobra_rota' ? 'O produto voltou da rota sem problema de qualidade.' : '<b>Sobra para Análise</b> = o produto voltou com algum problema de qualidade.') + '</p>' +
+    (srForm.tipo === 'sobra_rota'
+      ? '<label>Quantidade</label>' +
+        '<div class="fv-qty"><button onclick="srForm.qtd=Math.max(1,srForm.qtd-1);srRender()">−</button>' +
+        '<input type="number" min="1" value="' + srForm.qtd + '" onchange="srForm.qtd=Math.max(1,parseInt(this.value)||1);srRender()"/>' +
+        '<button onclick="srForm.qtd++;srRender()">+</button></div>' +
+        '<div class="fv-unit"><button class="' + (srForm.un === 'caixa' ? 'on' : '') + '" onclick="srForm.un=\'caixa\';srRender()">📦 Caixa</button>' +
+        '<button class="' + (srForm.un === 'unidade' ? 'on' : '') + '" onclick="srForm.un=\'unidade\';srRender()">🍾 Unidade</button></div>'
+      : '<div class="fv-banner fv-b-amb" style="margin-top:10px">⚠️ Informe as quantidades <b>sempre em UNIDADES</b> (não em caixas).</div>' +
+        '<label>Op. 39 — Produtos em bom estado (unidades)</label>' +
+        '<input type="number" min="0" step="1" inputmode="numeric" placeholder="0" value="' + srEsc(srForm.op39) + '" oninput="srForm.op39=this.value;srAtualizarBotoes()"/>' +
+        '<label>Op. 5 — Produtos avariados (unidades)</label>' +
+        '<input type="number" min="0" step="1" inputmode="numeric" placeholder="0" value="' + srEsc(srForm.op5) + '" oninput="srForm.op5=this.value;srAtualizarBotoes()"/>') +
     '<button id="sr-btn-add" class="btn btn-outline" style="margin-top:12px" ' + (srRascunhoValido() ? '' : 'disabled') + ' onclick="srAdicionarItem()">➕ Adicionar este produto ao lançamento</button>' +
     lista + semCad +
     '<button id="sr-btn-env" class="btn btn-primary" ' + (srPodeEnviar() ? '' : 'disabled') + ' onclick="srEnviar()">' + (srEnviando ? 'Enviando…' : 'Registrar lançamento' + (n > 1 ? ' (' + n + ' produtos)' : '')) + '</button>' +
@@ -2000,7 +2018,9 @@ async function srEnviar(){
     p_veiculo_id: Number(srForm.placaId),
     p_motorista_id: Number(srForm.motId),
     p_mapa: srForm.mapa.trim(),
-    p_itens: itens.map(i => ({ produto_id: Number(i.prod), quantidade: i.qtd, unidade: i.un, tipo: i.tipo })),
+    p_itens: itens.map(i => i.tipo === 'sobra_analise'
+      ? { produto_id: Number(i.prod), tipo: 'sobra_analise', op39: i.op39, op5: i.op5 }
+      : { produto_id: Number(i.prod), tipo: 'sobra_rota', quantidade: i.qtd, unidade: i.un }),
   });
   srEnviando = false;
   if(error){
@@ -2023,9 +2043,11 @@ function srHtmlMeus(){
     const d = new Date(s.created_at).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit' });
     return '<div class="fv-item"><div class="top"><div><b>' + srEsc(srNomePla(s.veiculo_id)) + ' · mapa ' + srEsc(s.numero_mapa) + '</b><div class="sub">' + srEsc(srNomeMot(s.motorista_id)) + ' · ' + d + '</div></div></div>' +
       '<div style="margin-top:8px;font-size:14px">' + s.itens.map(i => {
-        const tratado = i.tipo === 'sobra_rota' ? !!i.classificacao : i.qtd_repor_op39 != null;
-        return '<div style="padding:5px 0;border-top:1px solid var(--line)">' + srEsc(srNomeProd(i.produto_id)) + ' — <b>' + srQtdTxt(i.quantidade, i.unidade_medida) + '</b><div class="sub">' + SR_TIPO[i.tipo] + ' · ' +
-          (tratado ? '<span style="color:var(--teal)">✔ tratado pelo controle</span>' : 'aguardando o controle') + '</div></div>';
+        const analise = i.tipo === 'sobra_analise';
+        const tratado = analise ? false : !!i.classificacao;
+        return '<div style="padding:5px 0;border-top:1px solid var(--line)">' + srEsc(srNomeProd(i.produto_id)) + ' — ' +
+          (analise ? 'Op. 39 (bom estado): <b>' + (i.qtd_repor_op39 ?? 0) + ' un</b> · Op. 5 (avariados): <b>' + (i.qtd_saida_op5 ?? 0) + ' un</b>' : '<b>' + srQtdTxt(i.quantidade, i.unidade_medida) + '</b>') +
+          '<div class="sub">' + SR_TIPO[i.tipo] + (analise ? '' : ' · ' + (tratado ? '<span style="color:var(--teal)">✔ tratado pelo controle</span>' : 'aguardando o controle')) + '</div></div>';
       }).join('') + '</div></div>';
   }).join('');
 }

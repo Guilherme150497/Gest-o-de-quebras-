@@ -5329,8 +5329,8 @@ async function salvarMetas(){
    Classificar · Todos os lançamentos / Extrair · Análises
    Sobra de Rota  -> controle classifica: falta no estoque (erro de carregamento),
                      falta para o cliente (erro de entrega) ou não identificado
-   Sobra p/ Análise -> controle informa Op. 39 (repor ao cliente) e Op. 5 (saída),
-                     SEMPRE EM UNIDADES
+   Sobra p/ Análise -> o CONFERENTE informa no lançamento Op. 39 (produtos em bom estado) e
+                     Op. 5 (produtos avariados), SEMPRE EM UNIDADES; o controle pode ajustar
    A filial usa o seletor do topo da página, igual aos outros módulos.
    ============================================================ */
 
@@ -5345,7 +5345,7 @@ const SR_CLS = {
   falta_cliente:    { nome: 'Falta p/ cliente',  sub: 'Erro de entrega',      pill: 'sr-pill-azul',     cor: '#2556A8' },
   nao_identificado: { nome: 'Não identificado',  sub: '',                     pill: 'sr-pill-cinza',    cor: '#8A8F94' },
 };
-const SR_AVISO_UNIDADE = '⚠️ Op. 39 e Op. 5 devem ser digitadas <b>SEMPRE EM UNIDADES</b> — mesmo quando o conferente lançou em caixas.';
+const SR_AVISO_UNIDADE = '⚠️ Op. 39 (bom estado) e Op. 5 (avariados) são sempre em <b>UNIDADES</b>, nunca em caixas.';
 
 const srQtdTxt = (q, un) => q + (un === 'caixa' ? ' cx' : ' un');
 const srNomeProd = id => { const p = produtos.find(x => x.id === id); return p ? (p.codigo ? p.codigo + ' – ' : '') + p.descricao : '—'; };
@@ -5452,8 +5452,8 @@ function srKpis(linhas){
     '<div class="kpi-card"><div class="label">Erros de carregamento</div><div class="value" style="color:#A32D2D">' + c('falta_estoque') + '</div></div>' +
     '<div class="kpi-card"><div class="label">Erros de entrega</div><div class="value" style="color:#2556A8">' + c('falta_cliente') + '</div></div>' +
     '<div class="kpi-card"><div class="label">Não identificado</div><div class="value" style="color:#6b7075">' + c('nao_identificado') + '</div></div>' +
-    '<div class="kpi-card"><div class="label">Repor cliente · Op. 39 (un)</div><div class="value">' + o39 + '</div></div>' +
-    '<div class="kpi-card"><div class="label">Saída · Op. 5 (un)</div><div class="value">' + o5 + '</div></div></div>';
+    '<div class="kpi-card"><div class="label">Op. 39 · bom estado (un)</div><div class="value">' + o39 + '</div></div>' +
+    '<div class="kpi-card"><div class="label">Op. 5 · avariados (un)</div><div class="value">' + o5 + '</div></div></div>';
 }
 
 /* ---------- ABA CLASSIFICAR ---------- */
@@ -5472,7 +5472,7 @@ function srRenderClassificar(){
   let h = srKpis(base);
   h += '<div class="card"><h3>Itens aguardando o controle</h3>' +
     '<p class="hint"><b>Sobra de Rota:</b> escolha a causa — <b>Falta no estoque</b> vira erro de carregamento, <b>Falta p/ cliente</b> vira erro de entrega, ou <b>Não identificado</b>. ' +
-    '<b>Sobra para Análise:</b> informe o que será reposto ao cliente (<b>Op. 39</b>) e o que deve sair (<b>Op. 5</b>).</p>' +
+    '<b>Sobra para Análise:</b> o conferente já informa <b>Op. 39</b> (bom estado) e <b>Op. 5</b> (avariados) no app e isso aparece direto em <i>Todos os lançamentos</i>; só cai aqui se vier sem as quantidades.</p>' +
     '<div class="note-fv">' + SR_AVISO_UNIDADE + '</div>';
   if(!fila.length){
     h += '<p class="muted" style="margin-top:12px;">Nada aguardando o controle neste período. ✅</p></div>';
@@ -5486,8 +5486,8 @@ function srRenderClassificar(){
           '<button class="btn-sm sr-b-ent" onclick="srClassificar(' + i.id + ',\'falta_cliente\')">🚚 Falta p/ cliente</button>' +
           '<button class="btn-sm sr-b-nid" onclick="srClassificar(' + i.id + ',\'nao_identificado\')">❔ Não identificado</button></div>'
         : '<div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">' +
-          '<div><label class="fl" style="margin:0;font-size:10px;">REPOR CLIENTE · OP. 39 (UN)</label><input class="small-input" type="number" min="0" step="1" id="sr-a-' + i.id + '" style="width:92px;" placeholder="0" /></div>' +
-          '<div><label class="fl" style="margin:0;font-size:10px;">SAÍDA · OP. 5 (UN)</label><input class="small-input" type="number" min="0" step="1" id="sr-b-' + i.id + '" style="width:92px;" placeholder="0" /></div>' +
+          '<div><label class="fl" style="margin:0;font-size:10px;">OP. 39 · BOM ESTADO (UN)</label><input class="small-input" type="number" min="0" step="1" id="sr-a-' + i.id + '" style="width:92px;" placeholder="0" /></div>' +
+          '<div><label class="fl" style="margin:0;font-size:10px;">OP. 5 · AVARIADOS (UN)</label><input class="small-input" type="number" min="0" step="1" id="sr-b-' + i.id + '" style="width:92px;" placeholder="0" /></div>' +
           '<button class="btn-sm btn-aprovar" onclick="srSalvarOps(' + i.id + ')">Salvar</button></div>';
       return '<tr><td>' + fvFmtData(s.dataISO) + '<div class="muted">' + fvHoraSP(s.created_at) + '</div></td><td>' + fvEsc(nomePor(veiculos, s.veiculo_id)) + '</td><td>' + fvEsc(s.numero_mapa) + '</td>' +
         '<td>' + fvEsc(nomePor(motoristas, s.motorista_id)) + '</td><td>' + fvEsc(srNomeProd(i.produto_id)) + '</td>' +
@@ -5507,7 +5507,7 @@ async function srSalvarOps(itemId){
   const a = document.getElementById('sr-a-' + itemId).value, b = document.getElementById('sr-b-' + itemId).value;
   if(a === '' || b === ''){ alert('Preencha as duas quantidades, em UNIDADES (use 0 quando não houver).'); return; }
   const n39 = Number(a), n5 = Number(b);
-  if(!Number.isInteger(n39) || !Number.isInteger(n5) || n39 < 0 || n5 < 0){ alert('Use números inteiros, em unidades.'); return; }
+  if(!Number.isInteger(n39) || !Number.isInteger(n5) || n39 < 0 || n5 < 0 || n39 + n5 < 1){ alert('Use números inteiros, em unidades (pelo menos uma maior que zero).'); return; }
   const { error } = await sb.rpc('sr_informar_operacoes', { p_item_id: itemId, p_op39: n39, p_op5: n5 });
   if(error){ alert('Erro ao salvar: ' + error.message); return; }
   await srAposAcao('Op. 39 e Op. 5 salvas.');
@@ -5518,16 +5518,16 @@ function srAbrirOps(itemId){
   let item = null, sobra = null;
   srCache.forEach(s => s.itens.forEach(i => { if(i.id === itemId){ item = i; sobra = s; } }));
   if(!item) return;
-  fvAbrirModal('<h3>Op. 39 e Op. 5</h3><div class="muted">' + fvEsc(srNomeProd(item.produto_id)) + ' — lançado: <b>' + srQtdTxt(item.quantidade, item.unidade_medida) + '</b>' +
-    (item.unidade_medida === 'caixa' && srFator(item.produto_id) > 1 ? ' (= ' + (item.quantidade * srFator(item.produto_id)) + ' un)' : '') + '</div>' +
+  fvAbrirModal('<h3>Op. 39 e Op. 5</h3><div class="muted">' + fvEsc(srNomeProd(item.produto_id)) + '</div>' +
     '<div class="note-fv" style="margin-top:10px;">' + SR_AVISO_UNIDADE + '</div>' +
-    '<label class="fl" style="margin-top:12px;">Repor ao cliente · Operação 39 (unidades)</label><input type="number" min="0" step="1" id="sr-m-a" value="' + (item.qtd_repor_op39 ?? '') + '" style="width:100%;" />' +
-    '<label class="fl" style="margin-top:10px;">Saída · Operação 5 (unidades)</label><input type="number" min="0" step="1" id="sr-m-b" value="' + (item.qtd_saida_op5 ?? '') + '" style="width:100%;" />' +
+    '<label class="fl" style="margin-top:12px;">Op. 39 — Produtos em bom estado (unidades)</label><input type="number" min="0" step="1" id="sr-m-a" value="' + (item.qtd_repor_op39 ?? '') + '" style="width:100%;" />' +
+    '<label class="fl" style="margin-top:10px;">Op. 5 — Produtos avariados (unidades)</label><input type="number" min="0" step="1" id="sr-m-b" value="' + (item.qtd_saida_op5 ?? '') + '" style="width:100%;" />' +
     '<div class="row-inline" style="margin-top:16px;"><button class="btn btn-outline" onclick="fvFecharModal()">Cancelar</button><button class="btn btn-aprovar" onclick="srConfirmarOps(' + itemId + ')">Salvar</button></div>');
 }
 async function srConfirmarOps(itemId){
   const a = document.getElementById('sr-m-a').value, b = document.getElementById('sr-m-b').value;
   if(a === '' || b === ''){ alert('Preencha as duas quantidades, em UNIDADES (use 0 quando não houver).'); return; }
+  if(!(Number(a) >= 0 && Number(b) >= 0 && Number(a) + Number(b) >= 1)){ alert('Use quantidades inteiras em unidades (pelo menos uma maior que zero).'); return; }
   const { error } = await sb.rpc('sr_informar_operacoes', { p_item_id: itemId, p_op39: Number(a), p_op5: Number(b) });
   if(error){ alert('Erro ao salvar: ' + error.message); return; }
   fvFecharModal();
@@ -5544,7 +5544,7 @@ function srResultadoHtml(x){
     return '<span class="status-pill ' + c.pill + '">' + c.nome + '</span>' + (c.sub ? '<div class="muted">' + c.sub + '</div>' : '');
   }
   if(st !== 'analise_ok') return '<span class="status-pill sr-pill-cinza">Pendente</span>';
-  return '<div>Op. 39: <b>' + i.qtd_repor_op39 + ' un</b></div><div>Op. 5: <b>' + i.qtd_saida_op5 + ' un</b></div>';
+  return '<div>Op. 39 (bom estado): <b>' + i.qtd_repor_op39 + ' un</b></div><div>Op. 5 (avariados): <b>' + i.qtd_saida_op5 + ' un</b></div>';
 }
 
 function srRenderLancamentos(){
@@ -5573,7 +5573,7 @@ function srRenderLancamentos(){
 }
 
 function srExportarCsv(){
-  const cab = ['Data', 'Hora', 'Filial', 'Placa', 'Mapa', 'Motorista', 'Código', 'Produto', 'Qtd', 'Unidade', 'Qtd em unidades', 'Tipo', 'Classificação', 'Origem do erro', 'Repor cliente Op. 39 (un)', 'Saída Op. 5 (un)', 'Lançado por'];
+  const cab = ['Data', 'Hora', 'Filial', 'Placa', 'Mapa', 'Motorista', 'Código', 'Produto', 'Qtd', 'Unidade', 'Qtd em unidades', 'Tipo', 'Classificação', 'Origem do erro', 'Op. 39 bom estado (un)', 'Op. 5 avariados (un)', 'Lançado por'];
   const linhas = srListaExport.map(({ s, i, st }) => {
     const p = produtos.find(x => x.id === i.produto_id) || {};
     const cls = i.tipo === 'sobra_rota' ? (st === 'pendente' ? 'Pendente' : SR_CLS[st].nome) : (st === 'analise_ok' ? 'Análise tratada' : 'Pendente');
@@ -5658,10 +5658,10 @@ function srRenderAnalises(){
     '<div class="card"><h3>Por motorista (top 10)</h3>' + srRanking(linhas, (s) => nomePor(motoristas, s.motorista_id), 10) + '</div>' +
     '<div class="card"><h3>Por produto (top 10)</h3>' + srRanking(linhas, (s, i) => srNomeProd(i.produto_id), 10) + '</div>' +
     '<div class="card"><h3>Por placa (top 10)</h3>' + srRanking(linhas, (s) => nomePor(veiculos, s.veiculo_id), 10) + '</div>' +
-    '<div class="card"><h3>Sobra para análise — Op. 39 x Op. 5 (unidades)</h3>' +
-    '<div class="sr-hb"><div class="nm">Repor cliente · Op. 39</div><div class="sr-bar"><i style="width:' + (o39 / mxo * 100) + '%;background:#C97A1A"></i></div><b>' + o39 + '</b></div>' +
-    '<div class="sr-hb"><div class="nm">Saída · Op. 5</div><div class="sr-bar"><i style="width:' + (o5 / mxo * 100) + '%;background:#555"></i></div><b>' + o5 + '</b></div>' +
-    '<p class="muted">Diferença (Op. 39 − Op. 5): <b>' + (o39 - o5) + ' un</b></p></div></div>';
+    '<div class="card"><h3>Sobra para análise — bom estado x avariados (unidades)</h3>' +
+    '<div class="sr-hb"><div class="nm">Op. 39 · bom estado</div><div class="sr-bar"><i style="width:' + (o39 / mxo * 100) + '%;background:#C97A1A"></i></div><b>' + o39 + '</b></div>' +
+    '<div class="sr-hb"><div class="nm">Op. 5 · avariados</div><div class="sr-bar"><i style="width:' + (o5 / mxo * 100) + '%;background:#555"></i></div><b>' + o5 + '</b></div>' +
+    '<p class="muted">Total: <b>' + (o39 + o5) + ' un</b> · avariados: <b>' + (o39 + o5 ? (o5 / (o39 + o5) * 100).toFixed(1).replace('.', ',') : '0,0') + '%</b></p></div></div>';
   el.innerHTML = h;
 }
 
@@ -5671,7 +5671,7 @@ let srCorr = null;
 function srAbrirCorrecao(id){
   const s = srCache.find(x => x.id === id);
   if(!s) return;
-  srCorr = { id, itens: s.itens.map(i => ({ id: i.id, txt: srNomeProd(i.produto_id), qtd: i.quantidade, un: i.unidade_medida, tipo: i.tipo })) };
+  srCorr = { id, itens: s.itens.map(i => ({ id: i.id, txt: srNomeProd(i.produto_id), qtd: i.quantidade, un: i.unidade_medida, tipo: i.tipo, op39: i.qtd_repor_op39 ?? 0, op5: i.qtd_saida_op5 ?? 0 })) };
   srDesenharCorr(s.veiculo_id, s.motorista_id, s.numero_mapa);
 }
 function srDesenharCorr(veiSel, motSel, mapa){
@@ -5682,11 +5682,14 @@ function srDesenharCorr(veiSel, motSel, mapa){
   const dl = '<datalist id="sr-dl">' + produtos.filter(p => p.ativo !== false).map(p => '<option value="' + fvEsc((p.codigo ? p.codigo + ' – ' : '') + p.descricao) + '"></option>').join('') + '</datalist>';
   const linhas = srCorr.itens.map((i, ix) => '<div class="fv-ci" style="flex-wrap:wrap;border-top:1px solid var(--line);padding-top:8px;">' +
     '<input list="sr-dl" value="' + fvEsc(i.txt) + '" placeholder="Produto (código ou descrição)" oninput="srCorr.itens[' + ix + '].txt=this.value" style="flex:1 1 100%;min-width:0;" />' +
-    '<input type="number" min="1" value="' + i.qtd + '" onchange="srCorr.itens[' + ix + '].qtd=Number(this.value)" style="width:72px;padding:9px;" />' +
-    '<select onchange="srCorr.itens[' + ix + '].un=this.value" style="width:100px;"><option value="caixa"' + (i.un === 'caixa' ? ' selected' : '') + '>Caixa</option><option value="unidade"' + (i.un === 'unidade' ? ' selected' : '') + '>Unidade</option></select>' +
-    '<select onchange="srCorr.itens[' + ix + '].tipo=this.value" style="flex:1;min-width:0;"><option value="sobra_rota"' + (i.tipo === 'sobra_rota' ? ' selected' : '') + '>Sobra de Rota</option><option value="sobra_analise"' + (i.tipo === 'sobra_analise' ? ' selected' : '') + '>Sobra para Análise</option></select>' +
+    (i.tipo === 'sobra_analise'
+      ? '<input type="number" min="0" step="1" value="' + i.op39 + '" title="Op. 39 — bom estado (un)" onchange="srCorr.itens[' + ix + '].op39=Number(this.value)" style="width:96px;padding:9px;" /><span class="muted" style="font-size:11px;">Op.39 bom estado (un)</span>' +
+        '<input type="number" min="0" step="1" value="' + i.op5 + '" title="Op. 5 — avariados (un)" onchange="srCorr.itens[' + ix + '].op5=Number(this.value)" style="width:96px;padding:9px;" /><span class="muted" style="font-size:11px;">Op.5 avariados (un)</span>'
+      : '<input type="number" min="1" value="' + i.qtd + '" onchange="srCorr.itens[' + ix + '].qtd=Number(this.value)" style="width:72px;padding:9px;" />' +
+        '<select onchange="srCorr.itens[' + ix + '].un=this.value" style="width:100px;"><option value="caixa"' + (i.un === 'caixa' ? ' selected' : '') + '>Caixa</option><option value="unidade"' + (i.un === 'unidade' ? ' selected' : '') + '>Unidade</option></select>') +
+    '<select onchange="srCorrTipo(' + ix + ', this.value)" style="flex:1;min-width:0;"><option value="sobra_rota"' + (i.tipo === 'sobra_rota' ? ' selected' : '') + '>Sobra de Rota</option><option value="sobra_analise"' + (i.tipo === 'sobra_analise' ? ' selected' : '') + '>Sobra para Análise</option></select>' +
     '<button class="btn-sm btn-outline" onclick="srCorrRemover(' + ix + ')">✕</button></div>').join('');
-  fvAbrirModal('<h3>✏️ Corrigir lançamento</h3><p class="muted">Corrige o que o conferente lançou. Se mudar o <b>produto</b> ou o <b>tipo</b> de um item, a classificação / Op. 39 / Op. 5 dele volta para pendente. A alteração fica no histórico.</p>' +
+  fvAbrirModal('<h3>✏️ Corrigir lançamento</h3><p class="muted">Corrige o que o conferente lançou. Se mudar o <b>produto</b> ou o <b>tipo</b> de um item, a classificação dele volta para pendente. A alteração fica no histórico.</p>' +
     '<div class="row-inline" style="gap:10px;"><div style="flex:1"><label class="fl">Placa</label><select id="sr-c-vei" style="width:100%;">' + op(vei, veiSel, v => v.placa) + '</select></div>' +
     '<div style="flex:1"><label class="fl">Nº do mapa</label><input id="sr-c-mapa" value="' + fvEsc(mapa) + '" style="width:100%;" /></div></div>' +
     '<label class="fl" style="margin-top:10px;">Motorista</label><select id="sr-c-mot" style="width:100%;">' + op(mot, motSel, m => m.nome) + '</select>' +
@@ -5695,6 +5698,7 @@ function srDesenharCorr(veiSel, motSel, mapa){
     '<div class="row-inline" style="margin-top:16px;"><button class="btn btn-outline" onclick="fvFecharModal()">Cancelar</button><button class="btn btn-aprovar" onclick="srSalvarCorr()">Salvar correção</button></div>', true);
 }
 function srCorrLerCabecalho(){ return { v: Number(document.getElementById('sr-c-vei').value), m: Number(document.getElementById('sr-c-mot').value), mapa: document.getElementById('sr-c-mapa').value }; }
+function srCorrTipo(ix, v){ const c = srCorrLerCabecalho(); srCorr.itens[ix].tipo = v; if(v === 'sobra_analise'){ srCorr.itens[ix].un = 'unidade'; } srDesenharCorr(c.v, c.m, c.mapa); }
 function srCorrAdicionar(){ const c = srCorrLerCabecalho(); srCorr.itens.push({ id: null, txt: '', qtd: 1, un: 'caixa', tipo: 'sobra_rota' }); srDesenharCorr(c.v, c.m, c.mapa); }
 function srCorrRemover(ix){
   if(srCorr.itens.length <= 1){ alert('O lançamento precisa ter pelo menos um produto.'); return; }
@@ -5708,8 +5712,13 @@ async function srSalvarCorr(){
   for(const i of srCorr.itens){
     const p = produtos.find(x => ((x.codigo ? x.codigo + ' – ' : '') + x.descricao).toLowerCase() === (i.txt || '').trim().toLowerCase());
     if(!p) return erro('Escolha cada produto da lista (digite e selecione): "' + (i.txt || '') + '" não foi reconhecido.');
-    if(!(i.qtd > 0)) return erro('Quantidade inválida.');
-    itens.push({ id: i.id, produto_id: p.id, quantidade: i.qtd, unidade: i.un, tipo: i.tipo });
+    if(i.tipo === 'sobra_analise'){
+      if(!(i.op39 >= 0 && i.op5 >= 0 && i.op39 + i.op5 >= 1)) return erro('Sobra para Análise: informe Op. 39 (bom estado) e Op. 5 (avariados) em unidades (pelo menos uma maior que zero).');
+      itens.push({ id: i.id, produto_id: p.id, tipo: i.tipo, op39: i.op39, op5: i.op5 });
+    } else {
+      if(!(i.qtd > 0)) return erro('Quantidade inválida.');
+      itens.push({ id: i.id, produto_id: p.id, quantidade: i.qtd, unidade: i.un, tipo: i.tipo });
+    }
   }
   const { error } = await sb.rpc('sr_corrigir', { p_sobra_id: srCorr.id, p_veiculo_id: c.v, p_motorista_id: c.m, p_mapa: c.mapa.trim(), p_itens: itens });
   if(error) return erro('Erro ao corrigir: ' + error.message);

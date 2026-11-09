@@ -1849,7 +1849,7 @@ let srSobras = [];         // lançamentos recentes da base
 let srTab = 'lancar';
 let srEnviando = false;
 let srCarregado = false;
-const SR_FORM_VAZIO = () => ({ placaId: '', placaTxt: '', mapa: '', motId: '', motTxt: '', prodId: '', prodTxt: '', qtd: 1, un: 'caixa', tipo: 'sobra_rota', op39: '', op5: '', itens: [] });
+const SR_FORM_VAZIO = () => ({ placaId: '', placaTxt: '', mapa: '', motId: '', motTxt: '', prodId: '', prodTxt: '', qtd: 1, un: 'caixa', tipo: 'sobra_rota', sub: '', op39: '', op5: '', itens: [] });
 let srForm = SR_FORM_VAZIO();
 
 const srEsc = t => String(t ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -1859,6 +1859,8 @@ const srNomeProd = id => { const p = srProdutos.find(x => x.id === Number(id)); 
 const srNomeMot = id => { const m = srMotoristas.find(x => x.id === id); return m ? m.nome : '—'; };
 const srNomePla = id => { const v = srVeiculos.find(x => x.id === id); return v ? v.placa : '—'; };
 const SR_TIPO = { sobra_rota: 'Sobra de Rota', sobra_analise: 'Sobra para Análise' };
+const SR_SUB = { sobra: 'Sobra', inversao: 'Inversão' };
+const srTipoTxt = i => i.tipo === 'sobra_rota' && i.sub ? 'Sobra de Rota · ' + SR_SUB[i.sub] : SR_TIPO[i.tipo];
 
 async function srCarregarTudo(){
   if(!pessoaAtual || !pessoaAtual.filial_id) return;
@@ -1939,14 +1941,14 @@ function srCampoHtml(campo, rotulo, placeholder){
 /* ---------- lançar ---------- */
 
 const srInt = v => { const n = parseInt(v, 10); return Number.isFinite(n) && n > 0 ? n : 0; };
-const srRascunhoValido = () => !!srForm.prodId && (srForm.tipo === 'sobra_analise' ? srInt(srForm.op39) + srInt(srForm.op5) > 0 : srForm.qtd > 0);
+const srRascunhoValido = () => !!srForm.prodId && (srForm.tipo === 'sobra_analise' ? srInt(srForm.op39) + srInt(srForm.op5) > 0 : (srForm.qtd > 0 && !!srForm.sub));
 // monta o item do rascunho. Sobra para Análise: Op. 39 (bom estado) + Op. 5 (avariados), sempre em UNIDADES
 function srItemDoRascunho(){
   if(srForm.tipo === 'sobra_analise'){
     const o39 = srInt(srForm.op39), o5 = srInt(srForm.op5);
     return { prod: srForm.prodId, tipo: 'sobra_analise', op39: o39, op5: o5, qtd: o39 + o5, un: 'unidade' };
   }
-  return { prod: srForm.prodId, qtd: srForm.qtd, un: srForm.un, tipo: 'sobra_rota' };
+  return { prod: srForm.prodId, qtd: srForm.qtd, un: srForm.un, tipo: 'sobra_rota', sub: srForm.sub };
 }
 function srItensParaEnviar(){
   const l = [...srForm.itens];
@@ -1956,7 +1958,7 @@ function srItensParaEnviar(){
 function srAdicionarItem(){
   if(!srRascunhoValido()) return;
   srForm.itens.push(srItemDoRascunho());
-  srForm.prodId = ''; srForm.prodTxt = ''; srForm.qtd = 1; srForm.op39 = ''; srForm.op5 = '';
+  srForm.prodId = ''; srForm.prodTxt = ''; srForm.qtd = 1; srForm.sub = ''; srForm.op39 = ''; srForm.op5 = '';
   srRender();
 }
 const srDetalheItem = i => i.tipo === 'sobra_analise'
@@ -1978,7 +1980,7 @@ function srHtmlLancar(){
     ? '<div class="fv-banner fv-b-amb">Nenhum ' + (!srMotoristas.length ? 'motorista' : 'veículo') + ' cadastrado para a base ' + srEsc(base) + '. Peça ao gerencial para definir a filial no cadastro de Motoristas/Veículos.</div>' : '';
   const lista = srForm.itens.length
     ? '<div class="fv-lista"><div class="t">Produtos deste lançamento</div>' + srForm.itens.map((i, idx) =>
-        '<div class="r"><div><b>' + srEsc(srNomeProd(i.prod)) + '</b><div class="sub">' + srDetalheItem(i) + ' · <span class="fv-pill ' + (i.tipo === 'sobra_rota' ? 'fv-p-ok' : 'fv-p-hoje') + '">' + SR_TIPO[i.tipo] + '</span></div></div><button class="x" onclick="srRemoverItem(' + idx + ')">✕</button></div>').join('') + '</div>' : '';
+        '<div class="r"><div><b>' + srEsc(srNomeProd(i.prod)) + '</b><div class="sub">' + srDetalheItem(i) + ' · <span class="fv-pill ' + (i.tipo === 'sobra_rota' ? 'fv-p-ok' : 'fv-p-hoje') + '">' + srTipoTxt(i) + '</span></div></div><button class="x" onclick="srRemoverItem(' + idx + ')">✕</button></div>').join('') + '</div>' : '';
   const n = srItensParaEnviar().length;
   return '<div class="card">' +
     '<div style="font-size:12.5px;color:var(--sub);margin-bottom:2px">Um lançamento = <b>uma placa + um mapa</b>. Pode ter vários produtos.</div>' +
@@ -1992,7 +1994,10 @@ function srHtmlLancar(){
     '<button class="' + (srForm.tipo === 'sobra_analise' ? 'on sr-an' : '') + '" onclick="srForm.tipo=\'sobra_analise\';srRender()">Sobra para Análise</button></div>' +
     '<p style="font-size:12px;color:var(--sub);margin:6px 0 0;">' + (srForm.tipo === 'sobra_rota' ? 'O produto voltou da rota sem problema de qualidade.' : '<b>Sobra para Análise</b> = o produto voltou com algum problema de qualidade.') + '</p>' +
     (srForm.tipo === 'sobra_rota'
-      ? '<label>Quantidade</label>' +
+      ? '<label>É sobra ou inversão?</label>' +
+        '<div class="fv-unit"><button class="' + (srForm.sub === 'sobra' ? 'on' : '') + '" onclick="srForm.sub=\'sobra\';srRender()">Sobra</button>' +
+        '<button class="' + (srForm.sub === 'inversao' ? 'on' : '') + '" onclick="srForm.sub=\'inversao\';srRender()">Inversão</button></div>' +
+        '<label>Quantidade</label>' +
         '<div class="fv-qty"><button onclick="srForm.qtd=Math.max(1,srForm.qtd-1);srRender()">−</button>' +
         '<input type="number" min="1" value="' + srForm.qtd + '" onchange="srForm.qtd=Math.max(1,parseInt(this.value)||1);srRender()"/>' +
         '<button onclick="srForm.qtd++;srRender()">+</button></div>' +
@@ -2020,7 +2025,7 @@ async function srEnviar(){
     p_mapa: srForm.mapa.trim(),
     p_itens: itens.map(i => i.tipo === 'sobra_analise'
       ? { produto_id: Number(i.prod), tipo: 'sobra_analise', op39: i.op39, op5: i.op5 }
-      : { produto_id: Number(i.prod), tipo: 'sobra_rota', quantidade: i.qtd, unidade: i.un }),
+      : { produto_id: Number(i.prod), tipo: 'sobra_rota', subtipo: i.sub, quantidade: i.qtd, unidade: i.un }),
   });
   srEnviando = false;
   if(error){
@@ -2047,7 +2052,7 @@ function srHtmlMeus(){
         const tratado = analise ? false : !!i.classificacao;
         return '<div style="padding:5px 0;border-top:1px solid var(--line)">' + srEsc(srNomeProd(i.produto_id)) + ' — ' +
           (analise ? 'Op. 39 (bom estado): <b>' + (i.qtd_repor_op39 ?? 0) + ' un</b> · Op. 5 (avariados): <b>' + (i.qtd_saida_op5 ?? 0) + ' un</b>' : '<b>' + srQtdTxt(i.quantidade, i.unidade_medida) + '</b>') +
-          '<div class="sub">' + SR_TIPO[i.tipo] + (analise ? '' : ' · ' + (tratado ? '<span style="color:var(--teal)">✔ tratado pelo controle</span>' : 'aguardando o controle')) + '</div></div>';
+          '<div class="sub">' + SR_TIPO[i.tipo] + (!analise && i.subtipo === 'inversao' ? ' · Inversão' : '') + (analise ? '' : ' · ' + (tratado ? '<span style="color:var(--teal)">✔ tratado pelo controle</span>' : 'aguardando o controle')) + '</div></div>';
       }).join('') + '</div></div>';
   }).join('');
 }

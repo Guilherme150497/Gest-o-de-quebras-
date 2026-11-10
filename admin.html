@@ -266,6 +266,7 @@
           <div class="tab" data-tab="produto-analise">Análise por Produto</div>
           <div class="tab" data-tab="custo">Custo</div>
           <div class="tab" data-tab="meta-x-real">Meta x Real</div>
+          <div class="tab" data-tab="meta-real-diario">Meta x Real diário</div>
         </div>
         <div class="nav-group">
           <div class="nav-group-title">Planejamento</div>
@@ -432,8 +433,8 @@
         <p class="hint">Aprove pra liberar a baixa de estoque, ou reprove se o lançamento não deveria ter sido feito.</p>
         <div class="filtro-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:12px;">
           <div><label class="fl">Departamento</label><select id="filtro-aprov-departamento" onchange="renderAprovacoes()"></select></div>
-          <div><label class="fl">Mês</label><input type="month" id="filtro-aprov-mes" onchange="renderAprovacoes()" /></div>
-          <div><label class="fl">Data específica</label><input type="date" id="filtro-aprov-data" onchange="renderAprovacoes()" /></div>
+          <div><label class="fl">De</label><input type="date" id="filtro-aprov-de" onchange="renderAprovacoes()" /></div>
+          <div><label class="fl">Até</label><input type="date" id="filtro-aprov-ate" onchange="renderAprovacoes()" /></div>
           <div style="display:flex;align-items:flex-end;"><button class="btn btn-outline" style="margin:0;" onclick="limparFiltrosAprovacoes()">Limpar filtros</button></div>
         </div>
         <table>
@@ -528,8 +529,9 @@
       <div class="card">
         <h3>Período</h3>
         <p class="hint">A filial é a que estiver selecionada no seletor do topo da página ("Todas as filiais" soma tudo). Use "Até qual dia" pra ver a conferência só até uma data específica dentro do mês (ex.: até 24/09). <b>Só nessa aba</b>, o lançamento entra na data em que foi <b>aprovado</b> (não a data em que a quebra aconteceu) — é o dia em que o controle baixa no Promax, então fica batendo certo. As outras análises do sistema continuam usando a data real da quebra normalmente.</p>
-        <div class="filtro-grid" style="grid-template-columns:repeat(2,1fr);max-width:420px;">
+        <div class="filtro-grid" style="grid-template-columns:repeat(3,1fr);max-width:640px;">
           <div><label class="fl">Mês</label><input type="month" id="check-promax-mes" onchange="mudarMesCheckPromax()" /></div>
+          <div><label class="fl">A partir de qual dia</label><input type="date" id="check-promax-de" onchange="renderCheckPromax()" /></div>
           <div><label class="fl">Até qual dia</label><input type="date" id="check-promax-ate" onchange="renderCheckPromax()" /></div>
         </div>
       </div>
@@ -598,8 +600,11 @@
               <option value="semana">Semanal (últimas 12 semanas)</option>
               <option value="mes">Mensal</option>
               <option value="ano">Acumulado no ano</option>
+              <option value="custom">Período (de / até)</option>
             </select>
           </div>
+          <div class="prod-custom-repack hidden" style="display:none;"><label class="fl">De</label><input type="date" id="repack-prod-de" onchange="renderProdutividadeRepack()" /></div>
+          <div class="prod-custom-repack hidden" style="display:none;"><label class="fl">Até</label><input type="date" id="repack-prod-ate" onchange="renderProdutividadeRepack()" /></div>
         </div>
       </div>
       <div class="kpi-grid">
@@ -729,8 +734,11 @@
               <option value="semana">Semanal (últimas 12 semanas)</option>
               <option value="mes">Mensal</option>
               <option value="ano">Acumulado no ano</option>
+              <option value="custom">Período (de / até)</option>
             </select>
           </div>
+          <div class="prod-custom-despejo hidden" style="display:none;"><label class="fl">De</label><input type="date" id="despejo-prod-de" onchange="renderProdutividadeDespejo()" /></div>
+          <div class="prod-custom-despejo hidden" style="display:none;"><label class="fl">Até</label><input type="date" id="despejo-prod-ate" onchange="renderProdutividadeDespejo()" /></div>
         </div>
       </div>
       <div class="kpi-grid">
@@ -809,7 +817,16 @@
               <option value="semana">Semana do mês</option>
               <option value="mes" selected>Mês (acumulado)</option>
               <option value="ano">Ano (acumulado)</option>
+              <option value="custom">Período (de / até)</option>
             </select>
+          </div>
+          <div id="an-periodo-de-wrap" class="hidden">
+            <label class="fl">De</label>
+            <input type="date" id="an-periodo-de" onchange="renderAnalises()" />
+          </div>
+          <div id="an-periodo-ate-wrap" class="hidden">
+            <label class="fl">Até</label>
+            <input type="date" id="an-periodo-ate" onchange="renderAnalises()" />
           </div>
           <div id="an-periodo-dia-wrap" class="hidden">
             <label class="fl">Dia</label>
@@ -877,7 +894,16 @@
               <option value="semana">Semana do mês</option>
               <option value="mes" selected>Mês (acumulado)</option>
               <option value="ano">Ano (acumulado)</option>
+              <option value="custom">Período (de / até)</option>
             </select>
+          </div>
+          <div id="prod-periodo-de-wrap" class="hidden">
+            <label class="fl">De</label>
+            <input type="date" id="prod-periodo-de" onchange="renderAnaliseProduto()" />
+          </div>
+          <div id="prod-periodo-ate-wrap" class="hidden">
+            <label class="fl">Até</label>
+            <input type="date" id="prod-periodo-ate" onchange="renderAnaliseProduto()" />
           </div>
           <div id="prod-periodo-dia-wrap" class="hidden">
             <label class="fl">Dia</label>
@@ -973,9 +999,14 @@
             <button class="seg-btn" data-sub="mensal" onclick="mudarSubAbaCusto('mensal')">Mensal</button>
             <button class="seg-btn" data-sub="ano" onclick="mudarSubAbaCusto('ano')">Acumulado no ano</button>
           </div>
-          <div>
-            <label class="fl">Departamento</label>
-            <select id="custo-departamento" onchange="renderCusto()" style="min-width:260px;"></select>
+          <div class="row-inline" style="gap:10px;align-items:flex-end;flex-wrap:wrap;">
+            <div><label class="fl">De</label><input type="date" id="custo-de" onchange="renderCusto()" /></div>
+            <div><label class="fl">Até</label><input type="date" id="custo-ate" onchange="renderCusto()" /></div>
+            <button class="btn btn-outline" style="margin:0;" onclick="document.getElementById('custo-de').value='';document.getElementById('custo-ate').value='';renderCusto()">Limpar datas</button>
+            <div>
+              <label class="fl">Departamento</label>
+              <select id="custo-departamento" onchange="renderCusto()" style="min-width:260px;"></select>
+            </div>
           </div>
         </div>
       </div>
@@ -983,7 +1014,8 @@
       <div class="kpi-grid" id="custo-kpi-grid" style="grid-template-columns:repeat(3,1fr);"></div>
 
       <div class="card" id="custo-sub-diario">
-        <h3>Custo diário — últimos 30 dias</h3>
+        <h3 id="custo-diario-titulo">Custo diário — últimos 30 dias</h3>
+        <p class="hint">Sem datas preenchidas mostra os últimos 30 dias. Com <b>De / Até</b> mostra exatamente o período escolhido (vale para Diário e Mensal).</p>
         <div class="chart-wrap"><canvas id="chart-custo-diario"></canvas></div>
       </div>
       <div class="card hidden" id="custo-sub-mensal">
@@ -1058,6 +1090,35 @@
           <thead><tr><th>Turno</th><th>Meta até hoje</th><th>Realizado até hoje</th><th>Diferença</th></tr></thead>
           <tbody id="tbl-meta-real-turno"></tbody>
         </table>
+      </div>
+    </div>
+
+    <!-- META x REAL DIÁRIO -->
+    <div class="panel" id="panel-meta-real-diario">
+      <div class="card">
+        <h3>Meta x Real diário</h3>
+        <p class="hint">Meta do dia = meta mensal do departamento ÷ dias úteis do mês (sábado conta, domingo não). Real do dia = custo das quebras <b>aprovadas</b> naquele dia. A filial é a do seletor do topo ("Todas as filiais" soma metas e realizado de todas).</p>
+        <div class="filtro-grid" style="grid-template-columns:repeat(4,1fr);align-items:end;">
+          <div><label class="fl">Departamento</label><select id="mrd-departamento" onchange="renderMetaRealDiario()"></select></div>
+          <div><label class="fl">De</label><input type="date" id="mrd-de" onchange="renderMetaRealDiario()" /></div>
+          <div><label class="fl">Até</label><input type="date" id="mrd-ate" onchange="renderMetaRealDiario()" /></div>
+          <div class="row-inline" style="gap:6px;flex-wrap:wrap;">
+            <button class="btn btn-outline" style="margin:0;" onclick="mrdAtalho('hoje')">Hoje</button>
+            <button class="btn btn-outline" style="margin:0;" onclick="mrdAtalho('mes')">Mês atual</button>
+            <button class="btn btn-outline" style="margin:0;" onclick="mrdAtalho('mes_ant')">Mês anterior</button>
+          </div>
+        </div>
+        <div id="mrd-aviso"></div>
+      </div>
+      <div class="kpi-grid" id="mrd-kpis" style="grid-template-columns:repeat(5,1fr);"></div>
+      <div class="card"><h3>Dia a dia — real x meta do dia</h3><p class="hint">Barra vermelha = dia que estourou a meta do dia.</p><div class="chart-wrap"><canvas id="chart-mrd-dia"></canvas></div></div>
+      <div class="card"><h3>Acumulado do período — real x meta</h3><div class="chart-wrap"><canvas id="chart-mrd-acum"></canvas></div></div>
+      <div class="card">
+        <div class="row-inline" style="justify-content:space-between;align-items:center;"><h3 style="margin:0;">Tabela diária</h3><button class="btn btn-outline" onclick="mrdExportarCsv()">⬇ Exportar CSV</button></div>
+        <div style="overflow-x:auto;margin-top:10px;"><table>
+          <thead><tr><th>Data</th><th>Meta do dia</th><th>Real do dia</th><th>Diferença</th><th>Meta acumulada</th><th>Real acumulado</th><th>Situação</th></tr></thead>
+          <tbody id="mrd-tbody"></tbody>
+        </table></div>
       </div>
     </div>
 
@@ -1381,7 +1442,7 @@ function entrarNoAdmin(){
 const MODULO_DE_TAB = {
   'visao-diaria':'quebras', 'aprovacoes':'quebras', 'relatorio':'quebras', 'lancamentos':'quebras',
   'check-promax':'quebras',
-  'analises':'quebras', 'produto-analise':'quebras', 'custo':'quebras', 'meta-x-real':'quebras',
+  'analises':'quebras', 'produto-analise':'quebras', 'custo':'quebras', 'meta-x-real':'quebras', 'meta-real-diario':'quebras',
   'metas':'quebras', 'configuracoes':'quebras',
   'transferencias':'transferencias',
   'repack-painel':'repack', 'repack-produtividade':'repack', 'repack-anomalias':'repack', 'repack-metas':'repack',
@@ -1460,6 +1521,7 @@ document.querySelectorAll('.tab').forEach(tab => {
     if(tab.dataset.tab === 'custo') renderCusto();
     if(tab.dataset.tab === 'metas') renderMetas();
     if(tab.dataset.tab === 'meta-x-real') renderAcompanhamentoDiarioMetas();
+    if(tab.dataset.tab === 'meta-real-diario') renderMetaRealDiario();
     if(tab.dataset.tab === 'transferencias') renderTransferencias();
     if(tab.dataset.tab === 'repack-painel') gerarPainelRepack();
     if(tab.dataset.tab === 'repack-produtividade') renderProdutividadeRepack();
@@ -1519,6 +1581,7 @@ function renderTudo(){
   renderAnaliseProduto();
   renderCusto();
   renderMetas();
+  renderMetaRealDiario();
   renderTransferencias();
   renderLancamentos();
   renderCheckPromax();
@@ -2746,7 +2809,7 @@ function onClickBucketProdutividade(chavesTendencia, labelsTendencia, porBucket,
   return function(idx){
     const chave = chavesTendencia[idx];
     if(!chave) return;
-    const rotuloTipo = tipo === 'semana' ? 'Semana de ' : (tipo === 'mes' || tipo === 'ano') ? 'Mês ' : 'Dia ';
+    const rotuloTipo = (tipo === 'semana' || (tipo === 'custom' && prodCustomPorSemana())) ? 'Semana de ' : (tipo === 'mes' || tipo === 'ano') ? 'Mês ' : 'Dia ';
     abrirFn(rotuloTipo + labelsTendencia[idx], porBucket[chave] || []);
   };
 }
@@ -2995,14 +3058,14 @@ function montarFiltroDepartamentoAprovacoes(){
 
 function renderAprovacoes(){
   const depFiltro = document.getElementById('filtro-aprov-departamento').value;
-  const mesFiltro = document.getElementById('filtro-aprov-mes').value;
-  const dataFiltro = document.getElementById('filtro-aprov-data').value;
+  const deFiltro = document.getElementById('filtro-aprov-de').value;
+  const ateFiltro = document.getElementById('filtro-aprov-ate').value;
 
   const pendentes = escopoBase().filter(q =>
     q.status === 'pendente' &&
     (!depFiltro || q.departamentoId == depFiltro) &&
-    (!mesFiltro || q.dataISO.slice(0,7) === mesFiltro) &&
-    (!dataFiltro || q.dataISO === dataFiltro)
+    (!deFiltro || q.dataISO >= deFiltro) &&
+    (!ateFiltro || q.dataISO <= ateFiltro)
   );
 
   const permIds = deptosPermitidosIds(pessoaAtual);
@@ -3045,8 +3108,8 @@ function renderAprovacoes(){
 
 function limparFiltrosAprovacoes(){
   document.getElementById('filtro-aprov-departamento').value = '';
-  document.getElementById('filtro-aprov-mes').value = '';
-  document.getElementById('filtro-aprov-data').value = '';
+  document.getElementById('filtro-aprov-de').value = '';
+  document.getElementById('filtro-aprov-ate').value = '';
   renderAprovacoes();
 }
 
@@ -3538,6 +3601,8 @@ function popularFiltroCheckPromax(){
 function mudarMesCheckPromax(){
   const ate = document.getElementById('check-promax-ate');
   if(ate) ate.value = '';
+  const deP = document.getElementById('check-promax-de');
+  if(deP) deP.value = '';
   popularFiltroCheckPromax();
   renderCheckPromax();
 }
@@ -3550,15 +3615,16 @@ function renderCheckPromax(){
   popularFiltroCheckPromax();
   const mesValor = document.getElementById('check-promax-mes').value;
   const ateValor = document.getElementById('check-promax-ate').value;
+  const deValor = document.getElementById('check-promax-de').value;
   const container = document.getElementById('check-promax-cards');
   if(!mesValor || !container) return;
 
   // Usa a data de APROVAÇÃO (não a data real da quebra) só nessa conferência —
   // é o dia em que o controle baixa no Promax, então é isso que precisa bater.
   const nossosDoMes = (filialGlobalId ? quebrasCache.filter(q => q.filialId == filialGlobalId) : quebrasCache)
-    .filter(q => q.status === 'aprovada' && q.dataAprovacaoISO.slice(0, 7) === mesValor && (!ateValor || q.dataAprovacaoISO <= ateValor));
+    .filter(q => q.status === 'aprovada' && q.dataAprovacaoISO.slice(0, 7) === mesValor && (!deValor || q.dataAprovacaoISO >= deValor) && (!ateValor || q.dataAprovacaoISO <= ateValor));
   const promaxDoMes = (filialGlobalId ? promaxBaixasCache.filter(p => p.filialId == filialGlobalId) : promaxBaixasCache)
-    .filter(p => p.dataISO.slice(0, 7) === mesValor && (!ateValor || p.dataISO <= ateValor));
+    .filter(p => p.dataISO.slice(0, 7) === mesValor && (!deValor || p.dataISO >= deValor) && (!ateValor || p.dataISO <= ateValor));
 
   container.innerHTML = nomesDepartamentosPromax().map(nomeDep => {
     const dep = encontrarDepartamentoPorNome(nomeDep);
@@ -3599,7 +3665,7 @@ function renderCheckPromax(){
             <thead><tr><th>Data</th><th>Promax (R$)</th><th>Nosso sistema (R$)</th><th>Diferença (R$)</th></tr></thead>
             <tbody>${linhasHtml}</tbody>
             <tfoot><tr style="font-weight:700;border-top:2px solid var(--line);">
-              <td>Total ${ateValor ? 'até ' + ateValor.split('-').reverse().join('/') : 'do mês'}</td><td>${brl(totalPromax)}</td><td>${brl(totalNosso)}</td>
+              <td>Total ${deValor ? 'de ' + deValor.split('-').reverse().join('/') + ' ' : ''}${ateValor ? 'até ' + ateValor.split('-').reverse().join('/') : (deValor ? '' : 'do mês')}</td><td>${brl(totalPromax)}</td><td>${brl(totalNosso)}</td>
               <td style="${totalBateu ? 'color:var(--teal);' : 'color:var(--red);'}">${brl(totalDiff)}</td>
             </tr></tfoot>
           </table>
@@ -3633,20 +3699,21 @@ function verificarDivergenciasPromax(nomeDep){
   const TOLERANCIA_DIAS = 10; // margem interna só pra casar datas próximas (lançamento e baixa no Promax raramente caem no mesmo dia)
   const mesValor = document.getElementById('check-promax-mes').value;
   const ateValor = document.getElementById('check-promax-ate').value;
+  const deValor = document.getElementById('check-promax-de').value;
   const dep = encontrarDepartamentoPorNome(nomeDep);
   if(!dep){ alvo.innerHTML = '<div class="error">Departamento não encontrado no cadastro.</div>'; alvo.dataset.aberto = 'true'; if(botao) botao.textContent = 'Ocultar divergências'; return; }
 
   // Usa a data de APROVAÇÃO (não a data real da quebra) — mesmo motivo do
   // renderCheckPromax: é o dia em que o controle baixa no Promax.
   const nossos = (filialGlobalId ? quebrasCache.filter(q => q.filialId == filialGlobalId) : quebrasCache)
-    .filter(q => q.status === 'aprovada' && q.dataAprovacaoISO.slice(0, 7) === mesValor && (!ateValor || q.dataAprovacaoISO <= ateValor) && q.departamentoId === dep.id)
+    .filter(q => q.status === 'aprovada' && q.dataAprovacaoISO.slice(0, 7) === mesValor && (!deValor || q.dataAprovacaoISO >= deValor) && (!ateValor || q.dataAprovacaoISO <= ateValor) && q.departamentoId === dep.id)
     .map(q => {
       const produto = produtos.find(p => p.id === q.produtoId);
       return { dataISO: q.dataAprovacaoISO, codigoProduto: produto ? String(produto.codigo).trim() : '', descricao: produto ? produto.descricao : '—', quantidade: Number(q.quantidade), valor: q.custo, usado: false };
     });
 
   const promax = (filialGlobalId ? promaxBaixasCache.filter(p => p.filialId == filialGlobalId) : promaxBaixasCache)
-    .filter(p => p.dataISO.slice(0, 7) === mesValor && (!ateValor || p.dataISO <= ateValor) && p.departamentoId === dep.id)
+    .filter(p => p.dataISO.slice(0, 7) === mesValor && (!deValor || p.dataISO >= deValor) && (!ateValor || p.dataISO <= ateValor) && p.departamentoId === dep.id)
     .map(p => ({ dataISO: p.dataISO, codigoProduto: String(p.codigoProduto || '').trim(), descricao: p.descricaoProduto || '—', quantidade: Number(p.quantidade), valor: p.valor, usado: false }));
 
   // Monta todos os pares possíveis (mesmo produto + mesma quantidade, dentro da
@@ -3789,7 +3856,24 @@ async function excluirTransferencia(id){
    HELPERS COMPARTILHADOS — Repack e Despejo
    ============================================================ */
 
+// Período personalizado (De/Até) da Produtividade (Repack/Despejo): até ~2 meses mostra por dia, acima disso por semana.
+let prodCustom = { de: '', ate: '' };
+function prepararPeriodoCustomProd(pre, tipo){
+  document.querySelectorAll('.prod-custom-' + pre).forEach(el => { el.style.display = tipo === 'custom' ? '' : 'none'; el.classList.remove('hidden'); });
+  if(tipo !== 'custom') return;
+  const hoje = new Date().toISOString().slice(0,10);
+  const eDe = document.getElementById(pre + '-prod-de'), eAte = document.getElementById(pre + '-prod-ate');
+  if(!eDe.value) eDe.value = hoje.slice(0,7) + '-01';
+  if(!eAte.value) eAte.value = hoje;
+  let de = eDe.value, ate = eAte.value;
+  if(de > ate){ const t = de; de = ate; ate = t; }
+  prodCustom = { de, ate };
+}
+function prodCustomPorSemana(){
+  return (new Date(prodCustom.ate + 'T12:00:00') - new Date(prodCustom.de + 'T12:00:00')) / 86400000 > 62;
+}
 function chavePeriodo(dataISO, tipo){
+  if(tipo === 'custom') return prodCustomPorSemana() ? chavePeriodo(dataISO, 'semana') : dataISO;
   if(tipo === 'dia') return dataISO;
   if(tipo === 'mes') return dataISO.slice(0,7);
   if(tipo === 'ano') return dataISO.slice(5,7);
@@ -3804,6 +3888,15 @@ function chavePeriodo(dataISO, tipo){
 function bucketsPeriodo(tipo){
   const hoje = new Date();
   const buckets = [];
+  if(tipo === 'custom'){
+    const porSemana = prodCustomPorSemana();
+    const set = new Set();
+    for(let d0 = new Date(prodCustom.de + 'T12:00:00'), n = 0; d0.toISOString().slice(0,10) <= prodCustom.ate && n < 800; d0.setDate(d0.getDate() + 1), n++){
+      const iso = d0.toISOString().slice(0,10);
+      set.add(porSemana ? chavePeriodo(iso, 'semana') : iso);
+    }
+    return [...set];
+  }
   if(tipo === 'dia'){
     for(let i=29;i>=0;i--){ const d=new Date(hoje); d.setDate(d.getDate()-i); buckets.push(d.toISOString().slice(0,10)); }
   } else if(tipo === 'semana'){
@@ -3820,6 +3913,7 @@ function bucketsPeriodo(tipo){
 }
 
 function rotuloBucket(chave, tipo){
+  if(tipo === 'custom') return chave.slice(8,10)+'/'+chave.slice(5,7);
   if(tipo === 'dia') return chave.slice(8,10)+'/'+chave.slice(5,7);
   if(tipo === 'semana') return chave.slice(8,10)+'/'+chave.slice(5,7);
   if(tipo === 'mes') return chave.slice(5,7)+'/'+chave.slice(0,4);
@@ -3827,6 +3921,7 @@ function rotuloBucket(chave, tipo){
 }
 
 function filtrarPorTipoPeriodo(lista, tipo){
+  if(tipo === 'custom') return lista.filter(r => r.dataISO >= prodCustom.de && r.dataISO <= prodCustom.ate);
   if(tipo === 'ano') return lista.filter(r => r.dataISO.startsWith(String(new Date().getFullYear())));
   return lista; // dia/semana/mes já limitam pelo range de buckets exibido
 }
@@ -3985,6 +4080,7 @@ function exportarCSVRepack(){
 
 function renderProdutividadeRepack(){
   const tipo = document.getElementById('repack-prod-periodo').value;
+  prepararPeriodoCustomProd('repack', tipo);
 
   // A filial usa o seletor do TOPO da página, igual no Painel.
   let base = filialGlobalId ? repackCache.filter(r => r.filialId == filialGlobalId) : repackCache;
@@ -4488,6 +4584,7 @@ function renderAnomaliasDespejo(){
 
 function renderProdutividadeDespejo(){
   const tipo = document.getElementById('despejo-prod-periodo').value;
+  prepararPeriodoCustomProd('despejo', tipo);
 
   let base = filialGlobalId ? despejoCache.filter(r => r.filialId == filialGlobalId) : despejoCache;
   base = filtrarPorTipoPeriodo(base, tipo);
@@ -4699,6 +4796,8 @@ function atualizarControlesPeriodo(){
   document.getElementById('an-periodo-semana-num-wrap').classList.toggle('hidden', tipo !== 'semana');
   document.getElementById('an-periodo-mes-wrap').classList.toggle('hidden', tipo !== 'mes');
   document.getElementById('an-periodo-ano-wrap').classList.toggle('hidden', tipo !== 'ano');
+  document.getElementById('an-periodo-de-wrap').classList.toggle('hidden', tipo !== 'custom');
+  document.getElementById('an-periodo-ate-wrap').classList.toggle('hidden', tipo !== 'custom');
 }
 
 function inicializarControlesPeriodo(){
@@ -4707,11 +4806,18 @@ function inicializarControlesPeriodo(){
   document.getElementById('an-periodo-mes').value = hoje.toISOString().slice(0,7);
   document.getElementById('an-periodo-semana-mes').value = hoje.toISOString().slice(0,7);
   document.getElementById('an-periodo-ano').value = hoje.getFullYear();
+  document.getElementById('an-periodo-de').value = hoje.toISOString().slice(0,7) + '-01';
+  document.getElementById('an-periodo-ate').value = hoje.toISOString().slice(0,10);
   atualizarControlesPeriodo();
 }
 
 // Devolve {inicio, fim} em ISO (YYYY-MM-DD), inclusive dos dois lados.
 function obterPeriodo(tipo, valores){
+  if(tipo === 'custom'){
+    let ini = valores.de || '0000-01-01', fim = valores.ate || '9999-12-31';
+    if(ini > fim){ const t = ini; ini = fim; fim = t; }
+    return { inicio: ini, fim };
+  }
   if(tipo === 'dia'){
     return { inicio: valores.dia, fim: valores.dia };
   }
@@ -4741,6 +4847,8 @@ function obterPeriodoAnalises(){
     semanaNum: document.getElementById('an-periodo-semana-num').value,
     mes: document.getElementById('an-periodo-mes').value,
     ano: document.getElementById('an-periodo-ano').value,
+    de: document.getElementById('an-periodo-de').value,
+    ate: document.getElementById('an-periodo-ate').value,
   });
 }
 
@@ -4826,6 +4934,8 @@ function atualizarControlesPeriodoProduto(){
   document.getElementById('prod-periodo-semana-num-wrap').classList.toggle('hidden', tipo !== 'semana');
   document.getElementById('prod-periodo-mes-wrap').classList.toggle('hidden', tipo !== 'mes');
   document.getElementById('prod-periodo-ano-wrap').classList.toggle('hidden', tipo !== 'ano');
+  document.getElementById('prod-periodo-de-wrap').classList.toggle('hidden', tipo !== 'custom');
+  document.getElementById('prod-periodo-ate-wrap').classList.toggle('hidden', tipo !== 'custom');
 }
 
 function inicializarControlesPeriodoProduto(){
@@ -4834,6 +4944,8 @@ function inicializarControlesPeriodoProduto(){
   document.getElementById('prod-periodo-mes').value = hoje.toISOString().slice(0,7);
   document.getElementById('prod-periodo-semana-mes').value = hoje.toISOString().slice(0,7);
   document.getElementById('prod-periodo-ano').value = hoje.getFullYear();
+  document.getElementById('prod-periodo-de').value = hoje.toISOString().slice(0,7) + '-01';
+  document.getElementById('prod-periodo-ate').value = hoje.toISOString().slice(0,10);
   atualizarControlesPeriodoProduto();
 }
 
@@ -4845,6 +4957,8 @@ function obterPeriodoProduto(){
     semanaNum: document.getElementById('prod-periodo-semana-num').value,
     mes: document.getElementById('prod-periodo-mes').value,
     ano: document.getElementById('prod-periodo-ano').value,
+    de: document.getElementById('prod-periodo-de').value,
+    ate: document.getElementById('prod-periodo-ate').value,
   });
 }
 
@@ -5003,12 +5117,24 @@ function mudarSubAbaCusto(sub){
 
 function renderCusto(){
   const depId = document.getElementById('custo-departamento').value;
-  const baseDep = depId ? escopoAprovado().filter(q => q.departamentoId == depId) : escopoAprovado();
+  let baseDep = depId ? escopoAprovado().filter(q => q.departamentoId == depId) : escopoAprovado();
+  let cDe = document.getElementById('custo-de').value, cAte = document.getElementById('custo-ate').value;
+  if(cDe && cAte && cDe > cAte){ const t = cDe; cDe = cAte; cAte = t; }
+  const comPeriodo = !!(cDe || cAte);
+  const baseDepTodoPeriodo = baseDep; // aba "ano" ignora De/Até (é acumulado do ano)
+  if(comPeriodo) baseDep = baseDep.filter(q => (!cDe || q.dataISO >= cDe) && (!cAte || q.dataISO <= cAte));
 
   if(custoSubAbaAtual === 'diario'){
     const dias = [];
     const hoje = new Date();
-    for(let i=29;i>=0;i--){ const d = new Date(hoje); d.setDate(d.getDate()-i); dias.push(d.toISOString().slice(0,10)); }
+    if(comPeriodo){
+      const ini = cDe || (cAte.slice(0,7) + '-01'), fimP = cAte || hoje.toISOString().slice(0,10);
+      for(let d0 = new Date(ini + 'T12:00:00'), n = 0; d0.toISOString().slice(0,10) <= fimP && n < 732; d0.setDate(d0.getDate() + 1), n++) dias.push(d0.toISOString().slice(0,10));
+      if(!dias.length) dias.push(ini);
+    } else {
+      for(let i=29;i>=0;i--){ const d = new Date(hoje); d.setDate(d.getDate()-i); dias.push(d.toISOString().slice(0,10)); }
+    }
+    document.getElementById('custo-diario-titulo').textContent = comPeriodo ? 'Custo diário — ' + dias[0].split('-').reverse().join('/') + ' a ' + dias[dias.length-1].split('-').reverse().join('/') : 'Custo diário — últimos 30 dias';
     const porDia = {};
     baseDep.forEach(q => { if(dias.includes(q.dataISO)) porDia[q.dataISO] = (porDia[q.dataISO]||0) + q.custo; });
     const labels = dias.map(d => d.slice(8,10)+'/'+d.slice(5,7));
@@ -5017,8 +5143,8 @@ function renderCusto(){
 
     const totalPeriodo = dados.reduce((a,b)=>a+b,0);
     document.getElementById('custo-kpi-grid').innerHTML = `
-      <div class="kpi-card"><div class="label">Custo nos últimos 30 dias</div><div class="value">${brl(totalPeriodo)}</div></div>
-      <div class="kpi-card"><div class="label">Custo médio diário</div><div class="value">${brl(totalPeriodo/30)}</div></div>
+      <div class="kpi-card"><div class="label">${comPeriodo ? 'Custo no período' : 'Custo nos últimos 30 dias'}</div><div class="value">${brl(totalPeriodo)}</div></div>
+      <div class="kpi-card"><div class="label">Custo médio diário</div><div class="value">${brl(totalPeriodo/(dias.length || 1))}</div></div>
       <div class="kpi-card"><div class="label">Escopo</div><div class="value" style="font-size:16px;">${depId ? nomePor(departamentos, Number(depId)) : 'Todos os departamentos'}</div></div>
     `;
   }
@@ -5045,7 +5171,7 @@ function renderCusto(){
 
   if(custoSubAbaAtual === 'ano'){
     const anoAtual = new Date().getFullYear();
-    const doAno = baseDep.filter(q => q.dataISO.startsWith(String(anoAtual)));
+    const doAno = baseDepTodoPeriodo.filter(q => q.dataISO.startsWith(String(anoAtual)));
     const custoAno = doAno.reduce((a,q)=>a+q.custo,0);
     const qtdAno = doAno.reduce((a,q)=>a+q.quantidade,0);
     document.getElementById('custo-kpi-grid').innerHTML = `
@@ -5220,7 +5346,7 @@ function popularSelectsAcompanhamentoMetas(){
   }
   const selTurno = document.getElementById('metas-dia-turno');
   if(selTurno && selTurno.options.length === 0){
-    selTurno.innerHTML = turnos.map(t => `<option value="${t.id}">${t.nome}</option>`).join('');
+    selTurno.innerHTML = '<option value="__all__">Todos os turnos</option>' + turnos.map(t => `<option value="${t.id}">${t.nome}</option>`).join('');
   }
 }
 
@@ -5230,7 +5356,8 @@ function montarSerieDiariaMetas(lancamentosDoMes, campo, id, metaMensal, ano, me
   const totalDias = new Date(ano, mes, 0).getDate();
   const totalUteis = diasUteisNoMes(ano, mes);
   const custoPorDia = new Array(totalDias + 1).fill(0);
-  lancamentosDoMes.filter(q => q[campo] == id).forEach(q => {
+  // id '__all__' = todos os turnos (soma de tudo que tem turno informado)
+  lancamentosDoMes.filter(q => id === '__all__' ? (q[campo] !== null && q[campo] !== undefined) : q[campo] == id).forEach(q => {
     const dia = Number(q.dataISO.slice(8, 10));
     custoPorDia[dia] = (custoPorDia[dia] || 0) + q.custo;
   });
@@ -5281,7 +5408,10 @@ function renderAcompanhamentoDiarioMetas(){
   const tituloTurno = document.getElementById('metas-dia-turno-titulo');
   if(tituloTurno) tituloTurno.textContent = 'Acompanhamento diário — turno (' + nomePor(departamentos, Number(depId)) + ')';
   const turnoId = document.getElementById('metas-dia-turno').value;
-  const serieTurno = montarSerieDiariaMetas(lancamentosDoDep, 'turnoId', turnoId, (metasTurno[turnoId] || {}).custo || 0, ano, mes, diaReferencia);
+  const metaTurnoSel = turnoId === '__all__'
+    ? turnos.reduce((a, t) => a + ((metasTurno[t.id] || {}).custo || 0), 0)
+    : ((metasTurno[turnoId] || {}).custo || 0);
+  const serieTurno = montarSerieDiariaMetas(lancamentosDoDep, 'turnoId', turnoId, metaTurnoSel, ano, mes, diaReferencia);
   renderAcumuladoVsMeta('chart-metas-turno-diario', serieTurno.dias, serieTurno.realAcumulado, serieTurno.metaAcumulada);
   document.getElementById('metas-dia-turno-kpi').innerHTML = `
     <div class="kpi-card"><div class="label">Meta até dia ${diaReferencia}</div><div class="value">${brl(serieTurno.metaAteReferencia)}</div></div>
@@ -5306,6 +5436,140 @@ function renderAcompanhamentoDiarioMetas(){
   }
 }
 
+
+/* ---------------- META x REAL DIÁRIO ---------------- */
+
+let mrdLinhas = [];
+const mrdCacheMetas = {}; // 'filial|ano-mes' -> { depId: custo_mensal }
+const mrdHoje = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+const mrdDiaSemana = iso => ['dom','seg','ter','qua','qui','sex','sáb'][new Date(iso + 'T12:00:00').getDay()];
+
+function mrdAtalho(tipo){
+  const hoje = mrdHoje();
+  let de = hoje, ate = hoje;
+  if(tipo === 'mes'){ de = hoje.slice(0, 7) + '-01'; }
+  if(tipo === 'mes_ant'){
+    const dt = new Date(Number(hoje.slice(0, 4)), Number(hoje.slice(5, 7)) - 2, 1);
+    const ym = dt.getFullYear() + '-' + String(dt.getMonth() + 1).padStart(2, '0');
+    de = ym + '-01'; ate = ym + '-' + String(new Date(dt.getFullYear(), dt.getMonth() + 1, 0).getDate()).padStart(2, '0');
+  }
+  document.getElementById('mrd-de').value = de;
+  document.getElementById('mrd-ate').value = ate;
+  renderMetaRealDiario();
+}
+
+async function mrdMetasDoMes(ano, mes){
+  const chave = (filialGlobalId || 'todas') + '|' + ano + '-' + mes;
+  if(mrdCacheMetas[chave]) return mrdCacheMetas[chave];
+  let q = sb.from('metas_departamento').select('*').eq('ano', ano).eq('mes', mes);
+  if(filialGlobalId) q = q.eq('filial_id', filialGlobalId);
+  const { data, error } = await q;
+  if(error){ console.warn('Meta x Real diário: erro ao buscar metas', error.message); return {}; }
+  const m = {};
+  (data || []).forEach(r => { m[r.departamento_id] = (m[r.departamento_id] || 0) + (Number(r.custo_mensal) || 0); });
+  mrdCacheMetas[chave] = m;
+  return m;
+}
+// Metas podem ser editadas na aba Metas; ao salvar, limpa o cache desta aba.
+function mrdLimparCache(){ Object.keys(mrdCacheMetas).forEach(k => delete mrdCacheMetas[k]); }
+
+let mrdSeq = 0;
+async function renderMetaRealDiario(){
+  const sel = document.getElementById('mrd-departamento');
+  if(!sel || !departamentos.length) return;
+  if(sel.options.length === 0){
+    sel.innerHTML = '<option value="">Todos os departamentos</option>' + departamentos.map(d => `<option value="${d.id}">${d.nome}</option>`).join('');
+  }
+  const eDe = document.getElementById('mrd-de'), eAte = document.getElementById('mrd-ate');
+  if(!eDe.value || !eAte.value){
+    const hoje = mrdHoje();
+    if(!eDe.value) eDe.value = hoje.slice(0, 7) + '-01';
+    if(!eAte.value) eAte.value = hoje;
+  }
+  let de = eDe.value, ate = eAte.value;
+  if(de > ate){ const t = de; de = ate; ate = t; }
+  const depId = sel.value;
+  const meu = ++mrdSeq;
+
+  // lista de dias (máx. 400 pra não pesar)
+  const dias = [];
+  for(let d0 = new Date(de + 'T12:00:00'), n = 0; d0.toISOString().slice(0, 10) <= ate && n < 400; d0.setDate(d0.getDate() + 1), n++) dias.push(d0.toISOString().slice(0, 10));
+  const cortou = new Date(ate + 'T12:00:00') - new Date(de + 'T12:00:00') > 399 * 86400000;
+
+  // metas de todos os meses do período
+  const meses = [...new Set(dias.map(x => x.slice(0, 7)))];
+  const metasPorMes = {};
+  for(const ym of meses){ metasPorMes[ym] = await mrdMetasDoMes(Number(ym.slice(0, 4)), Number(ym.slice(5, 7))); }
+  if(meu !== mrdSeq) return; // chegou outra chamada mais nova
+
+  let base = escopoAprovado();
+  if(depId) base = base.filter(q => q.departamentoId == depId);
+  const realPorDia = {};
+  base.forEach(q => { realPorDia[q.dataISO] = (realPorDia[q.dataISO] || 0) + q.custo; });
+
+  let acM = 0, acR = 0, diasAcima = 0, semMetaMes = false;
+  mrdLinhas = dias.map(iso => {
+    const ano = Number(iso.slice(0, 4)), mes = Number(iso.slice(5, 7)), dia = Number(iso.slice(8, 10));
+    const m = metasPorMes[iso.slice(0, 7)] || {};
+    const metaMensal = depId ? (m[depId] || 0) : Object.values(m).reduce((a, v) => a + v, 0);
+    if(!metaMensal) semMetaMes = true;
+    const uteis = diasUteisNoMes(ano, mes);
+    const meta = (uteis && ehDiaUtil(ano, mes, dia)) ? metaMensal / uteis : 0;
+    const real = realPorDia[iso] || 0;
+    acM += meta; acR += real;
+    const acima = meta > 0 ? real > meta + 0.005 : real > 0.005;
+    if(acima) diasAcima++;
+    return { iso, meta, real, diff: real - meta, acM, acR, acima, semMeta: !metaMensal };
+  });
+
+  document.getElementById('mrd-aviso').innerHTML =
+    (cortou ? '<div class="warn" style="margin-top:10px;">Período muito longo: mostrando só os primeiros 400 dias.</div>' : '') +
+    (semMetaMes ? '<div class="warn" style="margin-top:10px;">Há mês(es) do período sem meta cadastrada para ' + (depId ? 'este departamento' : 'os departamentos') + ' (cadastre na aba Metas). Nesses dias a meta aparece como R$ 0,00.</div>' : '');
+
+  const totM = acM, totR = acR, dif = totR - totM;
+  const pct = totM > 0 ? Math.round(totR / totM * 100) : null;
+  document.getElementById('mrd-kpis').innerHTML = `
+    <div class="kpi-card"><div class="label">Meta no período</div><div class="value">${brl(totM)}</div></div>
+    <div class="kpi-card ${totR > totM + 0.005 ? 'warn' : ''}"><div class="label">Real no período</div><div class="value">${brl(totR)}</div></div>
+    <div class="kpi-card ${dif > 0.005 ? 'warn' : ''}"><div class="label">Diferença (real − meta)</div><div class="value">${brl(dif)}</div></div>
+    <div class="kpi-card ${pct !== null && pct > 100 ? 'warn' : ''}"><div class="label">% da meta</div><div class="value">${pct === null ? '—' : pct + '%'}</div></div>
+    <div class="kpi-card ${diasAcima ? 'warn' : ''}"><div class="label">Dias acima da meta do dia</div><div class="value">${diasAcima}</div></div>`;
+
+  const labels = mrdLinhas.map(l => l.iso.slice(8, 10) + '/' + l.iso.slice(5, 7));
+  renderBarChartComMeta('chart-mrd-dia', labels, mrdLinhas.map(l => +l.real.toFixed(2)), mrdLinhas.map(l => +l.meta.toFixed(2)), { rotuloReal: 'Real do dia', rotuloMeta: 'Meta do dia', formatarValor: brl });
+  const ch = chartInstances['chart-mrd-dia'];
+  if(ch){
+    ch.data.datasets[0].backgroundColor = mrdLinhas.map(l => l.acima ? '#A32D2D' : '#12796B');
+    ch.options.plugins.legend = { labels: { generateLabels: c => Chart.defaults.plugins.legend.labels.generateLabels(c).map(l => l.datasetIndex === 0 ? { ...l, fillStyle: '#12796B', strokeStyle: '#12796B' } : l) } };
+    ch.update();
+  }
+  renderAcumuladoVsMeta('chart-mrd-acum', labels, mrdLinhas.map(l => +l.acR.toFixed(2)), mrdLinhas.map(l => +l.acM.toFixed(2)));
+  const ch2 = chartInstances['chart-mrd-acum'];
+  if(ch2){ ch2.options.scales.x.title.text = 'Dia'; ch2.update(); }
+
+  document.getElementById('mrd-tbody').innerHTML = mrdLinhas.slice().reverse().map(l => {
+    const sit = l.meta === 0 && l.real === 0 ? '<span class="muted">—</span>'
+      : l.acima ? '<span class="status-pill status-reprovada">Acima da meta</span>'
+      : '<span class="status-pill status-aprovada">Dentro da meta</span>';
+    return `<tr><td>${l.iso.slice(8, 10)}/${l.iso.slice(5, 7)} <span class="muted">${mrdDiaSemana(l.iso)}</span></td><td>${brl(l.meta)}</td><td><b>${brl(l.real)}</b></td>
+      <td style="${l.diff > 0.005 ? 'color:var(--red);font-weight:600;' : 'color:var(--teal);'}">${brl(l.diff)}</td><td>${brl(l.acM)}</td><td>${brl(l.acR)}</td><td>${sit}</td></tr>`;
+  }).join('') || '<tr><td colspan="7" class="muted">Sem dias no período.</td></tr>';
+}
+
+function mrdExportarCsv(){
+  const dep = document.getElementById('mrd-departamento');
+  const nomeDep = dep.value ? dep.options[dep.selectedIndex].text : 'Todos os departamentos';
+  const cab = ['Data', 'Departamento', 'Meta do dia', 'Real do dia', 'Diferença', 'Meta acumulada', 'Real acumulado', 'Situação'];
+  const n = v => String(v.toFixed(2)).replace('.', ',');
+  const linhas = mrdLinhas.map(l => [l.iso.split('-').reverse().join('/'), nomeDep, n(l.meta), n(l.real), n(l.diff), n(l.acM), n(l.acR), l.acima ? 'Acima da meta' : 'Dentro da meta']);
+  const q = v => '"' + String(v).replace(/"/g, '""') + '"';
+  const csv = '﻿' + [cab, ...linhas].map(r => r.map(q).join(';')).join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  a.download = 'meta_x_real_diario_' + mrdHoje() + '.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+}
+
 async function salvarMetas(){
   const filialId = Number(document.getElementById('metas-filial').value);
   const [ano, mes] = document.getElementById('metas-mes').value.split('-').map(Number);
@@ -5318,6 +5582,7 @@ async function salvarMetas(){
     sb.from('metas_turno').upsert(linhasTurno, { onConflict: 'filial_id,turno_id,ano,mes' }),
   ]);
 
+  mrdLimparCache();
   document.getElementById('metas-msg').innerHTML = (e1 || e2)
     ? '<div class="error">Erro ao salvar as metas.</div>'
     : '<div class="ok">Metas salvas para ' + nomePor(filiais, filialId) + ' — ' + document.getElementById('metas-mes').value + '.</div>';

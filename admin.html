@@ -1114,6 +1114,7 @@
         <p class="hint">Meta do dia = meta mensal do departamento ÷ dias úteis do mês (sábado conta, domingo não). Real do dia = custo das quebras <b>aprovadas</b> naquele dia. A filial é a do seletor do topo ("Todas as filiais" soma metas e realizado de todas).</p>
         <div class="filtro-grid" style="grid-template-columns:repeat(4,1fr);align-items:end;">
           <div><label class="fl">Departamento</label><select id="mrd-departamento" onchange="renderMetaRealDiario()"></select></div>
+          <div><label class="fl">Turnos</label><div id="mrd-turnos" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;min-height:38px;"></div></div>
           <div><label class="fl">De</label><input type="date" id="mrd-de" onchange="renderMetaRealDiario()" /></div>
           <div><label class="fl">Até</label><input type="date" id="mrd-ate" onchange="renderMetaRealDiario()" /></div>
           <div class="row-inline" style="gap:6px;flex-wrap:wrap;">
@@ -1125,7 +1126,7 @@
         <div id="mrd-aviso"></div>
       </div>
       <div class="kpi-grid" id="mrd-kpis" style="grid-template-columns:repeat(5,1fr);"></div>
-      <div class="card"><h3>Dia a dia — real x meta do dia</h3><p class="hint">Barra vermelha = dia que estourou a meta do dia. <b>Clique em uma barra</b>: dia → Pareto dos motivos → produtos → lançamentos do app.</p><div class="chart-wrap"><canvas id="chart-mrd-dia"></canvas></div></div>
+      <div class="card"><h3>Dia a dia — real x meta do dia</h3><p class="hint">Barra vermelha = dia que estourou a meta do dia. Com turno(s) selecionado(s), a meta é a soma das metas desses turnos. <b>Clique em uma barra</b>: dia → Pareto dos motivos → produtos → lançamentos do app.</p><div class="chart-wrap"><canvas id="chart-mrd-dia"></canvas></div></div>
       <div class="card hidden" id="mrd-pareto-card"></div>
       <div class="card"><h3>Acumulado do período — real x meta</h3><div class="chart-wrap"><canvas id="chart-mrd-acum"></canvas></div></div>
       <div class="card">
@@ -5745,6 +5746,38 @@ function renderAcompanhamentoDiarioMetas(){
 
 let mrdLinhas = [];
 const mrdCacheMetas = {}; // 'filial|ano-mes' -> { depId: custo_mensal }
+let mrdTurnosSel = null;   // null = todos os turnos (sem filtro) | Set de ids de turno = só esses
+const mrdPassaTurno = q => mrdTurnosSel === null || mrdTurnosSel.has(Number(q.turnoId));
+function mrdRenderTurnos(){
+  const el = document.getElementById('mrd-turnos');
+  if(!el || !turnos.length) return;
+  const chip = (id, nome, on) => '<button type="button" onclick="mrdTurnoClick(\'' + id + '\')" style="cursor:pointer;border-radius:999px;padding:6px 12px;font-size:13px;font-weight:600;border:1.5px solid ' + (on ? 'var(--teal,#12796B)' : 'var(--line,#d9e1e8)') + ';background:' + (on ? 'var(--teal-l,#E1F4F0)' : '#fff') + ';color:' + (on ? 'var(--teal,#12796B)' : '#475569') + ';">' + (on ? '✓ ' : '') + fvEsc(nome) + '</button>';
+  el.innerHTML = chip('all', 'Todos os turnos', mrdTurnosSel === null) + turnos.map(t => chip(String(t.id), t.nome, mrdTurnosSel !== null && mrdTurnosSel.has(t.id))).join('');
+}
+function mrdTurnoClick(id){
+  if(id === 'all'){ mrdTurnosSel = null; }
+  else {
+    const n = Number(id);
+    const s = new Set(mrdTurnosSel === null ? [] : mrdTurnosSel);
+    if(s.has(n)) s.delete(n); else s.add(n);
+    mrdTurnosSel = (s.size === 0 || s.size === turnos.length) ? null : s; // nenhum ou todos marcados = sem filtro
+  }
+  mrdRenderTurnos();
+  renderMetaRealDiario();
+}
+const mrdTurnosTexto = () => mrdTurnosSel === null ? 'Todos os turnos' : turnos.filter(t => mrdTurnosSel.has(t.id)).map(t => t.nome).join(' + ');
+async function mrdMetasTurnoDoMes(ano, mes){
+  const chave = 'T|' + (filialGlobalId || 'todas') + '|' + ano + '-' + mes;
+  if(mrdCacheMetas[chave]) return mrdCacheMetas[chave];
+  let q = sb.from('metas_turno').select('*').eq('ano', ano).eq('mes', mes);
+  if(filialGlobalId) q = q.eq('filial_id', filialGlobalId);
+  const { data, error } = await q;
+  if(error){ console.warn('Meta x Real diário: erro ao buscar metas de turno', error.message); return {}; }
+  const m = {};
+  (data || []).forEach(r => { m[r.turno_id] = (m[r.turno_id] || 0) + (Number(r.custo_mensal) || 0); });
+  mrdCacheMetas[chave] = m;
+  return m;
+}
 const mrdHoje = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
 const mrdDiaSemana = iso => ['dom','seg','ter','qua','qui','sex','sáb'][new Date(iso + 'T12:00:00').getDay()];
 
@@ -5785,6 +5818,7 @@ async function renderMetaRealDiario(){
   if(sel.options.length === 0){
     sel.innerHTML = '<option value="">Todos os departamentos</option>' + departamentos.map(d => `<option value="${d.id}">${d.nome}</option>`).join('');
   }
+  mrdRenderTurnos();
   const eDe = document.getElementById('mrd-de'), eAte = document.getElementById('mrd-ate');
   if(!eDe.value || !eAte.value){
     const hoje = mrdHoje();
@@ -5804,11 +5838,13 @@ async function renderMetaRealDiario(){
   // metas de todos os meses do período
   const meses = [...new Set(dias.map(x => x.slice(0, 7)))];
   const metasPorMes = {};
-  for(const ym of meses){ metasPorMes[ym] = await mrdMetasDoMes(Number(ym.slice(0, 4)), Number(ym.slice(5, 7))); }
+  const usaTurno = mrdTurnosSel !== null;
+  for(const ym of meses){ metasPorMes[ym] = usaTurno ? await mrdMetasTurnoDoMes(Number(ym.slice(0, 4)), Number(ym.slice(5, 7))) : await mrdMetasDoMes(Number(ym.slice(0, 4)), Number(ym.slice(5, 7))); }
   if(meu !== mrdSeq) return; // chegou outra chamada mais nova
 
   let base = escopoAprovado();
   if(depId) base = base.filter(q => q.departamentoId == depId);
+  base = base.filter(mrdPassaTurno);
   const realPorDia = {};
   base.forEach(q => { realPorDia[q.dataISO] = (realPorDia[q.dataISO] || 0) + q.custo; });
 
@@ -5816,7 +5852,7 @@ async function renderMetaRealDiario(){
   mrdLinhas = dias.map(iso => {
     const ano = Number(iso.slice(0, 4)), mes = Number(iso.slice(5, 7)), dia = Number(iso.slice(8, 10));
     const m = metasPorMes[iso.slice(0, 7)] || {};
-    const metaMensal = depId ? (m[depId] || 0) : Object.values(m).reduce((a, v) => a + v, 0);
+    const metaMensal = usaTurno ? [...mrdTurnosSel].reduce((a, t) => a + (m[t] || 0), 0) : (depId ? (m[depId] || 0) : Object.values(m).reduce((a, v) => a + v, 0));
     if(!metaMensal) semMetaMes = true;
     const uteis = diasUteisNoMes(ano, mes);
     const meta = (uteis && ehDiaUtil(ano, mes, dia)) ? metaMensal / uteis : 0;
@@ -5829,7 +5865,7 @@ async function renderMetaRealDiario(){
 
   document.getElementById('mrd-aviso').innerHTML =
     (cortou ? '<div class="warn" style="margin-top:10px;">Período muito longo: mostrando só os primeiros 400 dias.</div>' : '') +
-    (semMetaMes ? '<div class="warn" style="margin-top:10px;">Há mês(es) do período sem meta cadastrada para ' + (depId ? 'este departamento' : 'os departamentos') + ' (cadastre na aba Metas). Nesses dias a meta aparece como R$ 0,00.</div>' : '');
+    (semMetaMes ? '<div class="warn" style="margin-top:10px;">Há mês(es) do período sem meta cadastrada para ' + (usaTurno ? 'o(s) turno(s) selecionado(s)' : (depId ? 'este departamento' : 'os departamentos')) + ' (cadastre na aba Metas). Nesses dias a meta aparece como R$ 0,00.</div>' : '');
 
   const totM = acM, totR = acR, dif = totR - totM;
   const pct = totM > 0 ? Math.round(totR / totM * 100) : null;
@@ -5879,9 +5915,10 @@ function mrdAbrirPareto(iso, motivoId, produtoId){
   if(!card) return;
   const depSel = document.getElementById('mrd-departamento');
   const depId = depSel.value;
-  const nomeDep = depId ? depSel.options[depSel.selectedIndex].text : 'Todos os departamentos';
+  const nomeDep = (depId ? depSel.options[depSel.selectedIndex].text : 'Todos os departamentos') + (mrdTurnosSel === null ? '' : ' · ' + mrdTurnosTexto());
   let doDia = escopoAprovado().filter(q => q.dataISO === iso);
   if(depId) doDia = doDia.filter(q => q.departamentoId == depId);
+  doDia = doDia.filter(mrdPassaTurno);
   const linha = mrdLinhas.find(l => l.iso === iso) || { meta: 0, real: 0 };
   const totalDia = doDia.reduce((s, q) => s + (q.custo || 0), 0);
   const dataTxt = iso.slice(8, 10) + '/' + iso.slice(5, 7) + '/' + iso.slice(0, 4);
@@ -5969,9 +6006,9 @@ function mrdFecharPareto(){
 function mrdExportarCsv(){
   const dep = document.getElementById('mrd-departamento');
   const nomeDep = dep.value ? dep.options[dep.selectedIndex].text : 'Todos os departamentos';
-  const cab = ['Data', 'Departamento', 'Meta do dia', 'Real do dia', 'Diferença', 'Meta acumulada', 'Real acumulado', 'Situação'];
+  const cab = ['Data', 'Departamento', 'Turnos', 'Meta do dia', 'Real do dia', 'Diferença', 'Meta acumulada', 'Real acumulado', 'Situação'];
   const n = v => String(v.toFixed(2)).replace('.', ',');
-  const linhas = mrdLinhas.map(l => [l.iso.split('-').reverse().join('/'), nomeDep, n(l.meta), n(l.real), n(l.diff), n(l.acM), n(l.acR), l.acima ? 'Acima da meta' : 'Dentro da meta']);
+  const linhas = mrdLinhas.map(l => [l.iso.split('-').reverse().join('/'), nomeDep, mrdTurnosTexto(), n(l.meta), n(l.real), n(l.diff), n(l.acM), n(l.acR), l.acima ? 'Acima da meta' : 'Dentro da meta']);
   const q = v => '"' + String(v).replace(/"/g, '""') + '"';
   const csv = '﻿' + [cab, ...linhas].map(r => r.map(q).join(';')).join('\r\n');
   const a = document.createElement('a');

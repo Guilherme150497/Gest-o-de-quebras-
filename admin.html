@@ -31,6 +31,10 @@
     font-size:13px; font-weight:800; color:var(--text); padding:0 18px 14px;
     margin-bottom:10px; border-bottom:1px solid var(--line);
   }
+  /* alertas de atualização na tela de módulos: painel pequeno na lateral direita (em tela estreita vira bloco acima dos cartões) */
+  #alerta-planilha{position:fixed;top:84px;right:18px;width:236px;z-index:5;text-align:left;}
+  #alerta-planilha:empty{display:none;}
+  @media (max-width:1100px){ #alerta-planilha{position:static;width:auto;max-width:640px;margin:18px auto 0;} }
   .nav-group{margin-bottom:18px;}
   .nav-group-title{
     font-size:10.5px; text-transform:uppercase; letter-spacing:.6px; font-weight:700;
@@ -185,7 +189,7 @@
     <div id="saudacao-modulos" style="font-weight:800;font-size:19px;color:#0B2545;"></div>
     <div style="color:#7A8CA6;font-size:13.5px;margin-top:4px;">Selecione o módulo de acesso</div>
 
-    <div id="alerta-planilha" style="margin-top:26px;text-align:left;"></div>
+    <div id="alerta-planilha"></div>
 
     <div id="aviso-sem-modulo" class="hidden" style="margin-top:20px;background:#fff;border:1.5px solid #B7791F;border-radius:14px;padding:16px;color:#334155;">Nenhum módulo foi liberado para o seu usuário. Peça ao administrador para liberar em Cadastros › Pessoas.</div>
     <div id="grade-modulos" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:16px;margin-top:20px;">
@@ -2436,8 +2440,8 @@ function baixarModeloPromax(){
    Cada planilha deve ser importada no 1º dia útil do mês (segunda a sexta; feriados não entram na conta).
    O quadro na tela de módulos mostra OK / Pendente. Registro na tabela atualizacoes_cadastro (1 linha por chave). */
 const ALERTAS_PLANILHA = [
-  { chave: 'planilha_produtos', titulo: 'Planilha de produtos e custos', modulo: 'cadastros', aba: 'produtos', onde: 'Cadastros › Produtos' },
-  { chave: 'planilha_promax', titulo: 'Planilha do Promax (03.02.37)', modulo: 'quebras', aba: 'check-promax', onde: 'Conferência x Promax' },
+  { chave: 'planilha_produtos', titulo: 'Planilha de produtos e custos', curto: 'Produtos e custos', modulo: 'cadastros', aba: 'produtos', onde: 'Cadastros › Produtos' },
+  { chave: 'planilha_promax', titulo: 'Planilha do Promax (03.02.37)', curto: 'Promax 03.02.37', modulo: 'quebras', aba: 'check-promax', onde: 'Conferência x Promax' },
 ];
 let statusPlanilha = { carregado: false, erro: false, regs: {} };
 const spHoje = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
@@ -2476,9 +2480,9 @@ function renderStatusPlanilha(){
   const el = document.getElementById('alerta-planilha');
   if(!el) return;
   if(!statusPlanilha.carregado){ el.innerHTML = ''; return; }
-  const caixa = (cor, fundo, titulo, linha, extra) => '<div style="background:' + fundo + ';border:1.5px solid ' + cor + ';border-radius:14px;padding:14px 18px;">' +
-    '<div style="font-weight:800;font-size:15px;color:' + cor + ';">' + titulo + '</div>' +
-    '<div style="font-size:13px;color:#334155;margin-top:4px;line-height:1.45;">' + linha + '</div>' + (extra || '') + '</div>';
+  const caixa = (cor, fundo, titulo, linha, extra) => '<div style="background:' + fundo + ';border:1px solid ' + cor + ';border-radius:10px;padding:8px 11px;box-shadow:0 2px 8px rgba(11,37,69,.08);">' +
+    '<div style="font-weight:800;font-size:12.5px;color:' + cor + ';">' + titulo + '</div>' +
+    '<div style="font-size:11.5px;color:#334155;margin-top:2px;line-height:1.35;">' + linha + '</div>' + (extra || '') + '</div>';
   const lista = ALERTAS_PLANILHA.filter(al => typeof temModulo !== 'function' || temModulo(al.modulo));
   if(statusPlanilha.erro){
     el.innerHTML = lista.length ? '<div style="display:grid;gap:10px;">' + caixa('#64748B', '#F1F5F9', '📅 Atualização mensal das planilhas', 'Controle ainda não ativado — rode <b>migration_atualizacao_planilha.sql</b> no Supabase.') + '</div>' : '';
@@ -2489,23 +2493,23 @@ function renderStatusPlanilha(){
   const mesAnt = mes === 1 ? { a: ano - 1, m: 12 } : { a: ano, m: mes - 1 };
   // Antes do 1º dia útil ainda vale a atualização do mês anterior; a partir dele, só vale a do mês atual.
   const inicioValido = hoje < venc ? mesAnt.a + '-' + String(mesAnt.m).padStart(2, '0') + '-01' : ano + '-' + String(mes).padStart(2, '0') + '-01';
-  el.innerHTML = '<div style="display:grid;gap:10px;">' + lista.map(al => {
+  el.innerHTML = '<div style="display:grid;gap:8px;">' + lista.map(al => {
     const reg = statusPlanilha.regs[al.chave] || null;
     const ultima = reg ? new Date(reg.atualizado_em).toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' }) : null;
     const ok = !!ultima && ultima >= inicioValido;
-    const quando = reg ? 'Última atualização: <b>' + spFmt(ultima) + '</b>' + (reg.atualizado_por ? ' por ' + fvEsc(reg.atualizado_por) : '') + (reg.detalhe ? ' · ' + fvEsc(reg.detalhe) : '') : 'Nenhuma atualização registrada ainda.';
-    const botao = '<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;"><button class="btn-sm btn-primary" style="width:auto;" onclick="abrirModulo(\'' + al.aba + '\')">Ir para ' + al.onde + '</button>' +
-      '<button class="btn-sm btn-outline" style="width:auto;" onclick="marcarPlanilhaAtualizada(\'' + al.chave + '\')">Já atualizei — marcar como feita</button></div>';
+    const quando = reg ? 'Última: <b>' + spFmt(ultima).slice(0, 5) + '</b>' + (reg.atualizado_por ? ' · ' + fvEsc(String(reg.atualizado_por).split(' ')[0]) : '') : 'Sem atualização registrada.';
+    const botao = '<div style="margin-top:6px;display:flex;gap:5px;flex-wrap:wrap;"><button class="btn-sm btn-primary" style="width:auto;padding:3px 8px;font-size:11px;" title="' + al.onde + '" onclick="abrirModulo(\'' + al.aba + '\')">Abrir</button>' +
+      '<button class="btn-sm btn-outline" style="width:auto;padding:3px 8px;font-size:11px;" onclick="marcarPlanilhaAtualizada(\'' + al.chave + '\')">Já atualizei</button></div>';
     if(ok){
       const prox = hoje < venc ? venc : (mes === 12 ? primeiroDiaUtilISO(ano + 1, 1) : primeiroDiaUtilISO(ano, mes + 1));
-      return caixa('#0E8E7D', '#E1F4F0', '✅ ' + al.titulo + ' — OK', quando + '<br>Próxima atualização: <b>' + spFmt(prox) + '</b> (1º dia útil do mês).');
+      return caixa('#0E8E7D', '#E1F4F0', '✅ ' + al.curto + ' — OK', quando + '<br>Próxima: <b>' + spFmt(prox).slice(0, 5) + '</b> (1º dia útil)');
     }
     const dias = spDiasEntre(venc, hoje);
-    const situ = hoje < venc ? 'Deve ser atualizada em <b>' + spFmt(venc) + '</b> (1º dia útil do mês).'
-      : dias === 0 ? 'Vence <b>hoje</b> (1º dia útil do mês).'
-      : 'Deveria ter sido atualizada em <b>' + spFmt(venc) + '</b> (1º dia útil) — <b>' + dias + ' dia(s) de atraso</b>.';
+    const situ = hoje < venc ? 'Vence em <b>' + spFmt(venc).slice(0, 5) + '</b> (1º dia útil)'
+      : dias === 0 ? 'Vence <b>hoje</b> (1º dia útil)'
+      : 'Venceu <b>' + spFmt(venc).slice(0, 5) + '</b> · <b>' + dias + ' dia(s) de atraso</b>';
     const atrasada = hoje > venc;
-    return caixa(atrasada ? '#B91C1C' : '#B7791F', atrasada ? '#FDECEC' : '#FBEFD8', (atrasada ? '🚨 ' : '⚠️ ') + al.titulo + ' — PENDENTE', situ + '<br>' + quando, botao);
+    return caixa(atrasada ? '#B91C1C' : '#B7791F', atrasada ? '#FDECEC' : '#FBEFD8', (atrasada ? '🚨 ' : '⚠️ ') + al.curto + ' — PENDENTE', situ + '<br>' + quando, botao);
   }).join('') + '</div>';
 }
 

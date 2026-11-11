@@ -1035,9 +1035,10 @@
         <h3>Filtrar metas</h3>
         <p class="hint">Cada filial tem suas próprias metas, mês a mês — escolha qual quer ver/editar.</p>
         <div class="filtro-grid" style="grid-template-columns:repeat(2,1fr);max-width:480px;">
-          <div><label class="fl">Filial</label><select id="metas-filial" onchange="carregarMetas()"></select></div>
+          <div><label class="fl">Filial</label><select id="metas-filial" onchange="trocarFiltroMetas()"></select></div>
           <div><label class="fl">Mês</label><input type="month" id="metas-mes" onchange="mudarMesMetas('metas-mes')" /></div>
         </div>
+        <div id="metas-aviso"></div>
       </div>
       <div class="card">
         <h3>Metas por departamento</h3>
@@ -1054,6 +1055,7 @@
           <tbody id="tbl-metas-turno"></tbody>
         </table>
       </div>
+      <div id="metas-aviso-baixo"></div>
       <button class="btn btn-primary" style="width:auto;padding:12px 22px;" onclick="salvarMetas()">Salvar metas deste mês/filial</button>
       <div id="metas-msg"></div>
     </div>
@@ -1642,8 +1644,15 @@ function montarFiltroFilialGlobal(){
   sel.innerHTML = '<option value="">Todas as filiais</option>' + filiais.map(f => `<option value="${f.id}">${f.nome}</option>`).join('');
 }
 
+let filialGlobalAnterior = '';
 async function mudarFilialGlobal(){
-  filialGlobalId = document.getElementById('filtro-filial-global').value;
+  const novaFilial = document.getElementById('filtro-filial-global').value;
+  if(novaFilial && metasSujas && !confirmarDescartarMetas()){
+    document.getElementById('filtro-filial-global').value = filialGlobalAnterior;
+    return;
+  }
+  filialGlobalAnterior = novaFilial;
+  filialGlobalId = novaFilial;
   // Mantém as metas (usadas na linha de meta dos gráficos) sincronizadas com a
   // filial escolhida no seletor global — sem isso, a meta mostrada podia ser de
   // uma filial diferente da que está sendo olhada.
@@ -3030,12 +3039,17 @@ function renderVisaoDiaria(){
   const dataDep = departamentos.map(d => +((porDep[d.id] || 0).toFixed(2)));
   // A linha de meta só é exibida com uma filial específica selecionada no topo —
   // meta é definida por filial, então com "Todas as filiais" ela ficaria ambígua.
-  const metaDep = filialGlobalId
-    ? departamentos.map(d => +(metaProporcionalAteHoje((metasDepartamento[d.id] || {}).custo || 0, anoAtual, mesAtual, diaAtual)).toFixed(2))
-    : null;
-  renderBarChartComMeta('chart-visao-departamentos', labelsDep, dataDep, metaDep, {
+  const desenharVisaoDep = metaDep => renderBarChartComMeta('chart-visao-departamentos', labelsDep, dataDep, metaDep, {
     cor: '#12796B', rotuloReal: 'Custo realizado no mês', rotuloMeta: 'Meta até dia ' + diaAtual, formatarValor: brl,
   });
+  desenharVisaoDep(null);
+  if(filialGlobalId){
+    // Busca a meta do mês ATUAL da filial selecionada no topo — antes usava o que estivesse
+    // carregado na aba Metas (outro mês/filial), e a meta "sumia" do gráfico.
+    mrdMetasDoMes(anoAtual, mesAtual).then(m => {
+      desenharVisaoDep(departamentos.map(d => +(metaProporcionalAteHoje(m[d.id] || 0, anoAtual, mesAtual, diaAtual)).toFixed(2)));
+    });
+  }
 
   const doDiaTudo = baseTudo.filter(q => q.dataISO === hojeISO);
   document.getElementById('tbl-hoje').innerHTML = doDiaTudo.slice(0,10).map(q => `
@@ -5264,7 +5278,7 @@ function montarFiltroMetas(){
     if(filialGlobalId) sel.value = filialGlobalId;
   }
   const mesInput = document.getElementById('metas-mes');
-  if(!mesInput.value){ mesInput.value = new Date().toISOString().slice(0,7); }
+  if(!mesInput.value){ mesInput.value = mrdHoje().slice(0,7); }
   // "Meta x Real" usa o mesmo mês da aba Metas — mantém os dois sincronizados.
   const mesRealInput = document.getElementById('meta-real-mes');
   if(mesRealInput && mesRealInput.value !== mesInput.value){ mesRealInput.value = mesInput.value; }
@@ -5272,7 +5286,32 @@ function montarFiltroMetas(){
 
 // Chamado pelos seletores de mês tanto da aba Metas quanto da aba Meta x Real —
 // os dois representam o mesmo período, então mudar um recarrega os dois.
+let metasSujas = false;                       // há valores digitados e ainda NÃO salvos
+let metasFiltroAtual = { filial: '', mes: '' }; // filial/mês cujos valores estão na tela
+function marcarMetasSujas(){ metasSujas = true; mostrarAvisoMetasSujas(); }
+function mostrarAvisoMetasSujas(){
+  const html = metasSujas ? '<div class="warn" style="margin-top:10px;">⚠️ Você alterou valores que ainda <b>NÃO foram salvos</b>. Clique em <b>"Salvar metas deste mês/filial"</b> (no fim da página) para gravar.</div>' : '';
+  ['metas-aviso', 'metas-aviso-baixo'].forEach(id => { const e = document.getElementById(id); if(e) e.innerHTML = html; });
+}
+function confirmarDescartarMetas(){
+  if(!metasSujas) return true;
+  if(!confirm('Você digitou metas que ainda não foram salvas. Se continuar, esses valores serão perdidos.\n\nOK = descartar e continuar · Cancelar = ficar e salvar antes')) return false;
+  metasSujas = false; mostrarAvisoMetasSujas();
+  return true;
+}
+function restaurarFiltroMetas(){
+  document.getElementById('metas-filial').value = metasFiltroAtual.filial;
+  document.getElementById('metas-mes').value = metasFiltroAtual.mes;
+  const r = document.getElementById('meta-real-mes'); if(r) r.value = metasFiltroAtual.mes;
+}
+function trocarFiltroMetas(){
+  if(!confirmarDescartarMetas()){ restaurarFiltroMetas(); return; }
+  carregarMetas();
+}
+window.addEventListener('beforeunload', e => { if(metasSujas){ e.preventDefault(); e.returnValue = ''; } });
+
 async function mudarMesMetas(origemId){
+  if(!confirmarDescartarMetas()){ restaurarFiltroMetas(); return; }
   const valor = document.getElementById(origemId).value;
   const outroId = origemId === 'metas-mes' ? 'meta-real-mes' : 'metas-mes';
   const outro = document.getElementById(outroId);
@@ -5298,6 +5337,8 @@ async function carregarMetas(){
   turnos.forEach(t => { metasTurno[t.id] = { custo: 0 }; });
   (mt || []).forEach(r => { metasTurno[r.turno_id] = { custo: Number(r.custo_mensal) || 0 }; });
 
+  metasSujas = false; mostrarAvisoMetasSujas();
+  metasFiltroAtual = { filial: String(filialId), mes: document.getElementById('metas-mes').value };
   renderMetas();
 }
 
@@ -5317,7 +5358,7 @@ function renderMetas(){
     return `
       <tr>
         <td>${d.nome}</td>
-        <td><input class="meta-input" type="number" value="${meta.custo}" onchange="metasDepartamento[${d.id}].custo = Number(this.value); renderMetas();" /></td>
+        <td><input class="meta-input" type="number" value="${meta.custo}" onchange="metasDepartamento[${d.id}].custo = Number(this.value) || 0; marcarMetasSujas(); renderMetas();" /></td>
         <td>${brl(realCusto)}</td>
         <td><span class="status-pill ${pct > 100 ? 'status-reprovada' : 'status-aprovada'}">${pct}%</span></td>
       </tr>`;
@@ -5330,7 +5371,7 @@ function renderMetas(){
     return `
       <tr>
         <td>${t.nome}</td>
-        <td><input class="meta-input" type="number" value="${meta.custo}" onchange="metasTurno[${t.id}].custo = Number(this.value); renderMetas();" /></td>
+        <td><input class="meta-input" type="number" value="${meta.custo}" onchange="metasTurno[${t.id}].custo = Number(this.value) || 0; marcarMetasSujas(); renderMetas();" /></td>
         <td>${brl(realCusto)}</td>
         <td><span class="status-pill ${pct > 100 ? 'status-reprovada' : 'status-aprovada'}">${pct}%</span></td>
       </tr>`;
@@ -5573,6 +5614,7 @@ function mrdExportarCsv(){
 async function salvarMetas(){
   const filialId = Number(document.getElementById('metas-filial').value);
   const [ano, mes] = document.getElementById('metas-mes').value.split('-').map(Number);
+  const msg = document.getElementById('metas-msg');
 
   const linhasDep = departamentos.map(d => ({ filial_id: filialId, departamento_id: d.id, ano, mes, custo_mensal: metasDepartamento[d.id].custo }));
   const linhasTurno = turnos.map(t => ({ filial_id: filialId, turno_id: t.id, ano, mes, custo_mensal: metasTurno[t.id].custo }));
@@ -5581,11 +5623,30 @@ async function salvarMetas(){
     sb.from('metas_departamento').upsert(linhasDep, { onConflict: 'filial_id,departamento_id,ano,mes' }),
     sb.from('metas_turno').upsert(linhasTurno, { onConflict: 'filial_id,turno_id,ano,mes' }),
   ]);
+  if(e1 || e2){
+    msg.innerHTML = '<div class="error">Erro ao salvar as metas: ' + fvEsc((e1 || e2).message || '') + '</div>';
+    return;
+  }
 
+  // Confere no banco se gravou mesmo (se alguma permissão bloquear em silêncio, avisa em vez de dizer "salvo").
+  const [{ data: md }, { data: mt }] = await Promise.all([
+    sb.from('metas_departamento').select('*').eq('filial_id', filialId).eq('ano', ano).eq('mes', mes),
+    sb.from('metas_turno').select('*').eq('filial_id', filialId).eq('ano', ano).eq('mes', mes),
+  ]);
+  const difere = (linhas, lidas, campoId) => linhas.filter(l => {
+    const r = (lidas || []).find(x => x[campoId] == l[campoId]);
+    return !r || Math.abs((Number(r.custo_mensal) || 0) - (l.custo_mensal || 0)) > 0.005;
+  }).length;
+  const faltas = difere(linhasDep, md, 'departamento_id') + difere(linhasTurno, mt, 'turno_id');
+  if(faltas){
+    msg.innerHTML = '<div class="error">O banco não confirmou a gravação de ' + faltas + ' meta(s). Os valores continuam na tela, mas NÃO ficaram salvos. Avise o suporte (pode ser permissão das tabelas metas_departamento / metas_turno).</div>';
+    return;
+  }
+
+  metasSujas = false; mostrarAvisoMetasSujas();
   mrdLimparCache();
-  document.getElementById('metas-msg').innerHTML = (e1 || e2)
-    ? '<div class="error">Erro ao salvar as metas.</div>'
-    : '<div class="ok">Metas salvas para ' + nomePor(filiais, filialId) + ' — ' + document.getElementById('metas-mes').value + '.</div>';
+  msg.innerHTML = '<div class="ok">Metas salvas e conferidas no banco para ' + nomePor(filiais, filialId) + ' — ' + document.getElementById('metas-mes').value + '.</div>';
+  renderVisaoDiaria();
 }
 
 

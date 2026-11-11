@@ -1115,7 +1115,7 @@
         <div id="mrd-aviso"></div>
       </div>
       <div class="kpi-grid" id="mrd-kpis" style="grid-template-columns:repeat(5,1fr);"></div>
-      <div class="card"><h3>Dia a dia — real x meta do dia</h3><p class="hint">Barra vermelha = dia que estourou a meta do dia. <b>Clique em uma barra</b> para ver o Pareto das quebras daquele dia.</p><div class="chart-wrap"><canvas id="chart-mrd-dia"></canvas></div></div>
+      <div class="card"><h3>Dia a dia — real x meta do dia</h3><p class="hint">Barra vermelha = dia que estourou a meta do dia. <b>Clique em uma barra</b>: dia → Pareto dos motivos → produtos → lançamentos do app.</p><div class="chart-wrap"><canvas id="chart-mrd-dia"></canvas></div></div>
       <div class="card hidden" id="mrd-pareto-card"></div>
       <div class="card"><h3>Acumulado do período — real x meta</h3><div class="chart-wrap"><canvas id="chart-mrd-acum"></canvas></div></div>
       <div class="card">
@@ -5705,7 +5705,7 @@ async function renderMetaRealDiario(){
   const ch2 = chartInstances['chart-mrd-acum'];
   if(ch2){ ch2.options.scales.x.title.text = 'Dia'; ch2.update(); }
 
-  if(mrdDiaSel && mrdLinhas.some(l => l.iso === mrdDiaSel)) mrdAbrirPareto(mrdDiaSel); else { mrdDiaSel = null; const pc = document.getElementById('mrd-pareto-card'); if(pc) pc.classList.add('hidden'); }
+  if(mrdDiaSel && mrdLinhas.some(l => l.iso === mrdDiaSel)) mrdAbrirPareto(mrdDiaSel, mrdSel.motivoId, mrdSel.produtoId); else { mrdDiaSel = null; const pc = document.getElementById('mrd-pareto-card'); if(pc) pc.classList.add('hidden'); }
 
   document.getElementById('mrd-tbody').innerHTML = mrdLinhas.slice().reverse().map(l => {
     const sit = l.meta === 0 && l.real === 0 ? '<span class="muted">—</span>'
@@ -5717,44 +5717,70 @@ async function renderMetaRealDiario(){
 }
 
 
-// Pareto das quebras aprovadas de um dia (clique na barra do gráfico "Dia a dia"):
-// produtos em ordem do maior custo para o menor, com % e % acumulado.
-function mrdAbrirPareto(iso){
+// Drill-down do gráfico "Dia a dia": dia -> Pareto dos MOTIVOS -> Pareto dos PRODUTOS do motivo
+// -> lançamentos (o que foi lançado no app). Tudo ordenado do maior custo para o menor.
+let mrdSel = { iso: null, motivoId: undefined, produtoId: undefined };
+function mrdAbrirPareto(iso, motivoId, produtoId){
   mrdDiaSel = iso;
+  mrdSel = { iso, motivoId, produtoId };
   const card = document.getElementById('mrd-pareto-card');
   if(!card) return;
   const depSel = document.getElementById('mrd-departamento');
   const depId = depSel.value;
   const nomeDep = depId ? depSel.options[depSel.selectedIndex].text : 'Todos os departamentos';
-  let lista = escopoAprovado().filter(q => q.dataISO === iso);
-  if(depId) lista = lista.filter(q => q.departamentoId == depId);
+  let doDia = escopoAprovado().filter(q => q.dataISO === iso);
+  if(depId) doDia = doDia.filter(q => q.departamentoId == depId);
   const linha = mrdLinhas.find(l => l.iso === iso) || { meta: 0, real: 0 };
-  const por = {};
-  lista.forEach(q => {
-    const p = produtos.find(x => x.id === q.produtoId);
-    const k = q.produtoId;
-    const o = por[k] = por[k] || { nome: p ? ((p.codigo ? p.codigo + ' — ' : '') + p.descricao) : 'Produto não identificado', custo: 0, qtd: 0, n: 0, mot: {} };
-    o.custo += q.custo || 0; o.qtd += Number(q.quantidade) || 0; o.n++;
-    const m = motivos.find(x => x.id === q.motivoId); const mn = m ? (m.nome || m.descricao || '') : '';
-    if(mn) o.mot[mn] = (o.mot[mn] || 0) + (q.custo || 0);
-  });
-  const itens = Object.values(por).sort((a, b) => b.custo - a.custo);
-  const total = itens.reduce((s, i) => s + i.custo, 0);
+  const totalDia = doDia.reduce((s, q) => s + (q.custo || 0), 0);
   const dataTxt = iso.slice(8, 10) + '/' + iso.slice(5, 7) + '/' + iso.slice(0, 4);
+  const nomeMotivo = id => { const m = motivos.find(x => x.id === id); return m ? (m.nome || m.descricao || 'Sem nome') : 'Sem motivo'; };
+  const nomeProd = id => { const p = produtos.find(x => x.id === id); return p ? ((p.codigo ? p.codigo + ' — ' : '') + p.descricao) : 'Produto não identificado'; };
+  const agrupar = (lista, chave, nome) => {
+    const o = {};
+    lista.forEach(q => { const k = chave(q); const x = o[k] = o[k] || { id: q[chave === byMot ? 'motivoId' : 'produtoId'], nome: nome(q), custo: 0, n: 0 }; x.custo += q.custo || 0; x.n++; });
+    return Object.values(o).sort((a, b) => b.custo - a.custo);
+  };
+  const byMot = q => String(q.motivoId), byProd = q => String(q.produtoId);
+
+  // nível atual
+  let nivel = 'motivos', lista = doDia;
+  if(motivoId !== undefined){ lista = lista.filter(q => String(q.motivoId) === String(motivoId)); nivel = 'produtos'; }
+  if(produtoId !== undefined){ lista = lista.filter(q => String(q.produtoId) === String(produtoId)); nivel = 'lancamentos'; }
+  const total = lista.reduce((s, q) => s + (q.custo || 0), 0);
+
+  const crumb = [`<a href="#" onclick="mrdAbrirPareto('${iso}');return false;">📅 ${dataTxt}</a>`];
+  if(motivoId !== undefined) crumb.push(`<a href="#" onclick="mrdAbrirPareto('${iso}','${motivoId}');return false;">${fvEsc(nomeMotivo(Number(motivoId)))}</a>`);
+  if(produtoId !== undefined) crumb.push(`<span>${fvEsc(nomeProd(Number(produtoId)))}</span>`);
+  const titulos = { motivos: 'Pareto dos motivos', produtos: 'Pareto dos produtos', lancamentos: 'Lançamentos feitos no aplicativo' };
+  const dicas = { motivos: 'Clique em um motivo para ver os produtos.', produtos: 'Clique em um produto para ver os lançamentos.', lancamentos: '' };
+
+  let corpo = '';
+  let itens = [];
+  if(!lista.length){
+    corpo = '<p class="muted" style="margin-top:10px;">Nenhuma quebra aprovada neste dia.</p>';
+  } else if(nivel === 'lancamentos'){
+    corpo = `<div style="overflow-x:auto;margin-top:10px;"><table><thead><tr><th>Nº</th><th>Hora</th><th>Produto</th><th>Qtd</th><th>Custo</th><th>Motivo</th><th>Lançado por</th><th>Responsável</th><th>Turno</th></tr></thead><tbody>` +
+      lista.slice().sort((x, y) => (y.custo || 0) - (x.custo || 0)).map(q => {
+        const hora = q.criadoEm ? new Date(q.criadoEm).toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' }) : '—';
+        return `<tr><td>${q.numeroSequencial != null ? q.numeroSequencial : q.id}</td><td>${hora}</td><td>${fvEsc(nomeProd(q.produtoId))}</td><td>${q.quantidade} ${fvEsc(q.unidadeMedida || '')}</td><td><b>${brl(q.custo || 0)}</b></td><td>${fvEsc(nomeMotivo(q.motivoId))}</td><td>${fvEsc(nomePor(pessoas, q.lancadoPorId))}</td><td>${fvEsc(nomePor(pessoas, q.responsavelId))}</td><td>${fvEsc(nomePor(turnos, q.turnoId))}</td></tr>`;
+      }).join('') + '</tbody></table></div>';
+  } else {
+    itens = nivel === 'motivos' ? agrupar(lista, byMot, q => nomeMotivo(q.motivoId)) : agrupar(lista, byProd, q => nomeProd(q.produtoId));
+    let ac = 0;
+    const clique = id => nivel === 'motivos' ? `mrdAbrirPareto('${iso}','${id}')` : `mrdAbrirPareto('${iso}','${motivoId}','${id}')`;
+    corpo = `<div class="chart-wrap"><canvas id="chart-mrd-pareto"></canvas></div>
+      <div style="overflow-x:auto;margin-top:10px;"><table><thead><tr><th>#</th><th>${nivel === 'motivos' ? 'Motivo' : 'Produto'}</th><th>Lanç.</th><th>Custo</th><th>% do total</th><th>% acum.</th></tr></thead><tbody>` +
+      itens.map((i, idx) => { ac += i.custo; return `<tr style="cursor:pointer;" onclick="${clique(i.id)}"><td>${idx + 1}</td><td><a href="#" onclick="return false;">${fvEsc(i.nome)}</a></td><td>${i.n}</td><td><b>${brl(i.custo)}</b></td><td>${total ? (i.custo / total * 100).toFixed(1) : '0.0'}%</td><td>${total ? (ac / total * 100).toFixed(1) : '0.0'}%</td></tr>`; }).join('') +
+      '</tbody></table></div>';
+  }
+
   card.classList.remove('hidden');
-  let ac = 0;
-  const linhasHtml = itens.map((i, idx) => {
-    ac += i.custo;
-    const motTxt = Object.entries(i.mot).sort((a, b) => b[1] - a[1]).map(e => fvEsc(e[0])).join(', ');
-    return `<tr><td>${idx + 1}</td><td>${fvEsc(i.nome)}</td><td>${i.n}</td><td><b>${brl(i.custo)}</b></td><td>${total ? (i.custo / total * 100).toFixed(1) : '0.0'}%</td><td>${total ? (ac / total * 100).toFixed(1) : '0.0'}%</td><td class="muted">${motTxt}</td></tr>`;
-  }).join('');
-  card.innerHTML = `<div class="row-inline" style="justify-content:space-between;align-items:center;"><h3 style="margin:0;">Pareto das quebras — ${dataTxt}</h3><button class="btn btn-outline" style="margin:0;" onclick="mrdFecharPareto()">✕ Fechar</button></div>
-    <p class="hint">${fvEsc(nomeDep)} · quebras aprovadas · Real <b>${brl(total)}</b> · Meta do dia <b>${brl(linha.meta)}</b> · ${itens.length} produto(s), ${lista.length} lançamento(s). Ordenado do maior custo para o menor.</p>
-    ${itens.length ? `<div class="chart-wrap"><canvas id="chart-mrd-pareto"></canvas></div>
-    <div style="overflow-x:auto;margin-top:10px;"><table><thead><tr><th>#</th><th>Produto</th><th>Lanç.</th><th>Custo</th><th>% do dia</th><th>% acum.</th><th>Motivos</th></tr></thead><tbody>${linhasHtml}</tbody></table></div>`
-      : '<p class="muted" style="margin-top:10px;">Nenhuma quebra aprovada neste dia.</p>'}`;
+  card.innerHTML = `<div class="row-inline" style="justify-content:space-between;align-items:center;"><h3 style="margin:0;">${titulos[nivel]}</h3><button class="btn btn-outline" style="margin:0;" onclick="mrdFecharPareto()">✕ Fechar</button></div>
+    <p class="hint" style="margin-top:6px;">${crumb.join(' › ')}</p>
+    <p class="hint">${fvEsc(nomeDep)} · quebras aprovadas · ${lista.length} lançamento(s) · Custo <b>${brl(total)}</b>${nivel === 'motivos' ? ' · Meta do dia <b>' + brl(linha.meta) + '</b>' : ' de ' + brl(totalDia) + ' no dia'}. ${dicas[nivel]}</p>${corpo}`;
+
+  if(chartInstances['chart-mrd-pareto']){ chartInstances['chart-mrd-pareto'].destroy(); delete chartInstances['chart-mrd-pareto']; }
   if(itens.length){
-    if(chartInstances['chart-mrd-pareto']) chartInstances['chart-mrd-pareto'].destroy();
     const top = itens.slice(0, 15); let a2 = 0;
     const acum = top.map(i => { a2 += i.custo; return total ? +(a2 / total * 100).toFixed(1) : 0; });
     chartInstances['chart-mrd-pareto'] = new Chart(document.getElementById('chart-mrd-pareto'), {
@@ -5762,6 +5788,9 @@ function mrdAbrirPareto(iso){
         { type: 'bar', label: 'Custo', data: top.map(i => +i.custo.toFixed(2)), backgroundColor: '#A32D2D', borderRadius: 4, yAxisID: 'y', order: 2 },
         { type: 'line', label: '% acumulado', data: acum, borderColor: '#1F2937', backgroundColor: '#1F2937', pointRadius: 3, tension: 0.2, yAxisID: 'y1', order: 1 } ] },
       options: { responsive: true, maintainAspectRatio: false,
+        onClick: (ev, els) => { const e = els && els.find(x => x.datasetIndex === 0); if(!e) return; const it = top[e.index];
+          if(nivel === 'motivos') mrdAbrirPareto(iso, String(it.id)); else mrdAbrirPareto(iso, String(motivoId), String(it.id)); },
+        onHover: (ev, els) => { const c = ev.native && ev.native.target; if(c) c.style.cursor = els && els.some(x => x.datasetIndex === 0) ? 'pointer' : 'default'; },
         plugins: { legend: { position: 'bottom' }, tooltip: { callbacks: { label: c => c.dataset.type === 'line' ? c.parsed.y + '%' : brl(c.parsed.y) } } },
         scales: { y: { beginAtZero: true, ticks: { callback: v => brl(v) } }, y1: { position: 'right', min: 0, max: 100, grid: { drawOnChartArea: false }, ticks: { callback: v => v + '%' } }, x: { ticks: { maxRotation: 60, minRotation: 30 } } } },
     });
@@ -5769,7 +5798,7 @@ function mrdAbrirPareto(iso){
   card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 function mrdFecharPareto(){
-  mrdDiaSel = null;
+  mrdDiaSel = null; mrdSel = { iso: null };
   if(chartInstances['chart-mrd-pareto']){ chartInstances['chart-mrd-pareto'].destroy(); delete chartInstances['chart-mrd-pareto']; }
   document.getElementById('mrd-pareto-card').classList.add('hidden');
 }

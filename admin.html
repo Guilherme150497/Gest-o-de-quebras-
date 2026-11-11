@@ -5759,10 +5759,10 @@ function mrdAbrirPareto(iso, motivoId, produtoId){
   if(!lista.length){
     corpo = '<p class="muted" style="margin-top:10px;">Nenhuma quebra aprovada neste dia.</p>';
   } else if(nivel === 'lancamentos'){
-    corpo = `<div style="overflow-x:auto;margin-top:10px;"><table><thead><tr><th>Nº</th><th>Hora</th><th>Produto</th><th>Qtd</th><th>Custo</th><th>Motivo</th><th>Lançado por</th><th>Responsável</th><th>Turno</th></tr></thead><tbody>` +
+    corpo = `<div style="overflow-x:auto;margin-top:10px;"><table><thead><tr><th>Nº</th><th>Hora</th><th>Produto</th><th>Qtd</th><th>Custo</th><th>Motivo</th><th>Lançado por</th><th>Responsável</th><th>Turno</th><th>Foto</th></tr></thead><tbody>` +
       lista.slice().sort((x, y) => (y.custo || 0) - (x.custo || 0)).map(q => {
         const hora = q.criadoEm ? new Date(q.criadoEm).toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' }) : '—';
-        return `<tr><td>${q.numeroSequencial != null ? q.numeroSequencial : q.id}</td><td>${hora}</td><td>${fvEsc(nomeProd(q.produtoId))}</td><td>${q.quantidade} ${fvEsc(q.unidadeMedida || '')}</td><td><b>${brl(q.custo || 0)}</b></td><td>${fvEsc(nomeMotivo(q.motivoId))}</td><td>${fvEsc(nomePor(pessoas, q.lancadoPorId))}</td><td>${fvEsc(nomePor(pessoas, q.responsavelId))}</td><td>${fvEsc(nomePor(turnos, q.turnoId))}</td></tr>`;
+        return `<tr><td>${q.numeroSequencial != null ? q.numeroSequencial : q.id}</td><td>${hora}</td><td>${fvEsc(nomeProd(q.produtoId))}</td><td>${q.quantidade} ${fvEsc(q.unidadeMedida || '')}</td><td><b>${brl(q.custo || 0)}</b></td><td>${fvEsc(nomeMotivo(q.motivoId))}</td><td>${fvEsc(nomePor(pessoas, q.lancadoPorId))}</td><td>${fvEsc(nomePor(pessoas, q.responsavelId))}</td><td>${fvEsc(nomePor(turnos, q.turnoId))}</td><td>${mrdFotoHtml(q)}</td></tr>`;
       }).join('') + '</tbody></table></div>';
   } else {
     itens = nivel === 'motivos' ? agrupar(lista, byMot, q => nomeMotivo(q.motivoId)) : agrupar(lista, byProd, q => nomeProd(q.produtoId));
@@ -5796,6 +5796,14 @@ function mrdAbrirPareto(iso, motivoId, produtoId){
     });
   }
   card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+// Miniatura da foto do lançamento (clique = abre ampliada no modal de fotos que já existe).
+function mrdFotoHtml(q){
+  if(!q.fotoPath) return '<span class="muted">sem foto</span>';
+  let url = '';
+  try{ url = sb.storage.from('fotos-quebras').getPublicUrl(q.fotoPath).data.publicUrl || ''; }catch(e){}
+  if(!url) return `<button class="btn-sm btn-outline" onclick="abrirFotoModalPorId(${q.id})">Ver foto</button>`;
+  return `<img src="${fvEsc(url)}" loading="lazy" alt="Foto da quebra" title="Clique para ampliar" onclick="abrirFotoModalPorId(${q.id})" style="width:110px;height:80px;object-fit:cover;border-radius:8px;cursor:zoom-in;border:1px solid var(--border,#d9e1e8);" onerror="this.outerHTML='<button class=&quot;btn-sm btn-outline&quot; onclick=&quot;abrirFotoModalPorId(${q.id})&quot;>Ver foto</button>'" />`;
 }
 function mrdFecharPareto(){
   mrdDiaSel = null; mrdSel = { iso: null };

@@ -185,7 +185,9 @@
     <div id="saudacao-modulos" style="font-weight:800;font-size:19px;color:#0B2545;"></div>
     <div style="color:#7A8CA6;font-size:13.5px;margin-top:4px;">Selecione o módulo de acesso</div>
 
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:16px;margin-top:34px;">
+    <div id="alerta-planilha" style="margin-top:26px;text-align:left;"></div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:16px;margin-top:20px;">
       <div class="card-modulo" style="--cor-modulo:#003DA5;--cor-modulo-fundo:#E7EEFC;" onclick="abrirModulo('visao-diaria')">
         <div class="icone-modulo">📦</div>
         <div class="titulo-modulo">Gestão de Quebras</div>
@@ -1113,7 +1115,8 @@
         <div id="mrd-aviso"></div>
       </div>
       <div class="kpi-grid" id="mrd-kpis" style="grid-template-columns:repeat(5,1fr);"></div>
-      <div class="card"><h3>Dia a dia — real x meta do dia</h3><p class="hint">Barra vermelha = dia que estourou a meta do dia.</p><div class="chart-wrap"><canvas id="chart-mrd-dia"></canvas></div></div>
+      <div class="card"><h3>Dia a dia — real x meta do dia</h3><p class="hint">Barra vermelha = dia que estourou a meta do dia. <b>Clique em uma barra</b> para ver o Pareto das quebras daquele dia.</p><div class="chart-wrap"><canvas id="chart-mrd-dia"></canvas></div></div>
+      <div class="card hidden" id="mrd-pareto-card"></div>
       <div class="card"><h3>Acumulado do período — real x meta</h3><div class="chart-wrap"><canvas id="chart-mrd-acum"></canvas></div></div>
       <div class="card">
         <div class="row-inline" style="justify-content:space-between;align-items:center;"><h3 style="margin:0;">Tabela diária</h3><button class="btn btn-outline" onclick="mrdExportarCsv()">⬇ Exportar CSV</button></div>
@@ -1438,6 +1441,7 @@ function entrarNoAdmin(){
   document.getElementById('who-label').textContent = pessoaAtual.nome;
   document.getElementById('avatar-modulos').textContent = (pessoaAtual.nome || '?').trim().charAt(0).toUpperCase();
   document.getElementById('saudacao-modulos').textContent = pessoaAtual.nome;
+  carregarStatusPlanilha();
   carregarTudo();
 }
 
@@ -2299,6 +2303,76 @@ async function aplicarTodasSugestoesLitros(){
   alert(linhas.length + ' produto(s) atualizado(s).');
 }
 
+
+/* ---------------- ALERTA: ATUALIZAÇÃO MENSAL DA PLANILHA DE PRODUTOS ---------------- */
+
+// A planilha (01.11 / 01.12 / 02.05.02) deve ser importada sempre no 1º dia útil do mês
+// (segunda a sexta; feriados não entram na conta). O banner da tela de módulos mostra OK / Pendente.
+let statusPlanilha = { carregado: false, erro: false, registro: null };
+const spHoje = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+const spFmt = iso => iso.slice(8, 10) + '/' + iso.slice(5, 7) + '/' + iso.slice(0, 4);
+function primeiroDiaUtilISO(ano, mes){
+  let dia = 1;
+  while([0, 6].includes(new Date(ano, mes - 1, dia).getDay())) dia++;
+  return ano + '-' + String(mes).padStart(2, '0') + '-' + String(dia).padStart(2, '0');
+}
+function spDiasEntre(a, b){ return Math.round((new Date(b + 'T12:00:00') - new Date(a + 'T12:00:00')) / 86400000); }
+
+async function carregarStatusPlanilha(){
+  const { data, error } = await sb.from('atualizacoes_cadastro').select('*').eq('chave', 'planilha_produtos').maybeSingle();
+  statusPlanilha = { carregado: true, erro: !!error, registro: data || null };
+  renderStatusPlanilha();
+}
+
+async function registrarAtualizacaoPlanilha(detalhe){
+  const { error } = await sb.from('atualizacoes_cadastro').upsert({
+    chave: 'planilha_produtos', atualizado_em: new Date().toISOString(),
+    atualizado_por: pessoaAtual ? pessoaAtual.nome : null, detalhe: detalhe || null,
+  }, { onConflict: 'chave' });
+  if(error) console.warn('Não registrou a atualização da planilha (rode migration_atualizacao_planilha.sql):', error.message);
+  await carregarStatusPlanilha();
+}
+
+async function marcarPlanilhaAtualizada(){
+  if(!confirm('Marcar a planilha mensal como JÁ ATUALIZADA hoje? (Use só se você já importou a planilha deste mês.)')) return;
+  await registrarAtualizacaoPlanilha('Marcada manualmente como atualizada');
+}
+
+function renderStatusPlanilha(){
+  const el = document.getElementById('alerta-planilha');
+  if(!el) return;
+  const caixa = (cor, fundo, titulo, linha, extra) => '<div style="background:' + fundo + ';border:1.5px solid ' + cor + ';border-radius:14px;padding:14px 18px;">' +
+    '<div style="font-weight:800;font-size:15px;color:' + cor + ';">' + titulo + '</div>' +
+    '<div style="font-size:13px;color:#334155;margin-top:4px;line-height:1.45;">' + linha + '</div>' + (extra || '') + '</div>';
+  if(!statusPlanilha.carregado){ el.innerHTML = ''; return; }
+  if(statusPlanilha.erro){
+    el.innerHTML = caixa('#64748B', '#F1F5F9', '📅 Planilha mensal de produtos e custos', 'Controle ainda não ativado — rode <b>migration_atualizacao_planilha.sql</b> no Supabase.');
+    return;
+  }
+  const hoje = spHoje(), ano = Number(hoje.slice(0, 4)), mes = Number(hoje.slice(5, 7));
+  const venc = primeiroDiaUtilISO(ano, mes);
+  const reg = statusPlanilha.registro;
+  const ultima = reg ? new Date(reg.atualizado_em).toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' }) : null;
+  // Antes do 1º dia útil ainda vale a atualização do mês anterior; a partir dele, só vale a do mês atual.
+  const mesAnt = mes === 1 ? { a: ano - 1, m: 12 } : { a: ano, m: mes - 1 };
+  const inicioValido = hoje < venc ? mesAnt.a + '-' + String(mesAnt.m).padStart(2, '0') + '-01' : ano + '-' + String(mes).padStart(2, '0') + '-01';
+  const ok = !!ultima && ultima >= inicioValido;
+  const quando = reg ? 'Última atualização: <b>' + spFmt(ultima) + '</b>' + (reg.atualizado_por ? ' por ' + fvEsc(reg.atualizado_por) : '') + (reg.detalhe ? ' · ' + fvEsc(reg.detalhe) : '') : 'Nenhuma atualização registrada ainda.';
+  const botao = '<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;"><button class="btn-sm btn-primary" style="width:auto;" onclick="abrirModulo(\'produtos\')">Ir para Atualizar produtos e custos</button>' +
+    '<button class="btn-sm btn-outline" style="width:auto;" onclick="marcarPlanilhaAtualizada()">Já atualizei — marcar como feita</button></div>';
+  if(ok){
+    const prox = hoje < venc ? venc : (mes === 12 ? primeiroDiaUtilISO(ano + 1, 1) : primeiroDiaUtilISO(ano, mes + 1));
+    el.innerHTML = caixa('#0E8E7D', '#E1F4F0', '✅ Planilha de produtos e custos — OK', quando + '<br>Próxima atualização: <b>' + spFmt(prox) + '</b> (1º dia útil do mês).');
+  } else {
+    const dias = spDiasEntre(venc, hoje);
+    const situ = hoje < venc ? 'Deve ser atualizada em <b>' + spFmt(venc) + '</b> (1º dia útil do mês).'
+      : dias === 0 ? 'Vence <b>hoje</b> (1º dia útil do mês).'
+      : 'Deveria ter sido atualizada em <b>' + spFmt(venc) + '</b> (1º dia útil) — <b>' + dias + ' dia(s) de atraso</b>.';
+    const atrasada = hoje > venc;
+    el.innerHTML = caixa(atrasada ? '#B91C1C' : '#B7791F', atrasada ? '#FDECEC' : '#FBEFD8', (atrasada ? '🚨' : '⚠️') + ' Planilha de produtos e custos — PENDENTE', situ + '<br>' + quando, botao);
+  }
+}
+
 async function importarPlanilhaMensal(input){
   const file = input.files[0];
   if(!file) return;
@@ -2383,6 +2457,37 @@ async function importarPlanilhaMensal(input){
     });
   });
 
+  // Código repetido entre abas: fica o último (evita "ON CONFLICT ... a second time").
+  {
+    const porCodigo = new Map();
+    produtosNovos.forEach(p => porCodigo.set(p.codigo, p));
+    produtosNovos.length = 0;
+    porCodigo.forEach(p => produtosNovos.push(p));
+  }
+
+  // O banco só aceita UM código por EAN. A planilha traz várias variantes (códigos diferentes)
+  // com o mesmo EAN — e foi isso que gerava os erros "produtos_ean_key". Agora só UM código fica
+  // com o EAN (quem já tem no cadastro; senão quem tem custo direto; senão o primeiro) e as
+  // outras variantes entram normalmente, só sem o EAN (código, descrição, custo etc. atualizam).
+  let variantesSemEan = 0;
+  {
+    const donoNoBanco = {};
+    produtos.forEach(p => { if(p.ean) donoNoBanco[String(p.ean).trim()] = String(p.codigo).trim(); });
+    const donoNoArquivo = {};
+    produtosNovos.forEach(p => {
+      if(!p.ean || p.eh_vasilhame) return;
+      if(donoNoBanco[p.ean]) return;                       // quem já tem o EAN no cadastro continua com ele
+      const direto = !!custoPorCodigo[p.codigo];
+      const atual = donoNoArquivo[p.ean];
+      if(!atual || (direto && !atual.direto)) donoNoArquivo[p.ean] = { codigo: p.codigo, direto };
+    });
+    produtosNovos.forEach(p => {
+      if(!p.ean) return;
+      const dono = donoNoBanco[p.ean] || (donoNoArquivo[p.ean] && donoNoArquivo[p.ean].codigo);
+      if(dono !== p.codigo){ delete p.ean; variantesSemEan++; }   // sem a chave "ean": não mexe no EAN que já exista
+    });
+  }
+
   if(produtosNovos.length === 0){
     msgEl.innerHTML = '<div class="error">Nenhum produto com custo conhecido foi encontrado. Confira se subiu a planilha certa, sem editar as abas antes.</div>';
     return;
@@ -2394,8 +2499,12 @@ async function importarPlanilhaMensal(input){
   const TAMANHO_LOTE = 200;
   let sucesso = 0;
   const falhas = [];
-  for(let i = 0; i < produtosNovos.length; i += TAMANHO_LOTE){
-    const lote = produtosNovos.slice(i, i + TAMANHO_LOTE);
+  // Agrupa por "formato" (com/sem a chave ean etc.) pra o upsert em lote não zerar campo que ficou de fora.
+  const grupos = {};
+  produtosNovos.forEach(p => { (grupos[Object.keys(p).sort().join('|')] = grupos[Object.keys(p).sort().join('|')] || []).push(p); });
+  const listaEmLotes = [];
+  Object.values(grupos).forEach(g => { for(let i = 0; i < g.length; i += TAMANHO_LOTE) listaEmLotes.push(g.slice(i, i + TAMANHO_LOTE)); });
+  for(const lote of listaEmLotes){
     msgEl.innerHTML = '<div class="muted">Salvando... ' + sucesso + ' de ' + produtosNovos.length + '</div>';
     const { error } = await sb.from('produtos').upsert(lote, { onConflict: 'codigo' });
     if(!error){
@@ -2413,13 +2522,15 @@ async function importarPlanilhaMensal(input){
   }
 
   let resumo = '<div class="' + (sucesso > 0 ? 'ok' : 'error') + '">' + sucesso + ' de ' + produtosNovos.length + ' produtos atualizados — ' + totalNormais + ' produtos + ' + totalVasilhames + ' vasilhames.' +
-    (usandoCustoPorEan > 0 ? ' (' + usandoCustoPorEan + ' pegaram o custo emprestado de outro código com o mesmo EAN.)' : '') + '</div>';
+    (usandoCustoPorEan > 0 ? ' (' + usandoCustoPorEan + ' pegaram o custo emprestado de outro código com o mesmo EAN.)' : '') +
+    (variantesSemEan > 0 ? '<br>ℹ️ ' + variantesSemEan + ' variante(s) tinham o mesmo EAN de outro código: entraram normalmente, mas só um código por EAN guarda o EAN (limite do cadastro).' : '') + '</div>';
   if(falhas.length > 0){
     resumo += '<div class="error">Ficaram de fora (provavelmente EAN duplicado com outro código já cadastrado — confira em "Produtos cadastrados" e ajuste manualmente qual dos dois deve ficar com esse EAN):<br>' + falhas.join('<br>') + '</div>';
   }
   msgEl.innerHTML = resumo;
   input.value = '';
   await carregarProdutos();
+  if(sucesso > 0) await registrarAtualizacaoPlanilha(sucesso + ' de ' + produtosNovos.length + ' produtos' + (falhas.length ? ' (' + falhas.length + ' com erro)' : ''));
 }
 
 async function atualizarEanProduto(id, valor){
@@ -5515,6 +5626,7 @@ async function mrdMetasDoMes(ano, mes){
 function mrdLimparCache(){ Object.keys(mrdCacheMetas).forEach(k => delete mrdCacheMetas[k]); }
 
 let mrdSeq = 0;
+let mrdDiaSel = null;
 async function renderMetaRealDiario(){
   const sel = document.getElementById('mrd-departamento');
   if(!sel || !departamentos.length) return;
@@ -5582,11 +5694,18 @@ async function renderMetaRealDiario(){
   if(ch){
     ch.data.datasets[0].backgroundColor = mrdLinhas.map(l => l.acima ? '#A32D2D' : '#12796B');
     ch.options.plugins.legend = { labels: { generateLabels: c => Chart.defaults.plugins.legend.labels.generateLabels(c).map(l => l.datasetIndex === 0 ? { ...l, fillStyle: '#12796B', strokeStyle: '#12796B' } : l) } };
+    ch.options.onClick = (ev, els) => {
+      const el = els && els.find(e => e.datasetIndex === 0) || (els && els[0]);
+      if(el && mrdLinhas[el.index]) mrdAbrirPareto(mrdLinhas[el.index].iso);
+    };
+    ch.options.onHover = (ev, els) => { const c = ev.native && ev.native.target; if(c) c.style.cursor = els && els.length ? 'pointer' : 'default'; };
     ch.update();
   }
   renderAcumuladoVsMeta('chart-mrd-acum', labels, mrdLinhas.map(l => +l.acR.toFixed(2)), mrdLinhas.map(l => +l.acM.toFixed(2)));
   const ch2 = chartInstances['chart-mrd-acum'];
   if(ch2){ ch2.options.scales.x.title.text = 'Dia'; ch2.update(); }
+
+  if(mrdDiaSel && mrdLinhas.some(l => l.iso === mrdDiaSel)) mrdAbrirPareto(mrdDiaSel); else { mrdDiaSel = null; const pc = document.getElementById('mrd-pareto-card'); if(pc) pc.classList.add('hidden'); }
 
   document.getElementById('mrd-tbody').innerHTML = mrdLinhas.slice().reverse().map(l => {
     const sit = l.meta === 0 && l.real === 0 ? '<span class="muted">—</span>'
@@ -5595,6 +5714,64 @@ async function renderMetaRealDiario(){
     return `<tr><td>${l.iso.slice(8, 10)}/${l.iso.slice(5, 7)} <span class="muted">${mrdDiaSemana(l.iso)}</span></td><td>${brl(l.meta)}</td><td><b>${brl(l.real)}</b></td>
       <td style="${l.diff > 0.005 ? 'color:var(--red);font-weight:600;' : 'color:var(--teal);'}">${brl(l.diff)}</td><td>${brl(l.acM)}</td><td>${brl(l.acR)}</td><td>${sit}</td></tr>`;
   }).join('') || '<tr><td colspan="7" class="muted">Sem dias no período.</td></tr>';
+}
+
+
+// Pareto das quebras aprovadas de um dia (clique na barra do gráfico "Dia a dia"):
+// produtos em ordem do maior custo para o menor, com % e % acumulado.
+function mrdAbrirPareto(iso){
+  mrdDiaSel = iso;
+  const card = document.getElementById('mrd-pareto-card');
+  if(!card) return;
+  const depSel = document.getElementById('mrd-departamento');
+  const depId = depSel.value;
+  const nomeDep = depId ? depSel.options[depSel.selectedIndex].text : 'Todos os departamentos';
+  let lista = escopoAprovado().filter(q => q.dataISO === iso);
+  if(depId) lista = lista.filter(q => q.departamentoId == depId);
+  const linha = mrdLinhas.find(l => l.iso === iso) || { meta: 0, real: 0 };
+  const por = {};
+  lista.forEach(q => {
+    const p = produtos.find(x => x.id === q.produtoId);
+    const k = q.produtoId;
+    const o = por[k] = por[k] || { nome: p ? ((p.codigo ? p.codigo + ' — ' : '') + p.descricao) : 'Produto não identificado', custo: 0, qtd: 0, n: 0, mot: {} };
+    o.custo += q.custo || 0; o.qtd += Number(q.quantidade) || 0; o.n++;
+    const m = motivos.find(x => x.id === q.motivoId); const mn = m ? (m.nome || m.descricao || '') : '';
+    if(mn) o.mot[mn] = (o.mot[mn] || 0) + (q.custo || 0);
+  });
+  const itens = Object.values(por).sort((a, b) => b.custo - a.custo);
+  const total = itens.reduce((s, i) => s + i.custo, 0);
+  const dataTxt = iso.slice(8, 10) + '/' + iso.slice(5, 7) + '/' + iso.slice(0, 4);
+  card.classList.remove('hidden');
+  let ac = 0;
+  const linhasHtml = itens.map((i, idx) => {
+    ac += i.custo;
+    const motTxt = Object.entries(i.mot).sort((a, b) => b[1] - a[1]).map(e => fvEsc(e[0])).join(', ');
+    return `<tr><td>${idx + 1}</td><td>${fvEsc(i.nome)}</td><td>${i.n}</td><td><b>${brl(i.custo)}</b></td><td>${total ? (i.custo / total * 100).toFixed(1) : '0.0'}%</td><td>${total ? (ac / total * 100).toFixed(1) : '0.0'}%</td><td class="muted">${motTxt}</td></tr>`;
+  }).join('');
+  card.innerHTML = `<div class="row-inline" style="justify-content:space-between;align-items:center;"><h3 style="margin:0;">Pareto das quebras — ${dataTxt}</h3><button class="btn btn-outline" style="margin:0;" onclick="mrdFecharPareto()">✕ Fechar</button></div>
+    <p class="hint">${fvEsc(nomeDep)} · quebras aprovadas · Real <b>${brl(total)}</b> · Meta do dia <b>${brl(linha.meta)}</b> · ${itens.length} produto(s), ${lista.length} lançamento(s). Ordenado do maior custo para o menor.</p>
+    ${itens.length ? `<div class="chart-wrap"><canvas id="chart-mrd-pareto"></canvas></div>
+    <div style="overflow-x:auto;margin-top:10px;"><table><thead><tr><th>#</th><th>Produto</th><th>Lanç.</th><th>Custo</th><th>% do dia</th><th>% acum.</th><th>Motivos</th></tr></thead><tbody>${linhasHtml}</tbody></table></div>`
+      : '<p class="muted" style="margin-top:10px;">Nenhuma quebra aprovada neste dia.</p>'}`;
+  if(itens.length){
+    if(chartInstances['chart-mrd-pareto']) chartInstances['chart-mrd-pareto'].destroy();
+    const top = itens.slice(0, 15); let a2 = 0;
+    const acum = top.map(i => { a2 += i.custo; return total ? +(a2 / total * 100).toFixed(1) : 0; });
+    chartInstances['chart-mrd-pareto'] = new Chart(document.getElementById('chart-mrd-pareto'), {
+      data: { labels: top.map(i => i.nome.length > 28 ? i.nome.slice(0, 27) + '…' : i.nome), datasets: [
+        { type: 'bar', label: 'Custo', data: top.map(i => +i.custo.toFixed(2)), backgroundColor: '#A32D2D', borderRadius: 4, yAxisID: 'y', order: 2 },
+        { type: 'line', label: '% acumulado', data: acum, borderColor: '#1F2937', backgroundColor: '#1F2937', pointRadius: 3, tension: 0.2, yAxisID: 'y1', order: 1 } ] },
+      options: { responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position: 'bottom' }, tooltip: { callbacks: { label: c => c.dataset.type === 'line' ? c.parsed.y + '%' : brl(c.parsed.y) } } },
+        scales: { y: { beginAtZero: true, ticks: { callback: v => brl(v) } }, y1: { position: 'right', min: 0, max: 100, grid: { drawOnChartArea: false }, ticks: { callback: v => v + '%' } }, x: { ticks: { maxRotation: 60, minRotation: 30 } } } },
+    });
+  }
+  card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+function mrdFecharPareto(){
+  mrdDiaSel = null;
+  if(chartInstances['chart-mrd-pareto']){ chartInstances['chart-mrd-pareto'].destroy(); delete chartInstances['chart-mrd-pareto']; }
+  document.getElementById('mrd-pareto-card').classList.add('hidden');
 }
 
 function mrdExportarCsv(){

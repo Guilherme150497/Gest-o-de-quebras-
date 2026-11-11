@@ -5759,10 +5759,13 @@ function mrdAbrirPareto(iso, motivoId, produtoId){
   if(!lista.length){
     corpo = '<p class="muted" style="margin-top:10px;">Nenhuma quebra aprovada neste dia.</p>';
   } else if(nivel === 'lancamentos'){
-    corpo = `<div style="overflow-x:auto;margin-top:10px;"><table><thead><tr><th>Nº</th><th>Hora</th><th>Produto</th><th>Qtd</th><th>Custo</th><th>Motivo</th><th>Lançado por</th><th>Responsável</th><th>Turno</th><th>Foto</th></tr></thead><tbody>` +
+    // colunas extras conforme o departamento: Entrega/Puxada = placa + motorista; Armazém = área + equipamento
+    const temVei = lista.some(q => q.veiculoId), temMot = lista.some(q => q.motoristaId), temAre = lista.some(q => q.areaId), temEqp = lista.some(q => q.equipamentoId);
+    const extraTh = (temVei ? '<th>Placa</th>' : '') + (temMot ? '<th>Motorista</th>' : '') + (temAre ? '<th>Área</th>' : '') + (temEqp ? '<th>Equipamento</th>' : '');
+    corpo = `<div style="overflow-x:auto;margin-top:10px;"><table><thead><tr><th>Nº</th><th>Hora</th><th>Produto</th><th>Qtd</th><th>Custo</th><th>Motivo</th>${extraTh}<th>Lançado por</th><th>Responsável</th><th>Turno</th><th>Foto</th></tr></thead><tbody>` +
       lista.slice().sort((x, y) => (y.custo || 0) - (x.custo || 0)).map(q => {
         const hora = q.criadoEm ? new Date(q.criadoEm).toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' }) : '—';
-        return `<tr><td>${q.numeroSequencial != null ? q.numeroSequencial : q.id}</td><td>${hora}</td><td>${fvEsc(nomeProd(q.produtoId))}</td><td>${q.quantidade} ${fvEsc(q.unidadeMedida || '')}</td><td><b>${brl(q.custo || 0)}</b></td><td>${fvEsc(nomeMotivo(q.motivoId))}</td><td>${fvEsc(nomePor(pessoas, q.lancadoPorId))}</td><td>${fvEsc(nomePor(pessoas, q.responsavelId))}</td><td>${fvEsc(nomePor(turnos, q.turnoId))}</td><td>${mrdFotoHtml(q)}</td></tr>`;
+        return `<tr><td>${q.numeroSequencial != null ? q.numeroSequencial : q.id}</td><td>${hora}</td><td>${fvEsc(nomeProd(q.produtoId))}</td><td>${q.quantidade} ${fvEsc(q.unidadeMedida || '')}</td><td><b>${brl(q.custo || 0)}</b></td><td>${fvEsc(nomeMotivo(q.motivoId))}</td>${(temVei ? '<td>' + fvEsc(nomePor(veiculos, q.veiculoId)) + '</td>' : '') + (temMot ? '<td>' + fvEsc(nomePor(motoristas, q.motoristaId)) + '</td>' : '') + (temAre ? '<td>' + fvEsc(nomePor(areas, q.areaId)) + '</td>' : '') + (temEqp ? '<td>' + fvEsc(nomePor(equipamentos, q.equipamentoId)) + '</td>' : '')}<td>${fvEsc(nomePor(pessoas, q.lancadoPorId))}</td><td>${fvEsc(nomePor(pessoas, q.responsavelId))}</td><td>${fvEsc(nomePor(turnos, q.turnoId))}</td><td>${mrdFotoHtml(q)}</td></tr>`;
       }).join('') + '</tbody></table></div>';
   } else {
     itens = nivel === 'motivos' ? agrupar(lista, byMot, q => nomeMotivo(q.motivoId)) : agrupar(lista, byProd, q => nomeProd(q.produtoId));

@@ -187,38 +187,39 @@
 
     <div id="alerta-planilha" style="margin-top:26px;text-align:left;"></div>
 
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:16px;margin-top:20px;">
-      <div class="card-modulo" style="--cor-modulo:#003DA5;--cor-modulo-fundo:#E7EEFC;" onclick="abrirModulo('visao-diaria')">
+    <div id="aviso-sem-modulo" class="hidden" style="margin-top:20px;background:#fff;border:1.5px solid #B7791F;border-radius:14px;padding:16px;color:#334155;">Nenhum módulo foi liberado para o seu usuário. Peça ao administrador para liberar em Cadastros › Pessoas.</div>
+    <div id="grade-modulos" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:16px;margin-top:20px;">
+      <div class="card-modulo" style="--cor-modulo:#003DA5;--cor-modulo-fundo:#E7EEFC;" data-modulo-card="quebras" onclick="abrirModulo('visao-diaria')">
         <div class="icone-modulo">📦</div>
         <div class="titulo-modulo">Gestão de Quebras</div>
         <div class="desc-modulo">Visão diária, aprovações, análises, custo e metas</div>
       </div>
-      <div class="card-modulo" style="--cor-modulo:#0E8E7D;--cor-modulo-fundo:#E1F4F0;" onclick="abrirModulo('transferencias')">
+      <div class="card-modulo" style="--cor-modulo:#0E8E7D;--cor-modulo-fundo:#E1F4F0;" data-modulo-card="transferencias" onclick="abrirModulo('transferencias')">
         <div class="icone-modulo">🔄</div>
         <div class="titulo-modulo">Transferências</div>
         <div class="desc-modulo">Movimentação de produtos entre depósitos</div>
       </div>
-      <div class="card-modulo" style="--cor-modulo:#0891B2;--cor-modulo-fundo:#E0F4F8;" onclick="abrirModulo('repack-painel')">
+      <div class="card-modulo" style="--cor-modulo:#0891B2;--cor-modulo-fundo:#E0F4F8;" data-modulo-card="repack" onclick="abrirModulo('repack-painel')">
         <div class="icone-modulo">♻️</div>
         <div class="titulo-modulo">Repack</div>
         <div class="desc-modulo">Produtividade e painel de reembalagens</div>
       </div>
-      <div class="card-modulo" style="--cor-modulo:#0D9488;--cor-modulo-fundo:#DDF4F1;" onclick="abrirModulo('despejo-painel')">
+      <div class="card-modulo" style="--cor-modulo:#0D9488;--cor-modulo-fundo:#DDF4F1;" data-modulo-card="despejo" onclick="abrirModulo('despejo-painel')">
         <div class="icone-modulo">🚰</div>
         <div class="titulo-modulo">Despejo</div>
         <div class="desc-modulo">Produtividade e painel de despejos</div>
       </div>
-      <div class="card-modulo" style="--cor-modulo:#B7791F;--cor-modulo-fundo:#FBEFD8;" onclick="abrirModulo('fv-aprovacoes')">
+      <div class="card-modulo" style="--cor-modulo:#B7791F;--cor-modulo-fundo:#FBEFD8;" data-modulo-card="falta-vasilhame" onclick="abrirModulo('fv-aprovacoes')">
         <div class="icone-modulo">🍾</div>
         <div class="titulo-modulo">Falta de Vasilhame</div>
         <div class="desc-modulo">Retorno de rota: aprovação, prazo de devolução, vales e reincidência</div>
       </div>
-      <div class="card-modulo" style="--cor-modulo:#7C3AED;--cor-modulo-fundo:#EEE6FD;" onclick="abrirModulo('sr-classificar')">
+      <div class="card-modulo" style="--cor-modulo:#7C3AED;--cor-modulo-fundo:#EEE6FD;" data-modulo-card="sobras-rota" onclick="abrirModulo('sr-classificar')">
         <div class="icone-modulo">🔄</div>
         <div class="titulo-modulo">Sobras de Rota</div>
         <div class="desc-modulo">Produtos que voltaram da rota: classificação, Op. 39 / Op. 5 e análises</div>
       </div>
-      <div class="card-modulo" style="--cor-modulo:#475569;--cor-modulo-fundo:#E7EAEE;" onclick="abrirModulo('filiais')">
+      <div class="card-modulo" style="--cor-modulo:#475569;--cor-modulo-fundo:#E7EAEE;" data-modulo-card="cadastros" onclick="abrirModulo('filiais')">
         <div class="icone-modulo">🗂️</div>
         <div class="titulo-modulo">Cadastros</div>
         <div class="desc-modulo">Pessoas, produtos, veículos, depósitos e mais</div>
@@ -388,7 +389,7 @@
           esquecer a senha, use "Redefinir senha" na mesma linha.
         </p>
         <table>
-          <thead><tr><th>Nome</th><th>Cargo</th><th>Filial</th><th>Ativo</th><th>Pode lançar</th><th>Admin</th><th>Aprova quebras de</th><th>E-mail</th><th>Acesso</th><th></th></tr></thead>
+          <thead><tr><th>Nome</th><th>Cargo</th><th>Filial</th><th>Ativo</th><th>Pode lançar</th><th>Admin</th><th>Aprova quebras de</th><th>Módulos liberados</th><th>E-mail</th><th>Acesso</th><th></th></tr></thead>
           <tbody id="tbl-pessoas"></tbody>
         </table>
         <div class="add-row">
@@ -527,6 +528,8 @@
           Só entram linhas com status <b>E</b> ou <b>A</b>, e só os motivos de quebra mapeados (os outros códigos
           de baixa — bonificação, amostra, vencimento etc. — são ignorados automaticamente).
         </p>
+        <div class="row-inline" style="margin-bottom:10px;"><button class="btn btn-outline" onclick="baixarModeloPromax()">⬇ Baixar modelo da planilha</button>
+          <span class="hint" style="margin:0;">Baixe o modelo, cole o relatório 03.02.37 de cada base na aba correspondente e envie aqui. Atualizar no 1º dia útil do mês.</span></div>
         <input type="file" id="file-promax" accept=".xlsx,.xls" onchange="importarPlanilhaPromax(this)" />
         <div id="msg-promax-import" style="margin-top:10px;"></div>
       </div>
@@ -1249,6 +1252,8 @@
           realmente usa. Produtos que já existem são atualizados (código, descrição, EAN,
           embalagem, fator e custo); produtos novos são criados automaticamente.
         </p>
+        <div class="row-inline" style="margin-bottom:10px;"><button class="btn btn-outline" onclick="baixarModeloProdutos()">⬇ Baixar modelo da planilha</button>
+          <span class="hint" style="margin:0;">Baixe o modelo, o time cola os 3 relatórios nas abas (01.11, 01.12, 02.05.02) e envia aqui — não precisa guardar planilha em lugar nenhum.</span></div>
         <input type="file" id="file-planilha-mensal" accept=".xlsx,.xls" onchange="importarPlanilhaMensal(this)" />
         <div id="msg-planilha-mensal"></div>
       </div>
@@ -1444,6 +1449,7 @@ function entrarNoAdmin(){
   document.getElementById('who-label').textContent = pessoaAtual.nome;
   document.getElementById('avatar-modulos').textContent = (pessoaAtual.nome || '?').trim().charAt(0).toUpperCase();
   document.getElementById('saudacao-modulos').textContent = pessoaAtual.nome;
+  aplicarAcessoModulos();
   carregarStatusPlanilha();
   carregarTudo();
 }
@@ -1474,6 +1480,7 @@ const TITULO_DE_MODULO = {
 };
 
 function abrirModulo(tabId){
+  if(!temModulo(MODULO_DE_TAB[tabId])){ alert('Seu usuário não tem acesso a esse módulo. (Liberado pelo administrador em Cadastros › Pessoas.)'); return; }
   document.getElementById('view-modulos').classList.add('hidden');
   document.getElementById('view-admin').classList.remove('hidden');
   const tab = document.querySelector('.tab[data-tab="' + tabId + '"]');
@@ -1828,10 +1835,77 @@ async function carregarPessoas(){
       <td><button class="toggle ${p.pode_logar ? 'on' : ''}" onclick="atualizarPessoa(${p.id}, {pode_logar: ${!p.pode_logar}})"><span class="dot"></span></button></td>
       <td><button class="toggle ${p.is_admin ? 'on' : ''}" onclick="atualizarPessoa(${p.id}, {is_admin: ${!p.is_admin}})"><span class="dot"></span></button></td>
       <td>${celulaDeptosAprovacao(p)}</td>
+      <td>${celulaModulos(p)}</td>
       <td><input class="small-input" value="${p.email || ''}" onchange="atualizarPessoa(${p.id}, {email: this.value.trim() || null})" placeholder="email@cobeb.app" /></td>
       <td><button class="btn-sm btn-outline" onclick="${p.auth_id ? 'redefinirSenhaPessoa' : 'criarLoginPessoa'}(${p.id})">${p.auth_id ? '🔑 Redefinir senha' : '➕ Criar login'}</button></td>
       <td><button class="btn btn-danger" onclick="removerRegistro('pessoas', ${p.id}, carregarPessoas)">Excluir</button></td>
     </tr>`).join('');
+}
+
+/* ---------------- ACESSO POR MÓDULO (usuários gerenciais) ----------------
+   pessoas.modulos_acesso: null = todos os módulos (padrão — quem já existia continua com tudo) | [ids] = só esses | [] = nenhum.
+   Esconde os cartões e bloqueia a abertura. A trava de dados de verdade continua nas regras do banco (RLS). */
+const MODULOS_LISTA = [
+  { id: 'quebras', nome: '📦 Gestão de Quebras' },
+  { id: 'transferencias', nome: '🔄 Transferências' },
+  { id: 'repack', nome: '♻️ Repack' },
+  { id: 'despejo', nome: '🚰 Despejo' },
+  { id: 'falta-vasilhame', nome: '🍾 Falta de Vasilhame' },
+  { id: 'sobras-rota', nome: '🔄 Sobras de Rota' },
+  { id: 'cadastros', nome: '🗂️ Cadastros' },
+];
+function modulosPermitidosIds(p){
+  const a = p && p.modulos_acesso;
+  return Array.isArray(a) ? a : null;
+}
+function temModulo(modulo, pessoa){
+  const a = modulosPermitidosIds(pessoa || pessoaAtual);
+  return a === null || !modulo || a.includes(modulo);
+}
+function aplicarAcessoModulos(){
+  let visiveis = 0;
+  document.querySelectorAll('[data-modulo-card]').forEach(c => {
+    const ok = temModulo(c.dataset.moduloCard);
+    c.classList.toggle('hidden', !ok);
+    if(ok) visiveis++;
+  });
+  const av = document.getElementById('aviso-sem-modulo');
+  if(av) av.classList.toggle('hidden', visiveis > 0);
+}
+function resumoModulos(p){
+  const a = modulosPermitidosIds(p);
+  if(a === null) return '<span class="status-pill status-aprovada">Todos</span>';
+  if(!a.length) return '<span class="status-pill status-reprovada">Nenhum</span>';
+  return a.map(id => { const m = MODULOS_LISTA.find(x => x.id === id); return '<span class="status-pill status-pendente" style="margin:1px;">' + (m ? m.nome : id) + '</span>'; }).join(' ');
+}
+function celulaModulos(p){
+  if(!p.is_admin) return '<span class="muted">—</span>';
+  const bloqueado = modulosPermitidosIds(pessoaAtual) !== null; // quem tem restrição não altera o acesso dos outros
+  return resumoModulos(p) + '<div><button class="btn-sm btn-outline" style="margin-top:4px;" ' + (bloqueado ? 'disabled title="Só um administrador com todos os módulos pode alterar"' : '') + ' onclick="abrirAcessoModulos(' + p.id + ')">Editar</button></div>';
+}
+function abrirAcessoModulos(id){
+  const p = pessoas.find(x => x.id === id);
+  if(!p) return;
+  const a = modulosPermitidosIds(p);
+  const todos = a === null;
+  fvAbrirModal('<h3>Módulos liberados — ' + fvEsc(p.nome) + '</h3>' +
+    '<p class="muted">Escolha quais módulos do gerencial esta pessoa pode abrir. Os demais não aparecem para ela.</p>' +
+    '<label style="display:flex;gap:8px;align-items:center;font-weight:700;margin:10px 0;"><input type="checkbox" id="mod-todos" ' + (todos ? 'checked' : '') + ' onchange="document.querySelectorAll(\'.mod-item\').forEach(c => { c.disabled = this.checked; if(this.checked) c.checked = true; })" /> Todos os módulos</label>' +
+    '<div style="border:1px solid var(--line);border-radius:8px;padding:8px 12px;">' +
+    MODULOS_LISTA.map(m => '<label style="display:flex;gap:8px;align-items:center;padding:5px 0;"><input type="checkbox" class="mod-item" value="' + m.id + '" ' + (todos || a.includes(m.id) ? 'checked' : '') + (todos ? ' disabled' : '') + ' /> ' + m.nome + '</label>').join('') + '</div>' +
+    '<div class="row-inline" style="margin-top:16px;"><button class="btn btn-outline" onclick="fvFecharModal()">Cancelar</button><button class="btn btn-aprovar" onclick="salvarAcessoModulos(' + id + ')">Salvar</button></div>');
+}
+async function salvarAcessoModulos(id){
+  const todos = document.getElementById('mod-todos').checked;
+  const marcados = [...document.querySelectorAll('.mod-item')].filter(c => c.checked).map(c => c.value);
+  const valor = (todos || marcados.length === MODULOS_LISTA.length) ? null : marcados;
+  if(valor !== null && !valor.length && !confirm('Nenhum módulo marcado: essa pessoa não conseguirá abrir nada no gerencial. Confirmar?')) return;
+  if(valor !== null && pessoaAtual && pessoaAtual.id === id && !valor.includes('cadastros') && !confirm('Você está tirando o seu próprio acesso a Cadastros — depois não conseguirá mais alterar acessos. Confirmar?')) return;
+  const { error } = await sb.from('pessoas').update({ modulos_acesso: valor }).eq('id', id);
+  if(error){ alert('Erro ao salvar: ' + error.message + '\n\nSe a mensagem falar em coluna inexistente, rode a migration_modulos_acesso.sql no Supabase.'); return; }
+  if(pessoaAtual && pessoaAtual.id === id){ pessoaAtual.modulos_acesso = valor; aplicarAcessoModulos(); renderStatusPlanilha(); }
+  fvFecharModal();
+  await carregarPessoas();
 }
 
 /* ---------------- PERMISSÃO POR DEPARTAMENTO (aprovação/edição de quebras) ----------------
@@ -2307,11 +2381,65 @@ async function aplicarTodasSugestoesLitros(){
 }
 
 
-/* ---------------- ALERTA: ATUALIZAÇÃO MENSAL DA PLANILHA DE PRODUTOS ---------------- */
+/* ---------------- MODELOS DE PLANILHA PARA BAIXAR (o time só cola os relatórios) ---------------- */
+const MODELO_PRODUTOS_CAB = {"01.11":["Código","Descrição","PGV","Empresa","Tipo Marca","Linha Marca","Embalagem","Marca","Vasilhame","Garrrafeira","ICMS","Tipo Roadshow","Peso Bruto Kg","Fator","Fator Hecto","Fator Hecto Comercial","Ind Palmtop","Grupo","Grupo Remuneração","EAN","Tab ICMS","Caixas Pallet","Nr Fator Conversão","Lastro","Fam. Embalagem SIV","Pauta PIS Litro","Pauta COFINS Litro","Caixas Pallet 1","Capacidade 1","Fat Ajust 1","Caixas Pallet 2","Capacidade 2","Fat Ajust 2","Caixas Pallet 3","Capacidade 3","Fat Ajust 3","Ordem de Carga","Estoque Minímo Puxada","Código Produto SAP","Vasilhame Fictício","NCM","Apura Royalties","Tipo Produto Royalties","CEST","EAN Trib","Código Unitário","Descrição unitária","Subtipo"],"01.12":["Código","Tipo Mercadoria","Descrição","Un Venda","Tipo Marca","Grupo","Seção","Família","Capacidade","Peso Bruto","Fator Conversor","Tipo Roadshow","Conta Corrente","Retornável","Ind Meia","Id Tp Material","Id Tp Embalagem","Tipo Material","Vasilhame Fictício","NCM","Tab ICMS","CEST","CST CBS/IBS","Class Trib CBS/IBS"],"02.05.02":["Armazem","Deposito","         ","Produto","Descricao","Unidade","Saldo Anterior","Entradas","Saidas","Saldo Atual","Transito","Disponivel","Inventario","Diferenca","Diferenca Congelamento","Trans_Ant","Trans_Ant_nao_carregado","Trans_Dia_nao_carregado","Comodato OP03","Venda Vas OP85","Valorizacao","Sinal","Tipo           ","Fator          ","Custo Médio    ","Ult. Reposição ","Médio Reposição","Qtd Estoque    ","Qtd Contagem   ","Estoque CM     ","Estoque UR     ","Estoque MR     ","Contagem CM    ","Contagem UR    ","Contagem MR    ","Sub-Depósitos  ","Saldo Atual Real","Saldo Grade Real"]};
+const MODELO_PROMAX_CAB = {"03.02.37 - LP":["Base","Empresa","Filial","Operacao .","Motorista ","          ","Dt. Operacao","Emissao   ","Nota","Serie","Status","Mot. Cancelamento","Transf. Multi-CDD","Cliente","Nome","Indicador CA/Prazo","Produto","Unidade","Descrição","Combo Vendas","Qtde","Valor","ICMS","ICMS St","Adic. Finan","Desconto","Total","Mapa","Nr Tit. Bco","Nr. Pedido","IPI","Frete","Adic. Escal","Trib. PIS Pauta","Trib. PIS Alíquota","Trib. COFINS Pauta","Trib. COFINS Alíquota","NF Referencia","Série NF Referencia","Data NF Referencia","Status NF-e","Motivo Rejeicao/Denegacao","Descricao Motivo","Data Contingencia","Hora Contingencia","Nr Protocolo","Chave de Acesso NF-e","Indicador NF-e","Hora Envio","Hora Retorno","Indicador de Caneta","Indicador Fora Rota Entrega","ID. Mensageria","Status Sefaz HB.NFeX","Data Retorno HB.NFeX","Hora Retorno HB.NFeX","Data Envio 2V","Estoque Atualizado","Dt. Emissao Fiscal","Nota Fiscal Exportada para Promax Central","Prazo","NF Retorno Vasilhame","NF Venda AG/Produto/Material","NF Retorno Remessa Puxada AG","NF Recolha Comodato","NF Troca Realizada","Taxa de Entrega","Origem do Pedido","Vl. Desconto Algoritmo","Meta Algoritmo","Desc Disponível Padrão","Desc Disponível Ação","Vl. Desconto Algoritmo Aut","Código Ação Desconto Alg Fix","Valor TTV Planejado","Valor Sugerido","Cod. Setor Atendimento","Tipo Setor Atendimento","Setor","Código da Escalonada do Pedido","Tipo Escalonada do Pedido","Faixa da Escalonada do Pedido","Indicador de Preço Pontual","Indicador de Preço Cheio","TTV da Escalonada do Pedido","Indicador de Unidade","Data Captura Pedido","NF Regerada","Série NF Regerada","Indicador Cancelamento","Red Icms Próprio","Red Fecop Próprio","Red Icms ST","Red Fecop ST","Cód. Situação Tributária","CST CBS","Classificação Tributaria CBS","Base CBS","Aliquota CBS","Redução Aliquota CBS","Alíquota Efetiva CBS","Valor CBS","CST IBS","Classificação Tributaria IBS","Base IBS","Aliquota IBS Estadual","Redução Aliquota IBS Estadual","Alíquota Efetiva IBS Estadual","Valor IBS Estadual","Aliquota IBS Municipal","Redução Aliquota IBS Municipal","Alíquota Efetiva IBS Municipal","Valor IBS Municipal","Valor Total IBS","Finalidade de Emissão","Tipo de Nota Crédito/Débito","Valor Estorno Crédito IBS","Valor Estorno Crédito CBS"],"03.02.37 - AB":["Abaeté","Empresa","Filial","Operacao .","Motorista ","          ","Dt. Operacao","Emissao   ","Nota","Serie","Status","Mot. Cancelamento","Transf. Multi-CDD","Cliente","Nome","Indicador CA/Prazo","Produto","Unidade","Descrição","Combo Vendas","Qtde","Valor","ICMS","ICMS St","Adic. Finan","Desconto","Total","Mapa","Nr Tit. Bco","Nr. Pedido","IPI","Frete","Adic. Escal","Trib. PIS Pauta","Trib. PIS Alíquota","Trib. COFINS Pauta","Trib. COFINS Alíquota","NF Referencia","Série NF Referencia","Data NF Referencia","Status NF-e","Motivo Rejeicao/Denegacao","Descricao Motivo","Data Contingencia","Hora Contingencia","Nr Protocolo","Chave de Acesso NF-e","Indicador NF-e","Hora Envio","Hora Retorno","Indicador de Caneta","Indicador Fora Rota Entrega","ID. Mensageria","Status Sefaz HB.NFeX","Data Retorno HB.NFeX","Hora Retorno HB.NFeX","Data Envio 2V","Estoque Atualizado","Dt. Emissao Fiscal","Nota Fiscal Exportada para Promax Central","Prazo","NF Retorno Vasilhame","NF Venda AG/Produto/Material","NF Retorno Remessa Puxada AG","NF Recolha Comodato","NF Troca Realizada","Taxa de Entrega","Origem do Pedido","Vl. Desconto Algoritmo","Meta Algoritmo","Desc Disponível Padrão","Desc Disponível Ação","Vl. Desconto Algoritmo Aut","Código Ação Desconto Alg Fix","Valor TTV Planejado","Valor Sugerido","Cod. Setor Atendimento","Tipo Setor Atendimento","Setor","Código da Escalonada do Pedido","Tipo Escalonada do Pedido","Faixa da Escalonada do Pedido","Indicador de Preço Pontual","Indicador de Preço Cheio","TTV da Escalonada do Pedido","Indicador de Unidade","Data Captura Pedido","NF Regerada","Série NF Regerada","Indicador Cancelamento","Red Icms Próprio","Red Fecop Próprio","Red Icms ST","Red Fecop ST","Cód. Situação Tributária","CST CBS","Classificação Tributaria CBS","Base CBS","Aliquota CBS","Redução Aliquota CBS","Alíquota Efetiva CBS","Valor CBS","CST IBS","Classificação Tributaria IBS","Base IBS","Aliquota IBS Estadual","Redução Aliquota IBS Estadual","Alíquota Efetiva IBS Estadual","Valor IBS Estadual","Aliquota IBS Municipal","Redução Aliquota IBS Municipal","Alíquota Efetiva IBS Municipal","Valor IBS Municipal","Valor Total IBS","Finalidade de Emissão","Tipo de Nota Crédito/Débito","Valor Estorno Crédito IBS","Valor Estorno Crédito CBS"],"03.02.37 - PM":["Empresa","Filial","Operacao .","Motorista ","          ","Dt. Operacao","Emissao   ","Nota","Serie","Status","Mot. Cancelamento","Transf. Multi-CDD","Cliente","Nome","Indicador CA/Prazo","Produto","Unidade","Descrição","Combo Vendas","Qtde","Valor","ICMS","ICMS St","Adic. Finan","Desconto","Total","Mapa","Nr Tit. Bco","Nr. Pedido","IPI","Frete","Adic. Escal","Trib. PIS Pauta","Trib. PIS Alíquota","Trib. COFINS Pauta","Trib. COFINS Alíquota","NF Referencia","Série NF Referencia","Data NF Referencia","Status NF-e","Motivo Rejeicao/Denegacao","Descricao Motivo","Data Contingencia","Hora Contingencia","Nr Protocolo","Chave de Acesso NF-e","Indicador NF-e","Hora Envio","Hora Retorno","Indicador de Caneta","Indicador Fora Rota Entrega","ID. Mensageria","Status Sefaz HB.NFeX","Data Retorno HB.NFeX","Hora Retorno HB.NFeX","Data Envio 2V","Estoque Atualizado","Dt. Emissao Fiscal","Nota Fiscal Exportada para Promax Central","Prazo","NF Retorno Vasilhame","NF Venda AG/Produto/Material","NF Retorno Remessa Puxada AG","NF Recolha Comodato","NF Troca Realizada","Taxa de Entrega","Origem do Pedido","Vl. Desconto Algoritmo","Meta Algoritmo","Desc Disponível Padrão","Desc Disponível Ação","Vl. Desconto Algoritmo Aut","Código Ação Desconto Alg Fix","Valor TTV Planejado","Valor Sugerido","Cod. Setor Atendimento","Tipo Setor Atendimento","Setor","Código da Escalonada do Pedido","Tipo Escalonada do Pedido","Faixa da Escalonada do Pedido","Indicador de Preço Pontual","Indicador de Preço Cheio","TTV da Escalonada do Pedido","Indicador de Unidade","Capacidade Carga Veículo","Peso Bruto Mapa","Data Captura Pedido","NF Regerada","Série NF Regerada","Indicador Cancelamento","Red Icms Próprio","Red Fecop Próprio","Red Icms ST","Red Fecop ST","Cód. Situação Tributária","CST CBS","Classificação Tributaria CBS","Base CBS","Aliquota CBS","Redução Aliquota CBS","Alíquota Efetiva CBS","Valor CBS","CST IBS","Classificação Tributaria IBS","Base IBS","Aliquota IBS Estadual","Redução Aliquota IBS Estadual","Alíquota Efetiva IBS Estadual","Valor IBS Estadual","Aliquota IBS Municipal","Redução Aliquota IBS Municipal","Alíquota Efetiva IBS Municipal","Valor IBS Municipal","Valor Total IBS","Finalidade de Emissão","Tipo de Nota Crédito/Débito","Valor Estorno Crédito IBS","Valor Estorno Crédito CBS"]};
 
-// A planilha (01.11 / 01.12 / 02.05.02) deve ser importada sempre no 1º dia útil do mês
-// (segunda a sexta; feriados não entram na conta). O banner da tela de módulos mostra OK / Pendente.
-let statusPlanilha = { carregado: false, erro: false, registro: null };
+function baixarModeloXlsx(arquivo, abas, instrucoes){
+  if(!window.XLSX){ alert('A biblioteca de planilhas não carregou. Confira a internet e recarregue a página (Ctrl+F5).'); return; }
+  const wb = XLSX.utils.book_new();
+  Object.entries(abas).forEach(([nome, cab]) => {
+    const ws = XLSX.utils.aoa_to_sheet([cab]);
+    ws['!cols'] = cab.map(h => ({ wch: Math.min(Math.max(String(h).trim().length + 2, 10), 30) }));
+    XLSX.utils.book_append_sheet(wb, ws, nome);
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(instrucoes.map(l => [l])), 'LEIA-ME');
+  XLSX.writeFile(wb, arquivo);
+}
+function baixarModeloProdutos(){
+  baixarModeloXlsx('Modelo_Atualizar_Produtos_e_Custos.xlsx', MODELO_PRODUTOS_CAB, [
+    'MODELO — Atualização mensal de produtos e custos (COBEB)',
+    '',
+    'Como usar (1º dia útil de cada mês):',
+    '1) Emita os 3 relatórios do Promax: 01.11 (produtos), 01.12 (vasilhames) e 02.05.02 (custos).',
+    '2) Cole cada relatório na aba de mesmo nome, a partir da célula A2 (a linha 1 é o cabeçalho — não apague).',
+    '   Se preferir, cole o relatório inteiro, com o cabeçalho, a partir da A1.',
+    '3) NÃO renomeie as abas (01.11, 01.12, 02.05.02) e não troque a ordem das colunas.',
+    '4) Salve o arquivo e envie em: Cadastros > Produtos > "Atualizar produtos e custos".',
+    '',
+    'O que o sistema usa de cada aba:',
+    '  01.11     -> coluna A (código), B (descrição), G (embalagem), N (fator), T (EAN)',
+    '  01.12     -> coluna A (código), C (descrição)',
+    '  02.05.02  -> coluna D (produto), Y (custo médio), Z (custo do vasilhame)',
+    '',
+    'Produtos sem custo na 02.05.02 ficam de fora (isso filtra o catálogo nacional).',
+  ]);
+}
+function baixarModeloPromax(){
+  baixarModeloXlsx('Modelo_Promax_03.02.37.xlsx', MODELO_PROMAX_CAB, [
+    'MODELO — Planilha do Promax 03.02.37 para a Conferência x Promax (COBEB)',
+    '',
+    'Como usar (1º dia útil de cada mês):',
+    '1) No Promax, emita o relatório 03.02.37 de cada base.',
+    '2) Cole o relatório na aba da base, a partir da célula A2 (a linha 1 é o cabeçalho — não apague):',
+    '   "03.02.37 - LP" = Lagoa da Prata | "03.02.37 - AB" = Abaeté | "03.02.37 - PM" = Pará de Minas',
+    '   Se preferir, cole o relatório inteiro, com o cabeçalho, a partir da A1.',
+    '3) NÃO renomeie as abas. Pode deixar vazia a aba de uma base que não quer atualizar.',
+    '4) Salve e envie em: Gestão de Quebras > Conferência x Promax > "Importar planilha do Promax".',
+    '',
+    'ATENÇÃO: cada importação SUBSTITUI os dados do Promax da(s) base(s) que estiver(em) no arquivo.',
+    'Colunas usadas: Motorista, Emissão, Status (só E ou A), Produto, Descrição, Qtde e Valor.',
+  ]);
+}
+
+/* ---------------- ALERTA: ATUALIZAÇÃO MENSAL DAS PLANILHAS (produtos e Promax) ----------------
+   Cada planilha deve ser importada no 1º dia útil do mês (segunda a sexta; feriados não entram na conta).
+   O quadro na tela de módulos mostra OK / Pendente. Registro na tabela atualizacoes_cadastro (1 linha por chave). */
+const ALERTAS_PLANILHA = [
+  { chave: 'planilha_produtos', titulo: 'Planilha de produtos e custos', modulo: 'cadastros', aba: 'produtos', onde: 'Cadastros › Produtos' },
+  { chave: 'planilha_promax', titulo: 'Planilha do Promax (03.02.37)', modulo: 'quebras', aba: 'check-promax', onde: 'Conferência x Promax' },
+];
+let statusPlanilha = { carregado: false, erro: false, regs: {} };
 const spHoje = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
 const spFmt = iso => iso.slice(8, 10) + '/' + iso.slice(5, 7) + '/' + iso.slice(0, 4);
 function primeiroDiaUtilISO(ano, mes){
@@ -2322,58 +2450,63 @@ function primeiroDiaUtilISO(ano, mes){
 function spDiasEntre(a, b){ return Math.round((new Date(b + 'T12:00:00') - new Date(a + 'T12:00:00')) / 86400000); }
 
 async function carregarStatusPlanilha(){
-  const { data, error } = await sb.from('atualizacoes_cadastro').select('*').eq('chave', 'planilha_produtos').maybeSingle();
-  statusPlanilha = { carregado: true, erro: !!error, registro: data || null };
+  const { data, error } = await sb.from('atualizacoes_cadastro').select('*');
+  const regs = {};
+  (data || []).forEach(r => { regs[r.chave] = r; });
+  statusPlanilha = { carregado: true, erro: !!error, regs };
   renderStatusPlanilha();
 }
 
-async function registrarAtualizacaoPlanilha(detalhe){
+async function registrarAtualizacaoPlanilha(chave, detalhe){
   const { error } = await sb.from('atualizacoes_cadastro').upsert({
-    chave: 'planilha_produtos', atualizado_em: new Date().toISOString(),
+    chave, atualizado_em: new Date().toISOString(),
     atualizado_por: pessoaAtual ? pessoaAtual.nome : null, detalhe: detalhe || null,
   }, { onConflict: 'chave' });
   if(error) console.warn('Não registrou a atualização da planilha (rode migration_atualizacao_planilha.sql):', error.message);
   await carregarStatusPlanilha();
 }
 
-async function marcarPlanilhaAtualizada(){
-  if(!confirm('Marcar a planilha mensal como JÁ ATUALIZADA hoje? (Use só se você já importou a planilha deste mês.)')) return;
-  await registrarAtualizacaoPlanilha('Marcada manualmente como atualizada');
+async function marcarPlanilhaAtualizada(chave){
+  const al = ALERTAS_PLANILHA.find(x => x.chave === chave);
+  if(!al || !confirm('Marcar "' + al.titulo + '" como JÁ ATUALIZADA hoje? (Use só se você já importou a planilha deste mês.)')) return;
+  await registrarAtualizacaoPlanilha(chave, 'Marcada manualmente como atualizada');
 }
 
 function renderStatusPlanilha(){
   const el = document.getElementById('alerta-planilha');
   if(!el) return;
+  if(!statusPlanilha.carregado){ el.innerHTML = ''; return; }
   const caixa = (cor, fundo, titulo, linha, extra) => '<div style="background:' + fundo + ';border:1.5px solid ' + cor + ';border-radius:14px;padding:14px 18px;">' +
     '<div style="font-weight:800;font-size:15px;color:' + cor + ';">' + titulo + '</div>' +
     '<div style="font-size:13px;color:#334155;margin-top:4px;line-height:1.45;">' + linha + '</div>' + (extra || '') + '</div>';
-  if(!statusPlanilha.carregado){ el.innerHTML = ''; return; }
+  const lista = ALERTAS_PLANILHA.filter(al => typeof temModulo !== 'function' || temModulo(al.modulo));
   if(statusPlanilha.erro){
-    el.innerHTML = caixa('#64748B', '#F1F5F9', '📅 Planilha mensal de produtos e custos', 'Controle ainda não ativado — rode <b>migration_atualizacao_planilha.sql</b> no Supabase.');
+    el.innerHTML = lista.length ? '<div style="display:grid;gap:10px;">' + caixa('#64748B', '#F1F5F9', '📅 Atualização mensal das planilhas', 'Controle ainda não ativado — rode <b>migration_atualizacao_planilha.sql</b> no Supabase.') + '</div>' : '';
     return;
   }
   const hoje = spHoje(), ano = Number(hoje.slice(0, 4)), mes = Number(hoje.slice(5, 7));
   const venc = primeiroDiaUtilISO(ano, mes);
-  const reg = statusPlanilha.registro;
-  const ultima = reg ? new Date(reg.atualizado_em).toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' }) : null;
-  // Antes do 1º dia útil ainda vale a atualização do mês anterior; a partir dele, só vale a do mês atual.
   const mesAnt = mes === 1 ? { a: ano - 1, m: 12 } : { a: ano, m: mes - 1 };
+  // Antes do 1º dia útil ainda vale a atualização do mês anterior; a partir dele, só vale a do mês atual.
   const inicioValido = hoje < venc ? mesAnt.a + '-' + String(mesAnt.m).padStart(2, '0') + '-01' : ano + '-' + String(mes).padStart(2, '0') + '-01';
-  const ok = !!ultima && ultima >= inicioValido;
-  const quando = reg ? 'Última atualização: <b>' + spFmt(ultima) + '</b>' + (reg.atualizado_por ? ' por ' + fvEsc(reg.atualizado_por) : '') + (reg.detalhe ? ' · ' + fvEsc(reg.detalhe) : '') : 'Nenhuma atualização registrada ainda.';
-  const botao = '<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;"><button class="btn-sm btn-primary" style="width:auto;" onclick="abrirModulo(\'produtos\')">Ir para Atualizar produtos e custos</button>' +
-    '<button class="btn-sm btn-outline" style="width:auto;" onclick="marcarPlanilhaAtualizada()">Já atualizei — marcar como feita</button></div>';
-  if(ok){
-    const prox = hoje < venc ? venc : (mes === 12 ? primeiroDiaUtilISO(ano + 1, 1) : primeiroDiaUtilISO(ano, mes + 1));
-    el.innerHTML = caixa('#0E8E7D', '#E1F4F0', '✅ Planilha de produtos e custos — OK', quando + '<br>Próxima atualização: <b>' + spFmt(prox) + '</b> (1º dia útil do mês).');
-  } else {
+  el.innerHTML = '<div style="display:grid;gap:10px;">' + lista.map(al => {
+    const reg = statusPlanilha.regs[al.chave] || null;
+    const ultima = reg ? new Date(reg.atualizado_em).toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' }) : null;
+    const ok = !!ultima && ultima >= inicioValido;
+    const quando = reg ? 'Última atualização: <b>' + spFmt(ultima) + '</b>' + (reg.atualizado_por ? ' por ' + fvEsc(reg.atualizado_por) : '') + (reg.detalhe ? ' · ' + fvEsc(reg.detalhe) : '') : 'Nenhuma atualização registrada ainda.';
+    const botao = '<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;"><button class="btn-sm btn-primary" style="width:auto;" onclick="abrirModulo(\'' + al.aba + '\')">Ir para ' + al.onde + '</button>' +
+      '<button class="btn-sm btn-outline" style="width:auto;" onclick="marcarPlanilhaAtualizada(\'' + al.chave + '\')">Já atualizei — marcar como feita</button></div>';
+    if(ok){
+      const prox = hoje < venc ? venc : (mes === 12 ? primeiroDiaUtilISO(ano + 1, 1) : primeiroDiaUtilISO(ano, mes + 1));
+      return caixa('#0E8E7D', '#E1F4F0', '✅ ' + al.titulo + ' — OK', quando + '<br>Próxima atualização: <b>' + spFmt(prox) + '</b> (1º dia útil do mês).');
+    }
     const dias = spDiasEntre(venc, hoje);
     const situ = hoje < venc ? 'Deve ser atualizada em <b>' + spFmt(venc) + '</b> (1º dia útil do mês).'
       : dias === 0 ? 'Vence <b>hoje</b> (1º dia útil do mês).'
       : 'Deveria ter sido atualizada em <b>' + spFmt(venc) + '</b> (1º dia útil) — <b>' + dias + ' dia(s) de atraso</b>.';
     const atrasada = hoje > venc;
-    el.innerHTML = caixa(atrasada ? '#B91C1C' : '#B7791F', atrasada ? '#FDECEC' : '#FBEFD8', (atrasada ? '🚨' : '⚠️') + ' Planilha de produtos e custos — PENDENTE', situ + '<br>' + quando, botao);
-  }
+    return caixa(atrasada ? '#B91C1C' : '#B7791F', atrasada ? '#FDECEC' : '#FBEFD8', (atrasada ? '🚨 ' : '⚠️ ') + al.titulo + ' — PENDENTE', situ + '<br>' + quando, botao);
+  }).join('') + '</div>';
 }
 
 async function importarPlanilhaMensal(input){
@@ -2533,7 +2666,7 @@ async function importarPlanilhaMensal(input){
   msgEl.innerHTML = resumo;
   input.value = '';
   await carregarProdutos();
-  if(sucesso > 0) await registrarAtualizacaoPlanilha(sucesso + ' de ' + produtosNovos.length + ' produtos' + (falhas.length ? ' (' + falhas.length + ' com erro)' : ''));
+  if(sucesso > 0) await registrarAtualizacaoPlanilha('planilha_produtos', sucesso + ' de ' + produtosNovos.length + ' produtos' + (falhas.length ? ' (' + falhas.length + ' com erro)' : ''));
 }
 
 async function atualizarEanProduto(id, valor){
@@ -3704,6 +3837,7 @@ async function importarPlanilhaPromax(input){
   await carregarPromaxBaixas();
   renderCheckPromax();
   input.value = '';
+  await registrarAtualizacaoPlanilha('planilha_promax', relatorioPorFilial.map(r => r.filial + ': ' + r.linhas).join(' · '));
 }
 
 function popularFiltroCheckPromax(){

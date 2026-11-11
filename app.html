@@ -1854,6 +1854,10 @@ let srForm = SR_FORM_VAZIO();
 
 const srEsc = t => String(t ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const srQtdTxt = (q, un) => q + (un === 'caixa' ? ' cx' : ' un');
+// Produto que tem vasilhame cadastrado (vínculo no cadastro): em vez de caixa, o conferente lança em DÚZIAS ou UNIDADES.
+// Dúzias são convertidas em unidades (x12) antes de gravar — nada muda no banco.
+const srTemVasilhame = id => { const p = srProdutos.find(x => x.id === Number(id)); return !!(p && p.vasilhame_produto_id); };
+const srUnEfetiva = () => { const tv = srTemVasilhame(srForm.prodId); return tv ? (srForm.un === 'unidade' ? 'unidade' : 'duzia') : (srForm.un === 'duzia' ? 'caixa' : srForm.un); };
 const srLabelProd = p => (p.codigo ? p.codigo + ' – ' : '') + p.descricao;
 const srNomeProd = id => { const p = srProdutos.find(x => x.id === Number(id)); return p ? srLabelProd(p) : '—'; };
 const srNomeMot = id => { const m = srMotoristas.find(x => x.id === id); return m ? m.nome : '—'; };
@@ -1868,7 +1872,7 @@ async function srCarregarTudo(){
   const buscarProdutos = async () => {
     let tudo = [];
     for(let ini = 0; ; ini += 1000){
-      const { data, error } = await sb.from('produtos').select('id,descricao,codigo,ativo').eq('ativo', true).order('descricao').order('id').range(ini, ini + 999);
+      const { data, error } = await sb.from('produtos').select('id,descricao,codigo,ativo,vasilhame_produto_id').eq('ativo', true).order('descricao').order('id').range(ini, ini + 999);
       if(error){ console.error('Sobras — produtos:', error); break; }
       tudo = tudo.concat(data || []);
       if(!data || data.length < 1000) break;
@@ -1919,6 +1923,7 @@ function srDigitou(campo, valor){
   lista.style.display = (t && !exato) ? 'block' : 'none';
   const ind = document.getElementById('sr-ok-' + campo);
   if(ind) ind.innerHTML = srForm[cId] ? '✓' : '';
+  if(campo === 'prod') srAtualizarUnidades();
   srAtualizarBotoes();
 }
 function srEscolher(campo, id){
@@ -1930,6 +1935,7 @@ function srEscolher(campo, id){
   document.getElementById('sr-l-' + campo).style.display = 'none';
   const ind = document.getElementById('sr-ok-' + campo);
   if(ind) ind.innerHTML = '✓';
+  if(campo === 'prod') srAtualizarUnidades();
   srAtualizarBotoes();
 }
 function srCampoHtml(campo, rotulo, placeholder){
@@ -1948,7 +1954,8 @@ function srItemDoRascunho(){
     const o39 = srInt(srForm.op39), o5 = srInt(srForm.op5);
     return { prod: srForm.prodId, tipo: 'sobra_analise', op39: o39, op5: o5, qtd: o39 + o5, un: 'unidade' };
   }
-  return { prod: srForm.prodId, qtd: srForm.qtd, un: srForm.un, tipo: 'sobra_rota', sub: srForm.sub };
+  if(srUnEfetiva() === 'duzia') return { prod: srForm.prodId, qtd: srForm.qtd * 12, un: 'unidade', duzias: srForm.qtd, tipo: 'sobra_rota', sub: srForm.sub };
+  return { prod: srForm.prodId, qtd: srForm.qtd, un: srUnEfetiva(), tipo: 'sobra_rota', sub: srForm.sub };
 }
 function srItensParaEnviar(){
   const l = [...srForm.itens];
@@ -1963,7 +1970,7 @@ function srAdicionarItem(){
 }
 const srDetalheItem = i => i.tipo === 'sobra_analise'
   ? 'Op. 39 (bom estado): <b>' + i.op39 + ' un</b> · Op. 5 (avariados): <b>' + i.op5 + ' un</b>'
-  : srQtdTxt(i.qtd, i.un);
+  : (i.duzias ? i.duzias + (i.duzias === 1 ? ' dúzia' : ' dúzias') + ' (' + i.qtd + ' un)' : srQtdTxt(i.qtd, i.un));
 function srRemoverItem(i){ srForm.itens.splice(i, 1); srRender(); }
 function srPodeEnviar(){
   return !!srForm.placaId && !!srForm.motId && srForm.mapa.trim() !== '' && srItensParaEnviar().length > 0 && !srEnviando;
@@ -1971,6 +1978,20 @@ function srPodeEnviar(){
 function srAtualizarBotoes(){
   const add = document.getElementById('sr-btn-add'); if(add) add.disabled = !srRascunhoValido();
   const env = document.getElementById('sr-btn-env'); if(env) env.disabled = !srPodeEnviar();
+}
+
+// Unidade da quantidade na Sobra de Rota: produto com vasilhame = Dúzias/Unidade; os demais = Caixa/Unidade.
+function srHtmlUnidades(){
+  return (srTemVasilhame(srForm.prodId)
+    ? '<div class="fv-unit"><button class="' + (srUnEfetiva() === 'duzia' ? 'on' : '') + '" onclick="srForm.un=\'duzia\';srAtualizarUnidades()">🍾 Dúzias</button>' +
+      '<button class="' + (srUnEfetiva() === 'unidade' ? 'on' : '') + '" onclick="srForm.un=\'unidade\';srAtualizarUnidades()">🍾 Unidade</button></div>' +
+      '<p style="font-size:12px;color:var(--sub);margin:6px 0 0;">Produto com vasilhame: lance em <b>dúzias</b> ou em <b>unidades</b> (1 dúzia = 12 un).</p>'
+    : '<div class="fv-unit"><button class="' + (srUnEfetiva() === 'caixa' ? 'on' : '') + '" onclick="srForm.un=\'caixa\';srAtualizarUnidades()">📦 Caixa</button>' +
+      '<button class="' + (srUnEfetiva() === 'unidade' ? 'on' : '') + '" onclick="srForm.un=\'unidade\';srAtualizarUnidades()">🍾 Unidade</button></div>');
+}
+function srAtualizarUnidades(){
+  const el = document.getElementById('sr-un-bloco');
+  if(el) el.innerHTML = srHtmlUnidades();
 }
 
 function srHtmlLancar(){
@@ -2001,8 +2022,7 @@ function srHtmlLancar(){
         '<div class="fv-qty"><button onclick="srForm.qtd=Math.max(1,srForm.qtd-1);srRender()">−</button>' +
         '<input type="number" min="1" value="' + srForm.qtd + '" onchange="srForm.qtd=Math.max(1,parseInt(this.value)||1);srRender()"/>' +
         '<button onclick="srForm.qtd++;srRender()">+</button></div>' +
-        '<div class="fv-unit"><button class="' + (srForm.un === 'caixa' ? 'on' : '') + '" onclick="srForm.un=\'caixa\';srRender()">📦 Caixa</button>' +
-        '<button class="' + (srForm.un === 'unidade' ? 'on' : '') + '" onclick="srForm.un=\'unidade\';srRender()">🍾 Unidade</button></div>'
+        '<div id="sr-un-bloco">' + srHtmlUnidades() + '</div>'
       : '<div class="fv-banner fv-b-amb" style="margin-top:10px">⚠️ Informe as quantidades <b>sempre em UNIDADES</b> (não em caixas).</div>' +
         '<label>Op. 39 — Produtos em bom estado (unidades)</label>' +
         '<input type="number" min="0" step="1" inputmode="numeric" placeholder="0" value="' + srEsc(srForm.op39) + '" oninput="srForm.op39=this.value;srAtualizarBotoes()"/>' +

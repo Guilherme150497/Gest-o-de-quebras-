@@ -5539,6 +5539,9 @@ function montarFiltroMetas(){
 // Chamado pelos seletores de mês tanto da aba Metas quanto da aba Meta x Real —
 // os dois representam o mesmo período, então mudar um recarrega os dois.
 let metasSujas = false;                       // há valores digitados e ainda NÃO salvos
+let metasEditadas = { dep: new Set(), turno: new Set() }; // só estas linhas (digitadas por você) são gravadas — o resto nunca é regravado
+let metasCarregadasOk = false;                // a leitura do banco funcionou; senão a tela mostraria 0 falso e o salvar é bloqueado
+let metasSeq = 0;
 let metasFiltroAtual = { filial: '', mes: '' }; // filial/mês cujos valores estão na tela
 function marcarMetasSujas(){ metasSujas = true; mostrarAvisoMetasSujas(); }
 function mostrarAvisoMetasSujas(){
@@ -5577,10 +5580,15 @@ async function carregarMetas(){
   const [ano, mes] = document.getElementById('metas-mes').value.split('-').map(Number);
   if(!filialId || !ano || !mes) return;
 
-  const [{ data: md }, { data: mt }] = await Promise.all([
+  const meuSeq = ++metasSeq;
+  const [{ data: md, error: erroMd }, { data: mt, error: erroMt }] = await Promise.all([
     sb.from('metas_departamento').select('*').eq('filial_id', filialId).eq('ano', ano).eq('mes', mes),
     sb.from('metas_turno').select('*').eq('filial_id', filialId).eq('ano', ano).eq('mes', mes),
   ]);
+  if(meuSeq !== metasSeq) return; // chegou uma carga mais nova (troca rápida de filial/mês): ignora esta
+  metasCarregadasOk = !(erroMd || erroMt);
+  if(!metasCarregadasOk) console.error('Metas — erro ao ler do banco:', erroMd || erroMt);
+  metasEditadas = { dep: new Set(), turno: new Set() };
   metasDepartamento = {};
   departamentos.forEach(d => { metasDepartamento[d.id] = { custo: 0 }; });
   (md || []).forEach(r => { metasDepartamento[r.departamento_id] = { custo: Number(r.custo_mensal) || 0 }; });
@@ -5591,6 +5599,9 @@ async function carregarMetas(){
 
   metasSujas = false; mostrarAvisoMetasSujas();
   metasFiltroAtual = { filial: String(filialId), mes: document.getElementById('metas-mes').value };
+  const msgErro = document.getElementById('metas-msg');
+  if(msgErro && !metasCarregadasOk) msgErro.innerHTML = '<div class="error">Não consegui ler as metas do banco (' + fvEsc(((erroMd || erroMt).message) || 'erro') + '). Os zeros na tela NÃO são reais e o botão salvar está bloqueado. Recarregue a página (Ctrl+F5).</div>';
+  else if(msgErro && msgErro.querySelector('.error')) msgErro.innerHTML = '';
   renderMetas();
 }
 
@@ -5610,7 +5621,7 @@ function renderMetas(){
     return `
       <tr>
         <td>${d.nome}</td>
-        <td><input class="meta-input" type="number" value="${meta.custo}" onchange="metasDepartamento[${d.id}].custo = Number(this.value) || 0; marcarMetasSujas(); renderMetas();" /></td>
+        <td><input class="meta-input" type="number" value="${meta.custo}" onchange="metasDepartamento[${d.id}].custo = Number(this.value) || 0; metasEditadas.dep.add(${d.id}); marcarMetasSujas(); renderMetas();" /></td>
         <td>${brl(realCusto)}</td>
         <td><span class="status-pill ${pct > 100 ? 'status-reprovada' : 'status-aprovada'}">${pct}%</span></td>
       </tr>`;
@@ -5623,7 +5634,7 @@ function renderMetas(){
     return `
       <tr>
         <td>${t.nome}</td>
-        <td><input class="meta-input" type="number" value="${meta.custo}" onchange="metasTurno[${t.id}].custo = Number(this.value) || 0; marcarMetasSujas(); renderMetas();" /></td>
+        <td><input class="meta-input" type="number" value="${meta.custo}" onchange="metasTurno[${t.id}].custo = Number(this.value) || 0; metasEditadas.turno.add(${t.id}); marcarMetasSujas(); renderMetas();" /></td>
         <td>${brl(realCusto)}</td>
         <td><span class="status-pill ${pct > 100 ? 'status-reprovada' : 'status-aprovada'}">${pct}%</span></td>
       </tr>`;
@@ -5974,8 +5985,22 @@ async function salvarMetas(){
   const [ano, mes] = document.getElementById('metas-mes').value.split('-').map(Number);
   const msg = document.getElementById('metas-msg');
 
-  const linhasDep = departamentos.map(d => ({ filial_id: filialId, departamento_id: d.id, ano, mes, custo_mensal: metasDepartamento[d.id].custo }));
-  const linhasTurno = turnos.map(t => ({ filial_id: filialId, turno_id: t.id, ano, mes, custo_mensal: metasTurno[t.id].custo }));
+  if(!metasCarregadasOk){ msg.innerHTML = '<div class="error">As metas deste mês/filial não foram lidas do banco — por segurança não dá para salvar agora. Recarregue a página (Ctrl+F5).</div>'; return; }
+  // Só grava as metas que VOCÊ digitou nesta tela. As demais ficam intactas no banco (nunca são regravadas com 0).
+  const linhasDep = departamentos.filter(d => metasEditadas.dep.has(d.id)).map(d => ({ filial_id: filialId, departamento_id: d.id, ano, mes, custo_mensal: metasDepartamento[d.id].custo }));
+  const linhasTurno = turnos.filter(t => metasEditadas.turno.has(t.id)).map(t => ({ filial_id: filialId, turno_id: t.id, ano, mes, custo_mensal: metasTurno[t.id].custo }));
+  if(!linhasDep.length && !linhasTurno.length){ msg.innerHTML = '<div class="warn">Nenhuma meta foi alterada — nada a salvar.</div>'; return; }
+
+  // Se vai ZERAR uma meta que hoje tem valor no banco, pede confirmação.
+  const [{ data: antD }, { data: antT }] = await Promise.all([
+    sb.from('metas_departamento').select('*').eq('filial_id', filialId).eq('ano', ano).eq('mes', mes),
+    sb.from('metas_turno').select('*').eq('filial_id', filialId).eq('ano', ano).eq('mes', mes),
+  ]);
+  const zerando = [
+    ...linhasDep.filter(l => !(l.custo_mensal > 0) && (antD || []).some(r => r.departamento_id == l.departamento_id && Number(r.custo_mensal) > 0)).map(l => nomePor(departamentos, l.departamento_id)),
+    ...linhasTurno.filter(l => !(l.custo_mensal > 0) && (antT || []).some(r => r.turno_id == l.turno_id && Number(r.custo_mensal) > 0)).map(l => nomePor(turnos, l.turno_id)),
+  ];
+  if(zerando.length && !confirm('ATENÇÃO: você vai ZERAR a meta de: ' + zerando.join(', ') + '.\nHoje elas têm valor cadastrado. Confirmar?')) return;
 
   const [{ error: e1 }, { error: e2 }] = await Promise.all([
     sb.from('metas_departamento').upsert(linhasDep, { onConflict: 'filial_id,departamento_id,ano,mes' }),

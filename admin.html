@@ -1099,7 +1099,7 @@
         </div>
         <div class="kpi-grid" id="metas-dia-turno-kpi" style="grid-template-columns:repeat(2,1fr);margin-top:12px;"></div>
         <div class="chart-wrap"><canvas id="chart-metas-turno-diario"></canvas></div>
-        <p class="hint" style="margin-top:14px;">Todos os turnos juntos (do departamento selecionado acima), pra visualizar na reunião:</p>
+        <p class="hint" style="margin-top:14px;">Todos os turnos juntos (do departamento selecionado acima), pra visualizar na reunião. <b id="metas-dia-ref-txt"></b></p>
         <table>
           <thead><tr><th>Turno</th><th>Meta até hoje</th><th>Realizado até hoje</th><th>Diferença</th></tr></thead>
           <tbody id="tbl-meta-real-turno"></tbody>
@@ -1456,6 +1456,7 @@ function entrarNoAdmin(){
   document.getElementById('saudacao-modulos').textContent = pessoaAtual.nome;
   aplicarAcessoModulos();
   carregarStatusPlanilha();
+  diaDaTela = mrdHoje();
   carregarTudo();
 }
 
@@ -1558,6 +1559,22 @@ document.querySelectorAll('.tab').forEach(tab => {
     if(tab.dataset.tab === 'check-promax') renderCheckPromax();
   });
 });
+
+/* ---------------- ATUALIZAÇÃO AO VIRAR O DIA ----------------
+   As metas "até hoje" são proporcionais ao dia do mês. Se a página fica aberta de um dia pro outro (ou o computador
+   hiberna), a tela continuava com o dia antigo. Agora, ao voltar pra aba ou a cada minuto, se o dia mudou, recarrega
+   os lançamentos e redesenha tudo. Não mexe em nada que você esteja digitando nas metas. */
+let diaDaTela = null;
+async function verificarVirouODia(){
+  const hoje = mrdHoje();
+  if(diaDaTela === null){ diaDaTela = hoje; return; }
+  if(hoje === diaDaTela || !pessoaAtual || document.getElementById('view-admin').classList.contains('hidden') && document.getElementById('view-modulos').classList.contains('hidden')) return;
+  diaDaTela = hoje;
+  try{ mrdLimparCache(); await carregarQuebras(); renderTudo(); }catch(e){ console.warn('Falha ao atualizar na virada do dia:', e); }
+}
+setInterval(verificarVirouODia, 60000);
+document.addEventListener('visibilitychange', () => { if(!document.hidden) verificarVirouODia(); });
+window.addEventListener('focus', verificarVirouODia);
 
 /* ---------------- CARREGAMENTO GERAL ---------------- */
 
@@ -5725,6 +5742,8 @@ function renderAcompanhamentoDiarioMetas(){
 
   // Tabela com todos os turnos juntos (não só o selecionado no dropdown acima) —
   // pra ver todos de uma vez na reunião, igual você pediu.
+  const refTxt = document.getElementById('metas-dia-ref-txt');
+  if(refTxt) refTxt.textContent = 'Referência: dia ' + String(diaReferencia).padStart(2, '0') + '/' + String(mes).padStart(2, '0') + ' — ' + diasUteisAte(ano, mes, diaReferencia) + ' de ' + diasUteisNoMes(ano, mes) + ' dias úteis do mês (meta proporcional).';
   const tblTurnos = document.getElementById('tbl-meta-real-turno');
   if(tblTurnos){
     tblTurnos.innerHTML = turnos.map(t => {
